@@ -1,0 +1,104 @@
+{
+    "rules": [
+        {
+            "pattern": "/Create issue (.+) for project (\\d+)/i",
+            "response": {
+                "content": "I can create issue {{1}} for that project once you confirm.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_issue_create",
+                        "name": "create_issue",
+                        "arguments": {
+                            "project_id": "{{2}}",
+                            "title": "{{1}}",
+                            "description": "Created through the browser assistant flow.",
+                            "status": "todo",
+                            "priority": "high",
+                            "type": "task"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "pattern": "/Create invoice (INV-[A-Z0-9-]+) for project (\\d+)/i",
+            "response": {
+                "content": "I can create invoice {{1}} for that project once you confirm.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_invoice_create",
+                        "name": "create_invoice",
+                        "arguments": {
+                            "project_id": "{{2}}",
+                            "reference": "{{1}}",
+                            "status": "draft",
+                            "amount": "4500.00",
+                            "issued_at": "2026-04-05"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "pattern": "/Add comment (.+) to issue (\\d+)/i",
+            "response": {
+                "content": "I can add that comment once you confirm.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_issue_comment_create",
+                        "name": "add_issue_comment",
+                        "arguments": {
+                            "issue_id": "{{2}}",
+                            "body": "{{1}}"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "pattern": "/Reply (.+) to comment (\\d+) on issue (\\d+)/i",
+            "response": {
+                "content": "I can add that reply once you confirm.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_issue_comment_reply",
+                        "name": "reply_to_issue_comment",
+                        "arguments": {
+                            "issue_id": "{{3}}",
+                            "parent_id": "{{2}}",
+                            "body": "{{1}}"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "pattern": "/List my boards/i",
+            "response": {
+                "content": "Here are the boards you can access.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_board_list",
+                        "name": "list_accessible_boards",
+                        "arguments": {}
+                    }
+                ]
+            }
+        },
+        {
+            "pattern": "/Show board context for board (\\d+)/i",
+            "response": {
+                "content": "Here is the board context.",
+                "tool_calls": [
+                    {
+                        "id": "dusk_board_context",
+                        "name": "get_board_context",
+                        "arguments": {
+                            "board_id": "{{1}}"
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

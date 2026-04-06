@@ -35,4 +35,19 @@ return [
         ],
     ],
 
+    'openrouter' => [
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL'),
+        'fake_responses_file' => env('OPENROUTER_FAKE_RESPONSES_FILE'),
+        'models' => [
+            'openai/gpt-5',
+            'openai/gpt-5-mini',
+            'anthropic/claude-3.7-sonnet',
+            'anthropic/claude-3.5-sonnet',
+            'google/gemini-2.5-pro-preview',
+            'google/gemini-2.0-flash-001',
+        ],
+    ],
+
 ];

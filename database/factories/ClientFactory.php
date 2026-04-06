@@ -1,0 +1,22 @@
+<?php
+
+namespace Database\Factories;
+
+use App\Models\Behavior;
+use App\Models\Client;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * @extends Factory<Client>
+ */
+class ClientFactory extends Factory
+{
+    public function definition(): array
+    {
+        return [
+            'behavior_id' => Behavior::factory(),
+            'name' => fake()->company(),
+            'email' => fake()->companyEmail(),
+        ];
+    }
+}

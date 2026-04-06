@@ -1,9 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { Bot, BriefcaseBusiness, FileBox, LayoutGrid, Menu, Search, Wallet } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Breadcrumbs } from '@/components/breadcrumbs';
-import { TeamSwitcher } from '@/components/team-switcher';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +33,6 @@ import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useInitials } from '@/hooks/use-initials';
 import { cn, toUrl } from '@/lib/utils';
-import { dashboard } from '@/routes';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -43,14 +41,9 @@ type Props = {
 
 const rightNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Assistant',
+        href: '#assistant',
+        icon: Bot,
     },
 ];
 
@@ -59,16 +52,31 @@ const activeItemStyles =
 
 export function AppHeader({ breadcrumbs = [] }: Props) {
     const page = usePage();
-    const { auth, currentTeam } = page.props;
+    const { auth } = page.props;
     const getInitials = useInitials();
     const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
-    const dashboardUrl = currentTeam ? dashboard(currentTeam.slug) : '/';
+    const overviewUrl = '/overview';
 
     const mainNavItems: NavItem[] = [
         {
-            title: 'Dashboard',
-            href: dashboardUrl,
+            title: 'Overview',
+            href: overviewUrl,
             icon: LayoutGrid,
+        },
+        {
+            title: 'Clients',
+            href: '/clients',
+            icon: BriefcaseBusiness,
+        },
+        {
+            title: 'Finance',
+            href: '#',
+            icon: Wallet,
+        },
+        {
+            title: 'CMS',
+            href: '#',
+            icon: FileBox,
         },
     ];
 
@@ -138,7 +146,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     </div>
 
                     <Link
-                        href={dashboardUrl}
+                        href={overviewUrl}
                         prefetch
                         className="flex items-center space-x-2"
                     >
@@ -239,8 +247,6 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 <UserMenuContent user={auth.user} />
                             </DropdownMenuContent>
                         </DropdownMenu>
-
-                        <TeamSwitcher inHeader />
                     </div>
                 </div>
             </div>
