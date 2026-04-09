@@ -21,31 +21,78 @@ The intent is not a narrow CRM card. A client record should be able to hold a ri
 
 ## Current Known Fields
 
-Current known client fields or groups include:
+### Core Fields (Required)
 
-- image
-- name
-- email
-- tags
-- country of origin
-- industry
-- numbers
-- attachments
-- first met
-- origin
-- notes
-- address
-- behavior
-- social media
-- birthday
+| Field | Type | Notes |
+|-------|------|-------|
+| name | string, max 255 | Required. The display name of the client |
+| behavior_id | FK to behaviors | Required. Defaults to "normal". Describes the working style classification |
+
+### Profile Fields (Optional)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| email | string, email | Primary contact email |
+| image_path | string, nullable | Profile picture stored via public disk |
+| country_of_origin | string, max 255 | Where the client is based |
+| industry | string, max 255 | Business sector or field |
+| address | text, nullable | Physical or mailing address |
+| birthday | date, nullable | Client birthday for relationship tracking |
+| date_of_first_interaction | date, nullable | When the relationship started |
+| origin | string, max 255 | How the relationship started (freelancing, referral, friends, family, etc.) |
+| notes | text, nullable | Free-form relationship notes visible only to platform owner |
+
+### Structured Data (Optional)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| social_links_json | JSON array | Array of `{label, url}` objects for social media profiles |
+| phone_numbers | hasMany PhoneNumber | Multiple phone numbers with optional labels |
+| tags | morphToMany Tag | Freeform descriptors like personality, working style, scale |
+
+### System Fields
+
+| Field | Type | Notes |
+|-------|------|-------|
+| id | auto-increment | Primary key |
+| created_at | timestamp | Record creation |
+| updated_at | timestamp | Last modification |
+
+## Relationships
+
+| Relation | Type | Target | Notes |
+|----------|------|--------|-------|
+| behavior | belongsTo | Behavior | Working style classification |
+| memberships | hasMany | ClientMembership | Users who have access to this client workspace |
+| projects | hasMany | Project | All projects under this client |
+| phoneNumbers | hasMany | PhoneNumber | Multiple contact numbers |
+| tags | morphToMany | Tag | Freeform labels |
+| attachments | morphMany | Attachment | Polymorphic file attachments |
+
+## Workspace Summary Counts
+
+When viewing a client workspace, the system provides these aggregate counts:
+
+- **Members count**: total users with membership in this client
+- **Projects count**: total projects accessible to the viewing user
+- **Issues count**: total issues across accessible projects
+- **Boards count**: total boards across accessible projects
+- **Statuses count**: total project statuses (global + client-specific)
 
 ## Field Notes
 
 - Tags are freeform descriptors such as personality, working style, scale, or other owner-defined labels.
-- Numbers may be more than one value.
-- Attachments should be grouped.
+- Phone numbers may be more than one value, each with an optional label.
+- Social links are stored as JSON with label/url pairs.
 - Notes may be grouped rather than limited to a single text field.
 - Origin refers to how the client relationship started, such as freelancing, family, friends, or other owner-defined sources.
+- The profile image is stored via Laravel's public disk and served at `/storage/{image_path}`.
+
+## Visibility Rules
+
+- **Platform owner** sees the full client profile including behavior, notes, origin, tags, phone numbers, social links, and all internal fields.
+- **Client-scoped users** (members) see a workspace view with name, email, and collaborative surfaces (projects, issues, boards). Internal relationship data is hidden.
+- The `canViewInternalClientProfile` and `canEditInternalClientProfile` permission methods control field visibility.
 
 ## Modeling Direction
 
