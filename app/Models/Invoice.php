@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['project_id', 'reference', 'status', 'amount', 'issued_at', 'due_at', 'paid_at', 'notes'])]
+#[Fillable(['project_id', 'reference', 'status', 'amount', 'currency', 'issued_at', 'due_at', 'paid_at', 'notes'])]
 class Invoice extends Model
 {
     protected function casts(): array

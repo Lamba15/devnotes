@@ -7,9 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['project_id', 'title', 'description', 'status', 'priority', 'type', 'assignee_id', 'creator_id'])]
+#[Fillable(['project_id', 'title', 'description', 'status', 'priority', 'type', 'assignee_id', 'creator_id', 'due_date', 'estimated_hours', 'label'])]
 class Issue extends Model
 {
+    protected function casts(): array
+    {
+        return [
+            'due_date' => 'date',
+        ];
+    }
+
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

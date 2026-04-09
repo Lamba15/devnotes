@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['client_id', 'status_id', 'name', 'description', 'starts_at', 'ends_at', 'notes'])]
+#[Fillable(['client_id', 'status_id', 'name', 'description', 'starts_at', 'ends_at', 'notes', 'budget', 'currency'])]
 class Project extends Model
 {
     /** @use HasFactory<ProjectFactory> */
@@ -20,6 +20,7 @@ class Project extends Model
         return [
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
+            'budget' => 'decimal:2',
         ];
     }
 

@@ -3,6 +3,11 @@ export type User = {
     name: string;
     email: string;
     avatar?: string;
+    avatar_path?: string | null;
+    job_title?: string | null;
+    timezone?: string | null;
+    ai_credits?: number;
+    ai_credits_used?: number;
     capabilities?: {
         platform?: boolean;
         assistant_debug?: boolean;
