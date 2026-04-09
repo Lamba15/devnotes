@@ -120,7 +120,7 @@ export default function AuditLogsIndex({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="__all__">All events</SelectItem>
-                            {event_options.map((e) => (
+                            {event_options.filter(Boolean).map((e) => (
                                 <SelectItem key={e} value={e}>
                                     {e}
                                 </SelectItem>
@@ -134,7 +134,7 @@ export default function AuditLogsIndex({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="__all__">All sources</SelectItem>
-                            {source_options.map((s) => (
+                            {source_options.filter(Boolean).map((s) => (
                                 <SelectItem key={s} value={s}>
                                     {s}
                                 </SelectItem>

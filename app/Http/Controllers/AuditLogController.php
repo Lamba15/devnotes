@@ -45,6 +45,8 @@ class AuditLogController extends Controller
 
         $eventOptions = AuditLog::query()
             ->select('event')
+            ->whereNotNull('event')
+            ->where('event', '!=', '')
             ->distinct()
             ->orderBy('event')
             ->pluck('event')
@@ -52,6 +54,8 @@ class AuditLogController extends Controller
 
         $sourceOptions = AuditLog::query()
             ->select('source')
+            ->whereNotNull('source')
+            ->where('source', '!=', '')
             ->distinct()
             ->orderBy('source')
             ->pluck('source')
