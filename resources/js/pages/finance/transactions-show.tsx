@@ -1,4 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
+import {
+    ArrowDownRight,
+    ArrowLeft,
+    ArrowUpRight,
+    Calendar,
+    FolderKanban,
+    Pencil,
+    Users,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
@@ -33,27 +43,54 @@ export default function FinanceTransactionShow({
                             </div>
                             <div className="flex items-center gap-2">
                                 <Link href="/finance/transactions">
-                                    <Button variant="outline">Back</Button>
+                                    <Button variant="outline">
+                                        <ArrowLeft className="mr-1.5 size-3.5" />
+                                        Back
+                                    </Button>
                                 </Link>
                                 <Link href={`/finance/transactions/${transaction.id}/edit`}>
-                                    <Button>Edit transaction</Button>
+                                    <Button>
+                                        <Pencil className="mr-1.5 size-3.5" />
+                                        Edit
+                                    </Button>
                                 </Link>
                             </div>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
-                            <DetailField label="Amount" value={transaction.amount} />
-                            <DetailField
-                                label="Occurred at"
-                                value={transaction.occurred_at ?? 'Not recorded'}
-                            />
-                            <DetailField
-                                label="Project"
-                                value={transaction.project.name}
-                            />
-                            <DetailField
-                                label="Client"
-                                value={transaction.project.client?.name ?? '—'}
-                            />
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Amount</p>
+                                {(() => {
+                                    const num = Number(transaction.amount);
+                                    const isPositive = num >= 0;
+                                    return (
+                                        <p className={`mt-1 flex items-center gap-1 text-lg font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                            {isPositive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
+                                            ${Math.abs(num).toLocaleString()}
+                                        </p>
+                                    );
+                                })()}
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Occurred at</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Calendar className="size-3.5 text-muted-foreground" />
+                                    {transaction.occurred_at ?? 'Not recorded'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Project</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <FolderKanban className="size-3.5 text-violet-500" />
+                                    {transaction.project.name}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Client</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Users className="size-3.5 text-blue-500" />
+                                    {transaction.project.client?.name ?? '—'}
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

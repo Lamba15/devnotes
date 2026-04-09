@@ -1,4 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { BoardColumnListEditor } from '@/components/boards/board-column-list-editor';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -165,6 +166,7 @@ export default function BoardsCreate({
                             Back to boards
                         </Button>
                         <Button disabled={form.processing} type="submit">
+                            <Plus className="mr-1.5 size-4" />
                             Create board
                         </Button>
                     </div>

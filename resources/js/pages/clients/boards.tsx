@@ -1,10 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { Columns3, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -121,7 +123,12 @@ export default function ClientBoardsPage({
             header: 'Columns',
             sortable: true,
             sortKey: 'columns_count',
-            render: (board) => board.columns_count,
+            render: (board) => (
+                <Badge variant="outline" className="gap-1">
+                    <Columns3 className="size-3 text-muted-foreground" />
+                    {board.columns_count}
+                </Badge>
+            ),
         },
         {
             key: 'actions',
@@ -220,7 +227,10 @@ export default function ClientBoardsPage({
                 actions={
                     can_manage_boards ? (
                         <Link href={`/clients/${client.id}/boards/create`}>
-                            <Button>Create board</Button>
+                            <Button>
+                                <Plus className="mr-1.5 size-4" />
+                                Create board
+                            </Button>
                         </Link>
                     ) : undefined
                 }
@@ -228,12 +238,15 @@ export default function ClientBoardsPage({
                 <FilterBar
                     meta={`${pagination.total} board${pagination.total === 1 ? '' : 's'}`}
                 >
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search boards by name or project"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search boards..."
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

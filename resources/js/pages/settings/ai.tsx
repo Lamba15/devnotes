@@ -1,6 +1,6 @@
 import { Transition } from '@headlessui/react';
-import { Form, Head } from '@inertiajs/react';
-import { RotateCcw } from 'lucide-react';
+import { Form, Head, usePage } from '@inertiajs/react';
+import { Coins, Infinity, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import AISettingsController from '@/actions/App/Http/Controllers/Settings/AISettingsController';
 import Heading from '@/components/heading';
@@ -33,6 +33,12 @@ export default function AISettings({
     activeSystemPromptSource,
     openRouterModels,
 }: Props) {
+    const { auth } = usePage<{ auth: { user: { ai_credits: number; ai_credits_used: number } } }>().props;
+    const credits = auth.user.ai_credits;
+    const used = auth.user.ai_credits_used;
+    const isUnlimited = credits === -1;
+    const remaining = isUnlimited ? null : Math.max(0, credits - used);
+
     const [systemPrompt, setSystemPrompt] = useState(
         openRouterSystemPrompt ?? defaultSystemPrompt,
     );
@@ -52,6 +58,47 @@ export default function AISettings({
                     title="AI settings"
                     description="Configure how your agent is powered, how it speaks, and which OpenRouter model it uses"
                 />
+
+                <Card className="gap-0 py-0 shadow-none">
+                    <CardHeader className="py-5">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Coins className="size-4" />
+                            Credit usage
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pb-5">
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Allowance:</span>
+                                {isUnlimited ? (
+                                    <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                                        <Infinity className="size-4" />
+                                        Unlimited
+                                    </span>
+                                ) : credits === 0 ? (
+                                    <span className="font-semibold text-red-500">No credits</span>
+                                ) : (
+                                    <span className="font-semibold">{credits}</span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Used:</span>
+                                <span className="font-semibold">{used}</span>
+                            </div>
+                            {remaining !== null && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">Remaining:</span>
+                                    <span className={`font-semibold ${remaining === 0 ? 'text-red-500' : remaining < 10 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                                        {remaining}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Each AI message consumes 1 credit. Credits are managed by the platform administrator.
+                        </p>
+                    </CardContent>
+                </Card>
 
                 <Form
                     {...AISettingsController.update.form()}

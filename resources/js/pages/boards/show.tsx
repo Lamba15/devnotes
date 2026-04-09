@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { Button } from '@/components/ui/button';
@@ -319,6 +319,7 @@ export default function BoardShow({
                                 href={`/clients/${client.id}/boards/${board.id}/edit`}
                             >
                                 <Button size="sm" variant="ghost">
+                                    <Pencil className="mr-1.5 size-3.5" />
                                     Edit board
                                 </Button>
                             </Link>
@@ -406,6 +407,7 @@ export default function BoardShow({
                                     disabled={columnForm.processing}
                                     onClick={submitColumn}
                                 >
+                                    <Plus className="mr-1 size-3.5" />
                                     Create
                                 </Button>
                                 <Button
@@ -414,6 +416,7 @@ export default function BoardShow({
                                     variant="ghost"
                                     onClick={() => setShowAddColumn(false)}
                                 >
+                                    <X className="mr-1 size-3.5" />
                                     Cancel
                                 </Button>
                             </div>

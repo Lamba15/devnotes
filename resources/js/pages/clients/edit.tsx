@@ -1,10 +1,13 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { Camera, Check, X } from 'lucide-react';
 import type { FormEvent } from 'react';
+import { useRef } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
     KeyValueListEditor,
     TagListEditor,
 } from '@/components/forms/repeatable-editors';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +43,23 @@ export default function ClientsEdit({
             value: link.url ?? '',
         })),
     });
+
+    const imageInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageUpload = (file: File) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        router.post(`/clients/${client.id}/image`, formData as any, {
+            preserveScroll: true,
+            forceFormData: true,
+        });
+    };
+
+    const handleImageRemove = () => {
+        router.delete(`/clients/${client.id}/image`, {
+            preserveScroll: true,
+        });
+    };
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -85,6 +105,67 @@ export default function ClientsEdit({
                 description="Edit the client profile on its own page."
             >
                 <form className="space-y-6" onSubmit={submit}>
+                    <section className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+                        <div className="space-y-2">
+                            <h3 className="text-base font-semibold">
+                                Client photo
+                            </h3>
+                            <p className="text-sm leading-6 text-muted-foreground">
+                                Upload a profile image for this client.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-4 rounded-xl border p-5">
+                            <Avatar className="size-16">
+                                {client.image_path && (
+                                    <AvatarImage
+                                        src={`/storage/${client.image_path}`}
+                                        alt={client.name}
+                                    />
+                                )}
+                                <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">
+                                    {(client.name ?? '')
+                                        .split(' ')
+                                        .map((p: string) => p[0])
+                                        .slice(0, 2)
+                                        .join('')
+                                        .toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="flex gap-2">
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleImageUpload(file);
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => imageInputRef.current?.click()}
+                                >
+                                    <Camera className="mr-1.5 size-3.5" />
+                                    {client.image_path ? 'Change photo' : 'Upload photo'}
+                                </Button>
+                                {client.image_path && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleImageRemove}
+                                    >
+                                        <X className="mr-1.5 size-3.5" />
+                                        Remove
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+
                     <section className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
                         <div className="space-y-2">
                             <h3 className="text-base font-semibold">
@@ -154,15 +235,16 @@ export default function ClientsEdit({
                             </Field>
                             <Field label="Birthday">
                                 <Input
+                                    type="date"
                                     value={form.data.birthday}
                                     onChange={(e) =>
                                         form.setData('birthday', e.target.value)
                                     }
-                                    placeholder="YYYY-MM-DD"
                                 />
                             </Field>
                             <Field label="First interaction">
                                 <Input
+                                    type="date"
                                     value={form.data.date_of_first_interaction}
                                     onChange={(e) =>
                                         form.setData(
@@ -170,7 +252,6 @@ export default function ClientsEdit({
                                             e.target.value,
                                         )
                                     }
-                                    placeholder="YYYY-MM-DD"
                                 />
                             </Field>
                             <Field label="Tags" fullWidth>
@@ -232,6 +313,7 @@ export default function ClientsEdit({
                             Back to client
                         </Button>
                         <Button disabled={form.processing} type="submit">
+                            <Check className="mr-1.5 size-4" />
                             Save client
                         </Button>
                     </div>

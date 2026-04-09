@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsUpDown, Inbox } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { ActionDropdownItem } from '@/components/crud/action-dropdown';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
@@ -159,12 +159,17 @@ export function DataTable<T>({
                         {rows.length === 0 ? (
                             <tr>
                                 <td
-                                    className="px-4 py-6 text-muted-foreground"
+                                    className="px-4 py-12 text-center"
                                     colSpan={
                                         columns.length + (selectable ? 1 : 0)
                                     }
                                 >
-                                    {emptyText}
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Inbox className="size-8 text-muted-foreground/50" />
+                                        <p className="text-sm text-muted-foreground">
+                                            {emptyText}
+                                        </p>
+                                    </div>
                                 </td>
                             </tr>
                         ) : null}

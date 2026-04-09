@@ -14,6 +14,8 @@ export default function FinanceTransactionsEdit({
         description: string;
         amount: string;
         occurred_at: string;
+        category: string | null;
+        currency: string | null;
     };
     projects: Array<{
         id: number;
@@ -26,6 +28,8 @@ export default function FinanceTransactionsEdit({
         description: transaction.description ?? '',
         amount: String(transaction.amount ?? ''),
         occurred_at: transaction.occurred_at ?? '',
+        category: transaction.category ?? '',
+        currency: transaction.currency ?? 'USD',
     });
 
     const sections: DynamicFormSection[] = [
@@ -60,8 +64,26 @@ export default function FinanceTransactionsEdit({
                 {
                     name: 'occurred_at',
                     label: 'Occurred at',
+                    type: 'date',
+                },
+                {
+                    name: 'category',
+                    label: 'Category',
                     type: 'text',
-                    placeholder: 'YYYY-MM-DD',
+                    placeholder: 'e.g. payment, expense, refund',
+                },
+                {
+                    name: 'currency',
+                    label: 'Currency',
+                    type: 'select',
+                    options: [
+                        { label: 'USD', value: 'USD' },
+                        { label: 'EUR', value: 'EUR' },
+                        { label: 'GBP', value: 'GBP' },
+                        { label: 'EGP', value: 'EGP' },
+                        { label: 'SAR', value: 'SAR' },
+                        { label: 'AED', value: 'AED' },
+                    ],
                 },
             ],
         },
@@ -84,11 +106,7 @@ export default function FinanceTransactionsEdit({
                     onCancel={() => router.visit('/finance/transactions')}
                     onChange={(name, value) =>
                         form.setData(
-                            name as
-                                | 'project_id'
-                                | 'description'
-                                | 'amount'
-                                | 'occurred_at',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

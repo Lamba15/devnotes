@@ -1,7 +1,20 @@
 import { Head, Link } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    Bug,
+    CheckCircle2,
+    Circle,
+    Flame,
+    Lightbulb,
+    ListTodo,
+    Loader2,
+    Minus,
+    Ticket,
+} from 'lucide-react';
 import { useState } from 'react';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
@@ -61,17 +74,59 @@ export default function ClientIssuesPage({
         {
             key: 'status',
             header: 'Status',
-            render: (issue) => issue.status,
+            render: (issue) => {
+                const cfg: Record<string, { icon: typeof Circle; color: string }> = {
+                    todo: { icon: Circle, color: 'text-muted-foreground' },
+                    in_progress: { icon: Loader2, color: 'text-blue-500' },
+                    done: { icon: CheckCircle2, color: 'text-emerald-500' },
+                };
+                const c = cfg[issue.status] ?? cfg.todo;
+                const Icon = c.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${c.color}`} />
+                        {issue.status.replace('_', ' ')}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'priority',
             header: 'Priority',
-            render: (issue) => issue.priority,
+            render: (issue) => {
+                const cfg: Record<string, { icon: typeof Minus; color: string }> = {
+                    low: { icon: Minus, color: 'text-muted-foreground' },
+                    medium: { icon: AlertTriangle, color: 'text-amber-500' },
+                    high: { icon: Flame, color: 'text-red-500' },
+                };
+                const c = cfg[issue.priority] ?? cfg.medium;
+                const Icon = c.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${c.color}`} />
+                        {issue.priority}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'type',
             header: 'Type',
-            render: (issue) => issue.type,
+            render: (issue) => {
+                const cfg: Record<string, { icon: typeof ListTodo; color: string }> = {
+                    task: { icon: ListTodo, color: 'text-blue-500' },
+                    bug: { icon: Bug, color: 'text-red-500' },
+                    feature: { icon: Lightbulb, color: 'text-violet-500' },
+                };
+                const c = cfg[issue.type] ?? cfg.task;
+                const Icon = c.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${c.color}`} />
+                        {issue.type}
+                    </Badge>
+                );
+            },
         },
     ];
 
@@ -81,7 +136,10 @@ export default function ClientIssuesPage({
             <div className="space-y-6">
                 <Card className="shadow-none">
                     <CardHeader>
-                        <CardTitle>Issues across this client</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <Ticket className="size-5 text-amber-500" />
+                            Issues across this client
+                        </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-muted-foreground">
                         This view brings together issues across the client

@@ -1,4 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
+import { DollarSign, FolderKanban, LayoutDashboard, LayoutGrid, ListChecks, Ticket, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import AppLayout from '@/layouts/app-layout';
@@ -29,14 +31,14 @@ type ClientWorkspacePageProps = {
     };
 };
 
-const sections = (clientId: number) => [
-    { title: 'Overview', href: `/clients/${clientId}`, exact: true },
-    { title: 'Members', href: `/clients/${clientId}/members` },
-    { title: 'Projects', href: `/clients/${clientId}/projects` },
-    { title: 'Issues', href: `/clients/${clientId}/issues` },
-    { title: 'Boards', href: `/clients/${clientId}/boards` },
-    { title: 'Statuses', href: `/clients/${clientId}/statuses` },
-    { title: 'Finance', href: `/clients/${clientId}/finance` },
+const sections = (clientId: number): Array<{ title: string; href: string; exact?: boolean; icon: LucideIcon }> => [
+    { title: 'Overview', href: `/clients/${clientId}`, exact: true, icon: LayoutDashboard },
+    { title: 'Members', href: `/clients/${clientId}/members`, icon: Users },
+    { title: 'Projects', href: `/clients/${clientId}/projects`, icon: FolderKanban },
+    { title: 'Issues', href: `/clients/${clientId}/issues`, icon: Ticket },
+    { title: 'Boards', href: `/clients/${clientId}/boards`, icon: LayoutGrid },
+    { title: 'Statuses', href: `/clients/${clientId}/statuses`, icon: ListChecks },
+    { title: 'Finance', href: `/clients/${clientId}/finance`, icon: DollarSign },
 ];
 
 export default function ClientWorkspaceLayout({
@@ -75,17 +77,19 @@ export default function ClientWorkspaceLayout({
                                     const active = section.exact
                                         ? isCurrentUrl(section.href)
                                         : isCurrentOrParentUrl(section.href);
+                                    const Icon = section.icon;
                                     return (
                                         <Link
                                             key={section.title}
                                             href={section.href}
                                             className={cn(
-                                                'block rounded-lg px-3 py-2 text-sm transition',
+                                                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition',
                                                 active
                                                     ? 'bg-accent font-semibold text-accent-foreground shadow-[inset_3px_0_0_0_var(--primary)]'
                                                     : 'text-muted-foreground hover:bg-muted',
                                             )}
                                         >
+                                            <Icon className="size-4 shrink-0" />
                                             {section.title}
                                         </Link>
                                     );

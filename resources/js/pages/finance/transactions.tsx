@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { ArrowDownRight, ArrowUpRight, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -109,7 +110,16 @@ export default function FinanceTransactions({
             header: 'Amount',
             sortable: true,
             sortKey: 'amount',
-            render: (transaction) => transaction.amount,
+            render: (transaction) => {
+                const num = Number(transaction.amount);
+                const isPositive = num >= 0;
+                return (
+                    <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+                        ${Math.abs(num).toLocaleString()}
+                    </span>
+                );
+            },
         },
         {
             key: 'occurred_at',
@@ -197,17 +207,23 @@ export default function FinanceTransactions({
                 description="Manage project-linked financial transactions."
                 actions={
                     <Link href="/finance/transactions/create">
-                        <Button>Create transaction</Button>
+                        <Button>
+                            <Plus className="mr-1.5 size-4" />
+                            Create transaction
+                        </Button>
                     </Link>
                 }
             >
                 <FilterBar>
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search transactions by description, project, client, or amount"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search transactions..."
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

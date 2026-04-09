@@ -24,6 +24,9 @@ export default function IssuesEdit({
         type: string;
         assignee_id: number | null;
         assignee: { id: number; name: string } | null;
+        due_date: string | null;
+        estimated_hours: string | null;
+        label: string | null;
     };
     assignee_options: Array<{ label: string; value: string }>;
     status_options: string[];
@@ -37,6 +40,9 @@ export default function IssuesEdit({
         status: issue.status,
         priority: issue.priority,
         type: issue.type,
+        due_date: issue.due_date ?? '',
+        estimated_hours: issue.estimated_hours ?? '',
+        label: issue.label ?? '',
     });
 
     const sections: DynamicFormSection[] = [
@@ -92,6 +98,23 @@ export default function IssuesEdit({
                         value: type,
                     })),
                 },
+                {
+                    name: 'due_date',
+                    label: 'Due date',
+                    type: 'date',
+                },
+                {
+                    name: 'estimated_hours',
+                    label: 'Estimated hours',
+                    type: 'text',
+                    placeholder: 'e.g. 4',
+                },
+                {
+                    name: 'label',
+                    label: 'Label',
+                    type: 'text',
+                    placeholder: 'e.g. frontend, backend, urgent',
+                },
             ],
         },
     ];
@@ -117,13 +140,7 @@ export default function IssuesEdit({
                     }
                     onChange={(name, value) =>
                         form.setData(
-                            name as
-                                | 'title'
-                                | 'description'
-                                | 'assignee_id'
-                                | 'status'
-                                | 'priority'
-                                | 'type',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

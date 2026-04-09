@@ -1,10 +1,24 @@
 import { Head, Link, router } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    Bug,
+    CheckCircle2,
+    Circle,
+    Flame,
+    Lightbulb,
+    ListTodo,
+    Loader2,
+    Minus,
+    Plus,
+    Search,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -17,6 +31,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+
+const statusConfig: Record<string, { icon: typeof Circle; color: string }> = {
+    todo: { icon: Circle, color: 'text-muted-foreground' },
+    in_progress: { icon: Loader2, color: 'text-blue-500' },
+    done: { icon: CheckCircle2, color: 'text-emerald-500' },
+};
+
+const priorityConfig: Record<string, { icon: typeof Minus; color: string }> = {
+    low: { icon: Minus, color: 'text-muted-foreground' },
+    medium: { icon: AlertTriangle, color: 'text-amber-500' },
+    high: { icon: Flame, color: 'text-red-500' },
+};
+
+const typeConfig: Record<string, { icon: typeof ListTodo; color: string }> = {
+    task: { icon: ListTodo, color: 'text-blue-500' },
+    bug: { icon: Bug, color: 'text-red-500' },
+    feature: { icon: Lightbulb, color: 'text-violet-500' },
+};
 
 type Issue = {
     id: number;
@@ -105,26 +137,57 @@ export default function IssuesIndex({
             header: 'Status',
             sortable: true,
             sortKey: 'status',
-            render: (issue) => issue.status,
+            render: (issue) => {
+                const cfg = statusConfig[issue.status] ?? statusConfig.todo;
+                const Icon = cfg.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${cfg.color}`} />
+                        {issue.status.replace('_', ' ')}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'priority',
             header: 'Priority',
             sortable: true,
             sortKey: 'priority',
-            render: (issue) => issue.priority,
+            render: (issue) => {
+                const cfg = priorityConfig[issue.priority] ?? priorityConfig.medium;
+                const Icon = cfg.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${cfg.color}`} />
+                        {issue.priority}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'type',
             header: 'Type',
             sortable: true,
             sortKey: 'type',
-            render: (issue) => issue.type,
+            render: (issue) => {
+                const cfg = typeConfig[issue.type] ?? typeConfig.task;
+                const Icon = cfg.icon;
+                return (
+                    <Badge variant="outline" className="gap-1 capitalize">
+                        <Icon className={`size-3 ${cfg.color}`} />
+                        {issue.type}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'assignee',
             header: 'Assignee',
-            render: (issue) => issue.assignee?.name ?? 'Unassigned',
+            render: (issue) => (
+                <span className={issue.assignee ? 'font-medium' : 'text-muted-foreground'}>
+                    {issue.assignee?.name ?? 'Unassigned'}
+                </span>
+            ),
         },
         {
             key: 'actions',
@@ -218,18 +281,24 @@ export default function IssuesIndex({
                         <Link
                             href={`/clients/${client.id}/projects/${project.id}/issues/create`}
                         >
-                            <Button>Create issue</Button>
+                            <Button>
+                                <Plus className="mr-1.5 size-4" />
+                                Create issue
+                            </Button>
                         </Link>
                     ) : undefined
                 }
             >
                 <FilterBar>
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search issues by title, description, status, priority, or type"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search issues..."
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

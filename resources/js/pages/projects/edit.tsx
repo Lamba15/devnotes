@@ -20,6 +20,8 @@ export default function ProjectsEdit({
         name: string;
         description: string | null;
         status_id: number;
+        budget: string | null;
+        currency: string | null;
     };
     statuses: Array<{ id: number; name: string; slug: string }>;
 }) {
@@ -27,6 +29,8 @@ export default function ProjectsEdit({
         name: project.name ?? '',
         description: project.description ?? '',
         status_id: project.status_id ? String(project.status_id) : '',
+        budget: project.budget ?? '',
+        currency: project.currency ?? 'USD',
     });
 
     const sections: DynamicFormSection[] = [
@@ -60,6 +64,25 @@ export default function ProjectsEdit({
                         value: status.id,
                     })),
                 },
+                {
+                    name: 'budget',
+                    label: 'Budget',
+                    type: 'text',
+                    placeholder: 'e.g. 5000',
+                },
+                {
+                    name: 'currency',
+                    label: 'Currency',
+                    type: 'select',
+                    options: [
+                        { label: 'USD', value: 'USD' },
+                        { label: 'EUR', value: 'EUR' },
+                        { label: 'GBP', value: 'GBP' },
+                        { label: 'EGP', value: 'EGP' },
+                        { label: 'SAR', value: 'SAR' },
+                        { label: 'AED', value: 'AED' },
+                    ],
+                },
             ],
         },
     ];
@@ -83,7 +106,7 @@ export default function ProjectsEdit({
                     }
                     onChange={(name, value) =>
                         form.setData(
-                            name as 'name' | 'description' | 'status_id',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

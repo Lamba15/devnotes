@@ -1,4 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
+import {
+    FolderKanban,
+    LayoutGrid,
+    ListChecks,
+    Pencil,
+    Ticket,
+    Users,
+} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
@@ -45,7 +55,7 @@ export default function ClientShow({
     recent_members: Array<{
         id: number;
         role: string;
-        user: { id: number; name: string; email: string };
+        user: { id: number; name: string; email: string; avatar_path?: string | null };
     }>;
     can_edit_internal_client_profile: boolean;
     can_view_internal_client_profile: boolean;
@@ -57,36 +67,61 @@ export default function ClientShow({
             <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     {[
-                        ['Members', summary.members_count],
-                        ['Projects', summary.projects_count],
-                        ['Issues', summary.issues_count],
-                        ['Boards', summary.boards_count],
-                        ['Statuses', summary.statuses_count],
-                    ].map(([label, value]) => (
-                        <Card key={label} className="shadow-none">
-                            <CardContent className="p-4">
-                                <p className="text-sm text-muted-foreground">
-                                    {label}
-                                </p>
-                                <p className="mt-2 text-2xl font-semibold">
-                                    {value}
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ))}
+                        { label: 'Members', value: summary.members_count, icon: Users, color: 'text-blue-600 dark:text-blue-400' },
+                        { label: 'Projects', value: summary.projects_count, icon: FolderKanban, color: 'text-violet-600 dark:text-violet-400' },
+                        { label: 'Issues', value: summary.issues_count, icon: Ticket, color: 'text-amber-600 dark:text-amber-400' },
+                        { label: 'Boards', value: summary.boards_count, icon: LayoutGrid, color: 'text-emerald-600 dark:text-emerald-400' },
+                        { label: 'Statuses', value: summary.statuses_count, icon: ListChecks, color: 'text-pink-600 dark:text-pink-400' },
+                    ].map((stat) => {
+                        const Icon = stat.icon;
+                        return (
+                            <Card key={stat.label} className="shadow-none">
+                                <CardContent className="flex items-center gap-3 p-4">
+                                    <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}>
+                                        <Icon className="size-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-muted-foreground">{stat.label}</p>
+                                        <p className="text-2xl font-semibold">{stat.value}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
 
                 <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                     <Card className="shadow-none">
                         <CardHeader className="flex-row items-center justify-between space-y-0">
-                            <CardTitle>
-                                {can_view_internal_client_profile
-                                    ? 'Client profile'
-                                    : 'Workspace details'}
-                            </CardTitle>
+                            <div className="flex items-center gap-3">
+                                <Avatar className="size-10">
+                                    {client.image_path && (
+                                        <AvatarImage
+                                            src={`/storage/${client.image_path}`}
+                                            alt={client.name}
+                                        />
+                                    )}
+                                    <AvatarFallback className="bg-primary/10 text-sm font-bold text-primary">
+                                        {client.name
+                                            .split(' ')
+                                            .map((p) => p[0])
+                                            .slice(0, 2)
+                                            .join('')
+                                            .toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <CardTitle>
+                                    {can_view_internal_client_profile
+                                        ? 'Client profile'
+                                        : 'Workspace details'}
+                                </CardTitle>
+                            </div>
                             {can_edit_internal_client_profile ? (
                                 <Link href={`/clients/${client.id}/edit`}>
-                                    <Button>Edit client</Button>
+                                    <Button size="sm">
+                                        <Pencil className="mr-1.5 size-3.5" />
+                                        Edit client
+                                    </Button>
                                 </Link>
                             ) : null}
                         </CardHeader>
@@ -182,20 +217,45 @@ export default function ClientShow({
                                         No client members yet.
                                     </p>
                                 ) : (
-                                    recent_members.map((membership) => (
-                                        <div
-                                            key={membership.id}
-                                            className="rounded-lg border px-3 py-2"
-                                        >
-                                            <p className="font-medium">
-                                                {membership.user.name}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {membership.user.email} ·{' '}
-                                                {membership.role}
-                                            </p>
-                                        </div>
-                                    ))
+                                    recent_members.map((membership) => {
+                                        const avatarSrc = membership.user.avatar_path
+                                            ? `/storage/${membership.user.avatar_path}`
+                                            : null;
+                                        return (
+                                            <div
+                                                key={membership.id}
+                                                className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                                            >
+                                                <Avatar className="size-8">
+                                                    {avatarSrc && (
+                                                        <AvatarImage
+                                                            src={avatarSrc}
+                                                            alt={membership.user.name}
+                                                        />
+                                                    )}
+                                                    <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                                                        {membership.user.name
+                                                            .split(' ')
+                                                            .map((p: string) => p[0])
+                                                            .slice(0, 2)
+                                                            .join('')
+                                                            .toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="font-medium">
+                                                        {membership.user.name}
+                                                    </p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {membership.user.email} ·{' '}
+                                                        <Badge variant="outline" className="text-[10px] capitalize">
+                                                            {membership.role}
+                                                        </Badge>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 )}
                                 <Link
                                     href={`/clients/${client.id}/members`}

@@ -1,10 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -99,7 +101,11 @@ export default function ProjectsIndex({
         {
             key: 'status',
             header: 'Status',
-            render: (project) => project.status.name,
+            render: (project) => (
+                <Badge variant="outline" className="capitalize">
+                    {project.status.name}
+                </Badge>
+            ),
         },
         {
             key: 'description',
@@ -181,18 +187,24 @@ export default function ProjectsIndex({
                 actions={
                     can_create_projects ? (
                         <Link href={`/clients/${client.id}/projects/create`}>
-                            <Button>Create project</Button>
+                            <Button>
+                                <Plus className="mr-1.5 size-4" />
+                                Create project
+                            </Button>
                         </Link>
                     ) : undefined
                 }
             >
                 <FilterBar>
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search projects by name, description, or status"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search projects..."
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

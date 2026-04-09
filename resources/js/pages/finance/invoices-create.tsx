@@ -18,6 +18,7 @@ export default function FinanceInvoicesCreate({
         reference: '',
         status: '',
         amount: '',
+        currency: 'USD',
         issued_at: '',
         due_at: '',
         paid_at: '',
@@ -51,8 +52,13 @@ export default function FinanceInvoicesCreate({
                 {
                     name: 'status',
                     label: 'Status',
-                    type: 'text',
-                    placeholder: 'draft, sent, paid...',
+                    type: 'select',
+                    options: [
+                        { label: 'Draft', value: 'draft' },
+                        { label: 'Pending', value: 'pending' },
+                        { label: 'Paid', value: 'paid' },
+                        { label: 'Overdue', value: 'overdue' },
+                    ],
                 },
                 {
                     name: 'amount',
@@ -61,22 +67,32 @@ export default function FinanceInvoicesCreate({
                     placeholder: '0.00',
                 },
                 {
+                    name: 'currency',
+                    label: 'Currency',
+                    type: 'select',
+                    options: [
+                        { label: 'USD', value: 'USD' },
+                        { label: 'EUR', value: 'EUR' },
+                        { label: 'GBP', value: 'GBP' },
+                        { label: 'EGP', value: 'EGP' },
+                        { label: 'SAR', value: 'SAR' },
+                        { label: 'AED', value: 'AED' },
+                    ],
+                },
+                {
                     name: 'issued_at',
                     label: 'Issued at',
-                    type: 'text',
-                    placeholder: 'YYYY-MM-DD',
+                    type: 'date',
                 },
                 {
                     name: 'due_at',
                     label: 'Due at',
-                    type: 'text',
-                    placeholder: 'YYYY-MM-DD',
+                    type: 'date',
                 },
                 {
                     name: 'paid_at',
                     label: 'Paid at',
-                    type: 'text',
-                    placeholder: 'YYYY-MM-DD',
+                    type: 'date',
                 },
                 {
                     name: 'notes',
@@ -106,15 +122,7 @@ export default function FinanceInvoicesCreate({
                     onCancel={() => router.visit('/finance/invoices')}
                     onChange={(name, value) =>
                         form.setData(
-                            name as
-                                | 'project_id'
-                                | 'reference'
-                                | 'status'
-                                | 'amount'
-                                | 'issued_at'
-                                | 'due_at'
-                                | 'paid_at'
-                                | 'notes',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

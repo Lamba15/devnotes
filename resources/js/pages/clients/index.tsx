@@ -1,10 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -28,6 +31,7 @@ type Client = {
     id: number;
     name: string;
     email: string | null;
+    image_path: string | null;
     behavior: Behavior;
     created_at: string;
 };
@@ -87,8 +91,24 @@ export default function ClientsIndex({
             render: (client) => (
                 <Link
                     href={`/clients/${client.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
+                    className="flex items-center gap-2.5 font-medium underline-offset-4 hover:underline"
                 >
+                    <Avatar className="size-7">
+                        {client.image_path && (
+                            <AvatarImage
+                                src={`/storage/${client.image_path}`}
+                                alt={client.name}
+                            />
+                        )}
+                        <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                            {client.name
+                                .split(' ')
+                                .map((p) => p[0])
+                                .slice(0, 2)
+                                .join('')
+                                .toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
                     {client.name}
                 </Link>
             ),
@@ -96,7 +116,11 @@ export default function ClientsIndex({
         {
             key: 'behavior',
             header: 'Behavior',
-            render: (client) => client.behavior.name,
+            render: (client) => (
+                <Badge variant="outline" className="capitalize">
+                    {client.behavior.name}
+                </Badge>
+            ),
         },
         {
             key: 'email',
@@ -178,17 +202,23 @@ export default function ClientsIndex({
                 description="Manage clients as a real domain and enter each client workspace for their own members, projects, tracking, and finance."
                 actions={
                     <Link href="/clients/create">
-                        <Button>Create client</Button>
+                        <Button>
+                            <Plus className="mr-1.5 size-4" />
+                            Create client
+                        </Button>
                     </Link>
                 }
             >
                 <FilterBar>
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search clients by name, email, or behavior"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm flex-1">
+                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search clients by name, email, or behavior"
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

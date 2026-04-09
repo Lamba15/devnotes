@@ -3,7 +3,10 @@ import {
     BriefcaseBusiness,
     Bot,
     FileBox,
+    FolderKanban,
     LayoutGrid,
+    ScrollText,
+    Settings,
     Ticket,
     Users,
     Wallet,
@@ -85,7 +88,7 @@ export function AppSidebar() {
                     {
                         title: 'Projects',
                         href: `/clients/${portalClientId}/projects`,
-                        icon: BriefcaseBusiness,
+                        icon: FolderKanban,
                     },
                     {
                         title: 'Issues',
@@ -162,6 +165,11 @@ export function AppSidebar() {
                               href: '/cms/feedback',
                           },
                       ],
+                  },
+                  {
+                      title: 'Audit Logs',
+                      href: '/audit-logs',
+                      icon: ScrollText,
                   },
               ]
             : []),

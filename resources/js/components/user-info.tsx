@@ -10,15 +10,19 @@ export function UserInfo({
     showEmail?: boolean;
 }) {
     const getInitials = useInitials();
-    const showAvatar = Boolean(user.avatar && user.avatar !== '');
+    const avatarSrc = user.avatar_path
+        ? `/storage/${user.avatar_path}`
+        : user.avatar && user.avatar !== ''
+          ? user.avatar
+          : null;
 
     return (
         <>
             <Avatar className="h-8 w-8 overflow-hidden rounded-lg">
-                {showAvatar ? (
-                    <AvatarImage src={user.avatar} alt={user.name} />
+                {avatarSrc ? (
+                    <AvatarImage src={avatarSrc} alt={user.name} />
                 ) : null}
-                <AvatarFallback className="rounded-lg text-black dark:text-white">
+                <AvatarFallback className="rounded-lg bg-primary/10 text-primary">
                     {getInitials(user.name)}
                 </AvatarFallback>
             </Avatar>

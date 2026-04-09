@@ -1,4 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
+import {
+    ArrowLeft,
+    Calendar,
+    CheckCircle2,
+    DollarSign,
+    FolderKanban,
+    Pencil,
+    Users,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
@@ -37,36 +47,80 @@ export default function FinanceInvoiceShow({
                             </div>
                             <div className="flex items-center gap-2">
                                 <Link href="/finance/invoices">
-                                    <Button variant="outline">Back</Button>
+                                    <Button variant="outline">
+                                        <ArrowLeft className="mr-1.5 size-3.5" />
+                                        Back
+                                    </Button>
                                 </Link>
                                 <Link href={`/finance/invoices/${invoice.id}/edit`}>
-                                    <Button>Edit invoice</Button>
+                                    <Button>
+                                        <Pencil className="mr-1.5 size-3.5" />
+                                        Edit
+                                    </Button>
                                 </Link>
                             </div>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
-                            <DetailField label="Status" value={invoice.status} />
-                            <DetailField label="Amount" value={invoice.amount} />
-                            <DetailField
-                                label="Issued at"
-                                value={invoice.issued_at ?? 'Not recorded'}
-                            />
-                            <DetailField
-                                label="Due at"
-                                value={invoice.due_at ?? 'Not recorded'}
-                            />
-                            <DetailField
-                                label="Paid at"
-                                value={invoice.paid_at ?? 'Not paid'}
-                            />
-                            <DetailField
-                                label="Project"
-                                value={invoice.project.name}
-                            />
-                            <DetailField
-                                label="Client"
-                                value={invoice.project.client?.name ?? '—'}
-                            />
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Status</p>
+                                <div className="mt-1">
+                                    {(() => {
+                                        const colors: Record<string, string> = {
+                                            paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                                            pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                                            overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                                            draft: 'bg-muted text-muted-foreground',
+                                        };
+                                        return (
+                                            <Badge variant="outline" className={`capitalize ${colors[invoice.status] ?? ''}`}>
+                                                {invoice.status}
+                                            </Badge>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Amount</p>
+                                <p className="mt-1 flex items-center gap-1 text-lg font-semibold text-foreground">
+                                    <DollarSign className="size-4 text-emerald-500" />
+                                    {Number(invoice.amount).toLocaleString()}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Issued at</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Calendar className="size-3.5 text-muted-foreground" />
+                                    {invoice.issued_at ?? 'Not recorded'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Due at</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Calendar className="size-3.5 text-muted-foreground" />
+                                    {invoice.due_at ?? 'Not recorded'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Paid at</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    {invoice.paid_at ? <CheckCircle2 className="size-3.5 text-emerald-500" /> : <Calendar className="size-3.5 text-muted-foreground" />}
+                                    {invoice.paid_at ?? 'Not paid'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Project</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <FolderKanban className="size-3.5 text-violet-500" />
+                                    {invoice.project.name}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Client</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Users className="size-3.5 text-blue-500" />
+                                    {invoice.project.client?.name ?? '—'}
+                                </p>
+                            </div>
                             <DetailField
                                 label="Notes"
                                 value={invoice.notes ?? 'No notes.'}

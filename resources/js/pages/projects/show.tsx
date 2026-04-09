@@ -1,4 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
+import {
+    DollarSign,
+    LayoutGrid,
+    Pencil,
+    Plus,
+    Ticket,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
@@ -15,6 +23,8 @@ export default function ProjectShow({
         name: string;
         description: string | null;
         status?: { id: number; name: string; slug: string } | null;
+        budget?: string | null;
+        currency?: string | null;
     };
     summary: {
         issues_count: number;
@@ -40,20 +50,42 @@ export default function ProjectShow({
                                 <Link
                                     href={`/clients/${client.id}/projects/${project.id}/issues/create`}
                                 >
-                                    <Button>Create issue</Button>
+                                    <Button>
+                                        <Plus className="mr-1.5 size-4" />
+                                        Create issue
+                                    </Button>
                                 </Link>
                             ) : null}
                             {can_manage_project ? (
                                 <Link
                                     href={`/clients/${client.id}/projects/${project.id}/edit`}
                                 >
-                                    <Button variant="outline">Edit project</Button>
+                                    <Button variant="outline">
+                                        <Pencil className="mr-1.5 size-3.5" />
+                                        Edit project
+                                    </Button>
                                 </Link>
                             ) : null}
                         </div>
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
-                        <ProjectField label="Status" value={project.status?.name ?? 'No status'} />
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Status</p>
+                            <div className="mt-1">
+                                <Badge variant="outline" className="capitalize">
+                                    {project.status?.name ?? 'No status'}
+                                </Badge>
+                            </div>
+                        </div>
+                        {project.budget ? (
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Budget</p>
+                                <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-foreground">
+                                    <DollarSign className="size-3.5 text-emerald-500" />
+                                    {Number(project.budget).toLocaleString()} {project.currency ?? 'USD'}
+                                </p>
+                            </div>
+                        ) : null}
                         <ProjectField
                             label="Description"
                             value={project.description ?? 'No description yet.'}
@@ -63,35 +95,47 @@ export default function ProjectShow({
                 </Card>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <Card className="shadow-none">
-                        <CardContent className="p-4">
-                            <p className="text-sm text-muted-foreground">Issues</p>
-                            <p className="mt-2 text-2xl font-semibold">
-                                {summary.issues_count}
-                            </p>
-                            <Link
-                                href={`/clients/${client.id}/projects/${project.id}/issues`}
-                                className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                            >
-                                Open issues
-                            </Link>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="shadow-none">
-                        <CardContent className="p-4">
-                            <p className="text-sm text-muted-foreground">Boards</p>
-                            <p className="mt-2 text-2xl font-semibold">
-                                {summary.boards_count}
-                            </p>
-                            <Link
-                                href={`/clients/${client.id}/boards`}
-                                className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                            >
-                                Open client boards
-                            </Link>
-                        </CardContent>
-                    </Card>
+                    {[
+                        {
+                            label: 'Issues',
+                            value: summary.issues_count,
+                            icon: Ticket,
+                            color: 'text-amber-600 dark:text-amber-400',
+                            href: `/clients/${client.id}/projects/${project.id}/issues`,
+                            linkLabel: 'Open issues',
+                        },
+                        {
+                            label: 'Boards',
+                            value: summary.boards_count,
+                            icon: LayoutGrid,
+                            color: 'text-emerald-600 dark:text-emerald-400',
+                            href: `/clients/${client.id}/boards`,
+                            linkLabel: 'Open client boards',
+                        },
+                    ].map((stat) => {
+                        const Icon = stat.icon;
+                        return (
+                            <Card key={stat.label} className="shadow-none">
+                                <CardContent className="p-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}>
+                                            <Icon className="size-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-muted-foreground">{stat.label}</p>
+                                            <p className="text-2xl font-semibold">{stat.value}</p>
+                                        </div>
+                                    </div>
+                                    <Link
+                                        href={stat.href}
+                                        className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                    >
+                                        {stat.linkLabel}
+                                    </Link>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
             </div>
         </>

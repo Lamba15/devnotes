@@ -26,6 +26,9 @@ export default function IssuesCreate({
         status: 'todo',
         priority: 'medium',
         type: 'task',
+        due_date: '',
+        estimated_hours: '',
+        label: '',
     });
 
     const sections: DynamicFormSection[] = [
@@ -82,6 +85,23 @@ export default function IssuesCreate({
                         value: type,
                     })),
                 },
+                {
+                    name: 'due_date',
+                    label: 'Due date',
+                    type: 'date',
+                },
+                {
+                    name: 'estimated_hours',
+                    label: 'Estimated hours',
+                    type: 'text',
+                    placeholder: 'e.g. 4',
+                },
+                {
+                    name: 'label',
+                    label: 'Label',
+                    type: 'text',
+                    placeholder: 'e.g. frontend, backend, urgent',
+                },
             ],
         },
     ];
@@ -107,13 +127,7 @@ export default function IssuesCreate({
                     }
                     onChange={(name, value) =>
                         form.setData(
-                            name as
-                                | 'title'
-                                | 'description'
-                                | 'assignee_id'
-                                | 'status'
-                                | 'priority'
-                                | 'type',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

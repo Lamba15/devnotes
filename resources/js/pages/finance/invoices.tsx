@@ -1,10 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -103,14 +105,28 @@ export default function FinanceInvoices({
             header: 'Status',
             sortable: true,
             sortKey: 'status',
-            render: (invoice) => invoice.status,
+            render: (invoice) => {
+                const colors: Record<string, string> = {
+                    paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                    draft: 'bg-muted text-muted-foreground',
+                };
+                return (
+                    <Badge variant="outline" className={`capitalize ${colors[invoice.status] ?? ''}`}>
+                        {invoice.status}
+                    </Badge>
+                );
+            },
         },
         {
             key: 'amount',
             header: 'Amount',
             sortable: true,
             sortKey: 'amount',
-            render: (invoice) => invoice.amount,
+            render: (invoice) => (
+                <span className="font-medium">${Number(invoice.amount).toLocaleString()}</span>
+            ),
         },
         {
             key: 'actions',
@@ -191,17 +207,23 @@ export default function FinanceInvoices({
                 description="Manage project-linked invoices and billing state."
                 actions={
                     <Link href="/finance/invoices/create">
-                        <Button>Create invoice</Button>
+                        <Button>
+                            <Plus className="mr-1.5 size-4" />
+                            Create invoice
+                        </Button>
                     </Link>
                 }
             >
                 <FilterBar>
-                    <Input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search invoices by reference, status, project, client, or amount"
-                        className="md:max-w-sm"
-                    />
+                    <div className="relative md:max-w-sm">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search invoices..."
+                            className="pl-9"
+                        />
+                    </div>
                 </FilterBar>
 
                 <DataTable

@@ -20,6 +20,8 @@ export default function ProjectsCreate({
         name: '',
         description: '',
         status_id: '',
+        budget: '',
+        currency: 'USD',
     });
 
     const sections: DynamicFormSection[] = [
@@ -53,6 +55,25 @@ export default function ProjectsCreate({
                         value: status.id,
                     })),
                 },
+                {
+                    name: 'budget',
+                    label: 'Budget',
+                    type: 'text',
+                    placeholder: 'e.g. 5000',
+                },
+                {
+                    name: 'currency',
+                    label: 'Currency',
+                    type: 'select',
+                    options: [
+                        { label: 'USD', value: 'USD' },
+                        { label: 'EUR', value: 'EUR' },
+                        { label: 'GBP', value: 'GBP' },
+                        { label: 'EGP', value: 'EGP' },
+                        { label: 'SAR', value: 'SAR' },
+                        { label: 'AED', value: 'AED' },
+                    ],
+                },
             ],
         },
     ];
@@ -76,7 +97,7 @@ export default function ProjectsCreate({
                     }
                     onChange={(name, value) =>
                         form.setData(
-                            name as 'name' | 'description' | 'status_id',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

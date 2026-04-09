@@ -1,7 +1,15 @@
 import { Head } from '@inertiajs/react';
+import {
+    ArrowDownRight,
+    ArrowUpRight,
+    DollarSign,
+    FileText,
+    Receipt,
+} from 'lucide-react';
 import { useState } from 'react';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
@@ -53,7 +61,20 @@ export default function ClientFinancePage({
             header: 'Project',
             render: (row) => row.project?.name ?? '—',
         },
-        { key: 'amount', header: 'Amount', render: (row) => row.amount },
+        {
+            key: 'amount',
+            header: 'Amount',
+            render: (row) => {
+                const num = Number(row.amount);
+                const isPositive = num >= 0;
+                return (
+                    <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+                        ${Math.abs(num).toLocaleString()}
+                    </span>
+                );
+            },
+        },
         {
             key: 'occurred_at',
             header: 'Occurred',
@@ -72,8 +93,30 @@ export default function ClientFinancePage({
             header: 'Project',
             render: (row) => row.project?.name ?? '—',
         },
-        { key: 'status', header: 'Status', render: (row) => row.status },
-        { key: 'amount', header: 'Amount', render: (row) => row.amount },
+        {
+            key: 'status',
+            header: 'Status',
+            render: (row) => {
+                const colors: Record<string, string> = {
+                    paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                    draft: 'bg-muted text-muted-foreground',
+                };
+                return (
+                    <Badge variant="outline" className={`capitalize ${colors[row.status] ?? ''}`}>
+                        {row.status}
+                    </Badge>
+                );
+            },
+        },
+        {
+            key: 'amount',
+            header: 'Amount',
+            render: (row) => (
+                <span className="font-medium">${Number(row.amount).toLocaleString()}</span>
+            ),
+        },
     ];
 
     return (
@@ -82,7 +125,10 @@ export default function ClientFinancePage({
             <div className="space-y-6">
                 <Card className="shadow-none">
                     <CardHeader>
-                        <CardTitle>Client finance</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <DollarSign className="size-5 text-emerald-500" />
+                            Client finance
+                        </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-muted-foreground">
                         This brings together transactions and invoices across
@@ -92,7 +138,10 @@ export default function ClientFinancePage({
 
                 <div className="space-y-6">
                     <section className="space-y-3">
-                        <h2 className="text-lg font-semibold">Transactions</h2>
+                        <h2 className="flex items-center gap-2 text-lg font-semibold">
+                            <Receipt className="size-5 text-blue-500" />
+                            Transactions
+                        </h2>
                         <DataTable
                             columns={transactionColumns}
                             rows={transactions}
@@ -104,7 +153,10 @@ export default function ClientFinancePage({
                     </section>
 
                     <section className="space-y-3">
-                        <h2 className="text-lg font-semibold">Invoices</h2>
+                        <h2 className="flex items-center gap-2 text-lg font-semibold">
+                            <FileText className="size-5 text-violet-500" />
+                            Invoices
+                        </h2>
                         <DataTable
                             columns={invoiceColumns}
                             rows={invoices}

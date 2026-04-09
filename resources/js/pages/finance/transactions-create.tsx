@@ -18,6 +18,8 @@ export default function FinanceTransactionsCreate({
         description: '',
         amount: '',
         occurred_at: '',
+        category: '',
+        currency: 'USD',
     });
 
     const sections: DynamicFormSection[] = [
@@ -54,8 +56,26 @@ export default function FinanceTransactionsCreate({
                 {
                     name: 'occurred_at',
                     label: 'Occurred at',
+                    type: 'date',
+                },
+                {
+                    name: 'category',
+                    label: 'Category',
                     type: 'text',
-                    placeholder: 'YYYY-MM-DD',
+                    placeholder: 'e.g. payment, expense, refund',
+                },
+                {
+                    name: 'currency',
+                    label: 'Currency',
+                    type: 'select',
+                    options: [
+                        { label: 'USD', value: 'USD' },
+                        { label: 'EUR', value: 'EUR' },
+                        { label: 'GBP', value: 'GBP' },
+                        { label: 'EGP', value: 'EGP' },
+                        { label: 'SAR', value: 'SAR' },
+                        { label: 'AED', value: 'AED' },
+                    ],
                 },
             ],
         },
@@ -78,11 +98,7 @@ export default function FinanceTransactionsCreate({
                     onCancel={() => router.visit('/finance/transactions')}
                     onChange={(name, value) =>
                         form.setData(
-                            name as
-                                | 'project_id'
-                                | 'description'
-                                | 'amount'
-                                | 'occurred_at',
+                            name as keyof typeof form.data,
                             value,
                         )
                     }

@@ -1,10 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { Globe, Plus, Search, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -99,7 +101,12 @@ export default function ClientStatusesPage({
         {
             key: 'scope',
             header: 'Scope',
-            render: (status) => (status.client_id ? 'Client' : 'System'),
+            render: (status) => (
+                <Badge variant="outline" className="gap-1">
+                    {status.client_id ? <User className="size-3" /> : <Globe className="size-3" />}
+                    {status.client_id ? 'Client' : 'System'}
+                </Badge>
+            ),
         },
         {
             key: 'actions',
@@ -182,19 +189,25 @@ export default function ClientStatusesPage({
                 actions={
                     can_manage_statuses ? (
                         <Link href={`/clients/${client.id}/statuses/create`}>
-                            <Button>Create status</Button>
+                            <Button>
+                                <Plus className="mr-1.5 size-4" />
+                                Create status
+                            </Button>
                         </Link>
                     ) : undefined
                 }
             >
                 <FilterBar>
                     <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search statuses by name or slug"
-                            className="md:max-w-sm"
-                        />
+                        <div className="relative md:max-w-sm">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                value={query}
+                                onChange={(event) => setQuery(event.target.value)}
+                                placeholder="Search statuses..."
+                                className="pl-9"
+                            />
+                        </div>
                         <select
                             value={sortBy}
                             onChange={(event) => setSortBy(event.target.value)}

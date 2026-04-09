@@ -1,3 +1,4 @@
+import { Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,9 @@ export type DynamicFormField =
       })
     | (BaseField & {
           type: 'textarea';
+      })
+    | (BaseField & {
+          type: 'date';
       })
     | (BaseField & {
           type: 'select';
@@ -138,6 +142,11 @@ export function DynamicForm({
                     </Button>
                 ) : null}
                 <Button disabled={processing} type="submit">
+                    {submitLabel.toLowerCase().startsWith('create') ? (
+                        <Plus className="mr-1.5 size-4" />
+                    ) : (
+                        <Check className="mr-1.5 size-4" />
+                    )}
                     {submitLabel}
                 </Button>
             </div>
@@ -179,6 +188,19 @@ function FormField({
                     id={field.name}
                     name={field.name}
                     type="password"
+                    value={value}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                        onChange(field.name, event.target.value)
+                    }
+                />
+            ) : null}
+
+            {field.type === 'date' ? (
+                <Input
+                    id={field.name}
+                    name={field.name}
+                    type="date"
                     value={value}
                     placeholder={field.placeholder}
                     onChange={(event) =>
