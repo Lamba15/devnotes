@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { GripVertical, Pencil, Plus, X } from 'lucide-react';
+import { GripVertical, Pencil, Plus, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { Button } from '@/components/ui/button';
@@ -314,6 +314,14 @@ export default function BoardShow({
                                 Add column
                             </Button>
                         ) : null}
+                        <Link
+                            href={`/clients/${client.id}/boards/${board.id}/members`}
+                        >
+                            <Button size="sm" variant="outline">
+                                <Users className="mr-1.5 size-3.5" />
+                                Members
+                            </Button>
+                        </Link>
                         {can_manage_board ? (
                             <Link
                                 href={`/clients/${client.id}/boards/${board.id}/edit`}

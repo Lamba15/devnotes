@@ -6,6 +6,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\BoardIssueMovementController;
+use App\Http\Controllers\BoardMembershipController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientMembershipController;
 use App\Http\Controllers\ClientStatusController;
@@ -89,6 +90,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('clients/{client}/boards/{board}/edit', [BoardController::class, 'edit'])->name('clients.boards.edit');
     Route::put('clients/{client}/boards/{board}', [BoardController::class, 'update'])->name('clients.boards.update');
     Route::delete('clients/{client}/boards/{board}', [BoardController::class, 'destroy'])->name('clients.boards.destroy');
+    Route::get('clients/{client}/boards/{board}/members', [BoardMembershipController::class, 'index'])->name('clients.boards.members.index');
+    Route::get('clients/{client}/boards/{board}/members/create', [BoardMembershipController::class, 'create'])->name('clients.boards.members.create');
+    Route::post('clients/{client}/boards/{board}/members', [BoardMembershipController::class, 'store'])->name('clients.boards.members.store');
+    Route::delete('clients/{client}/boards/{board}/members/{membership}', [BoardMembershipController::class, 'destroy'])->name('clients.boards.members.destroy');
     Route::get('clients/{client}/statuses/create', [ClientStatusController::class, 'create'])->name('clients.statuses.create');
     Route::get('clients/{client}/statuses/{status}/edit', [ClientStatusController::class, 'edit'])->name('clients.statuses.edit');
     Route::get('clients/{client}/statuses', [ClientStatusController::class, 'index'])->name('clients.statuses.index');
