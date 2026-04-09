@@ -62,6 +62,20 @@ class AssistantToolExecutor
             'list_accessible_transactions' => $this->executeListAccessibleTransactions($user, $payload),
             'create_invoice' => $this->executeCreateInvoice($user, $payload, $confirmation),
             'list_accessible_invoices' => $this->executeListAccessibleInvoices($user, $payload),
+            'list_audit_logs' => $this->executeListAuditLogs($user, $payload),
+            'get_platform_stats' => $this->executeGetPlatformStats($user),
+            'manage_user_credits' => $this->executeManageUserCredits($user, $payload, $confirmation),
+            'delete_issue' => $this->executeDeleteIssue($user, $payload, $confirmation),
+            'update_project' => $this->executeUpdateProject($user, $payload, $confirmation),
+            'update_transaction' => $this->executeUpdateTransaction($user, $payload, $confirmation),
+            'update_invoice' => $this->executeUpdateInvoice($user, $payload, $confirmation),
+            'delete_project' => $this->executeDeleteProject($user, $payload, $confirmation),
+            'list_client_members' => $this->executeListClientMembers($user, $payload),
+            'delete_client' => $this->executeDeleteClient($user, $payload, $confirmation),
+            'delete_transaction' => $this->executeDeleteTransaction($user, $payload, $confirmation),
+            'delete_invoice' => $this->executeDeleteInvoice($user, $payload, $confirmation),
+            'get_client_detail' => $this->executeGetClientDetail($user, $payload),
+            'get_project_detail' => $this->executeGetProjectDetail($user, $payload),
             default => throw ValidationException::withMessages([
                 'tool' => "Unsupported assistant tool [{$toolName}].",
             ]),
@@ -829,5 +843,361 @@ class AssistantToolExecutor
         }
 
         return true;
+    }
+
+    private function executeListAuditLogs(User $user, array $payload): array
+    {
+        abort_unless($user->isPlatformOwner(), 403);
+
+        $query = \App\Models\AuditLog::query()
+            ->with('user:id,name,email')
+            ->orderByDesc('created_at');
+
+        if ($search = ($payload['search'] ?? null)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('event', 'like', "%{$search}%")
+                    ->orWhere('source', 'like', "%{$search}%")
+                    ->orWhere('subject_type', 'like', "%{$search}%");
+            });
+        }
+
+        if ($event = ($payload['event'] ?? null)) {
+            $query->where('event', $event);
+        }
+
+        if ($source = ($payload['source'] ?? null)) {
+            $query->where('source', $source);
+        }
+
+        $limit = min(max((int) ($payload['limit'] ?? 20), 1), 50);
+
+        return [
+            'type' => 'audit_logs',
+            'logs' => $query->limit($limit)->get()->map(fn ($log) => [
+                'id' => $log->id,
+                'event' => $log->event,
+                'source' => $log->source,
+                'subject_type' => class_basename($log->subject_type ?? ''),
+                'subject_id' => $log->subject_id,
+                'user' => $log->user?->name ?? 'System',
+                'created_at' => $log->created_at->toISOString(),
+            ])->all(),
+        ];
+    }
+
+    private function executeGetPlatformStats(User $user): array
+    {
+        abort_unless($user->isPlatformOwner(), 403);
+
+        return [
+            'type' => 'platform_stats',
+            'clients' => Client::count(),
+            'projects' => Project::count(),
+            'issues' => Issue::count(),
+            'open_issues' => Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
+            'transactions' => Transaction::count(),
+            'invoices' => Invoice::count(),
+            'users' => User::count(),
+            'boards' => Board::count(),
+        ];
+    }
+
+    private function executeManageUserCredits(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        abort_unless($user->isPlatformOwner(), 403);
+
+        $targetUser = User::findOrFail($payload['user_id']);
+        $credits = (int) $payload['ai_credits'];
+
+        $targetUser->update(['ai_credits' => $credits]);
+
+        return [
+            'type' => 'user_credits_updated',
+            'user_id' => $targetUser->id,
+            'user_name' => $targetUser->name,
+            'ai_credits' => $credits,
+            'ai_credits_used' => $targetUser->ai_credits_used,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeDeleteIssue(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $issue = Issue::findOrFail($payload['issue_id']);
+        $project = $issue->project;
+
+        abort_unless($user->canManageProject($project), 403);
+
+        $issueTitle = $issue->title;
+        $issueId = $issue->id;
+        $issue->delete();
+
+        return [
+            'type' => 'issue_deleted',
+            'id' => $issueId,
+            'title' => $issueTitle,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeUpdateProject(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $project = Project::findOrFail($payload['project_id']);
+
+        abort_unless($user->canManageProject($project), 403);
+
+        $updateData = [];
+        if (isset($payload['name'])) {
+            $updateData['name'] = $payload['name'];
+        }
+        if (array_key_exists('description', $payload)) {
+            $updateData['description'] = $payload['description'];
+        }
+        if (isset($payload['status_id'])) {
+            $updateData['status_id'] = $payload['status_id'];
+        }
+
+        $project->update($updateData);
+        $project->refresh()->load('status');
+
+        return [
+            'type' => 'project',
+            'id' => $project->id,
+            'name' => $project->name,
+            'description' => $project->description,
+            'status' => $project->status?->name,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeUpdateTransaction(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $transaction = Transaction::findOrFail($payload['transaction_id']);
+
+        abort_unless($user->canManageClient($transaction->project->client), 403);
+
+        $updateData = [];
+        if (isset($payload['description'])) {
+            $updateData['description'] = $payload['description'];
+        }
+        if (isset($payload['amount'])) {
+            $updateData['amount'] = $payload['amount'];
+        }
+        if (array_key_exists('category', $payload)) {
+            $updateData['category'] = $payload['category'];
+        }
+
+        $transaction->update($updateData);
+
+        return [
+            'type' => 'transaction',
+            'id' => $transaction->id,
+            'description' => $transaction->description,
+            'amount' => (string) $transaction->amount,
+            'category' => $transaction->category,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeUpdateInvoice(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $invoice = Invoice::findOrFail($payload['invoice_id']);
+
+        abort_unless($user->canManageClient($invoice->project->client), 403);
+
+        $updateData = [];
+        if (isset($payload['status'])) {
+            $updateData['status'] = $payload['status'];
+        }
+        if (isset($payload['amount'])) {
+            $updateData['amount'] = $payload['amount'];
+        }
+        if (array_key_exists('notes', $payload)) {
+            $updateData['notes'] = $payload['notes'];
+        }
+
+        $invoice->update($updateData);
+
+        return [
+            'type' => 'invoice',
+            'id' => $invoice->id,
+            'reference' => $invoice->reference,
+            'status' => $invoice->status,
+            'amount' => (string) $invoice->amount,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeDeleteProject(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $project = Project::findOrFail($payload['project_id']);
+
+        abort_unless($user->canManageProject($project), 403);
+
+        $name = $project->name;
+        $id = $project->id;
+
+        app(\App\Actions\Projects\DeleteProject::class)->handle($user, $project);
+
+        return [
+            'type' => 'project_deleted',
+            'id' => $id,
+            'name' => $name,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeListClientMembers(User $user, array $payload): array
+    {
+        $client = Client::findOrFail($payload['client_id']);
+
+        abort_unless($user->canAccessClient($client), 403);
+
+        $members = $client->memberships()
+            ->with('user:id,name,email,avatar_path')
+            ->get()
+            ->map(fn ($membership) => [
+                'id' => $membership->id,
+                'role' => $membership->role,
+                'user_id' => $membership->user->id,
+                'user_name' => $membership->user->name,
+                'user_email' => $membership->user->email,
+            ])
+            ->all();
+
+        return [
+            'type' => 'client_members',
+            'client_id' => $client->id,
+            'client_name' => $client->name,
+            'members' => $members,
+            'count' => count($members),
+        ];
+    }
+
+    private function executeDeleteClient(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        abort_unless($user->isPlatformOwner(), 403);
+
+        $client = Client::findOrFail($payload['client_id']);
+        $clientName = $client->name;
+        $clientId = $client->id;
+        $client->delete();
+
+        return [
+            'type' => 'client_deleted',
+            'id' => $clientId,
+            'name' => $clientName,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeDeleteTransaction(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $transaction = Transaction::findOrFail($payload['transaction_id']);
+
+        abort_unless($user->canManageProject($transaction->project), 403);
+
+        $transactionId = $transaction->id;
+        $description = $transaction->description;
+        $transaction->delete();
+
+        return [
+            'type' => 'transaction_deleted',
+            'id' => $transactionId,
+            'description' => $description,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeDeleteInvoice(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $invoice = Invoice::findOrFail($payload['invoice_id']);
+
+        abort_unless($user->canManageProject($invoice->project), 403);
+
+        $invoiceId = $invoice->id;
+        $reference = $invoice->reference;
+        $invoice->delete();
+
+        return [
+            'type' => 'invoice_deleted',
+            'id' => $invoiceId,
+            'reference' => $reference,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeGetClientDetail(User $user, array $payload): array
+    {
+        $client = Client::findOrFail($payload['client_id']);
+
+        abort_unless($user->canAccessClient($client), 403);
+
+        $client->load('behavior:id,name,slug');
+
+        $projectCount = $client->projects()->count();
+        $memberCount = $client->memberships()->count();
+        $issueCount = Issue::query()
+            ->whereIn('project_id', $client->projects()->select('id'))
+            ->count();
+        $boardCount = Board::query()
+            ->whereIn('project_id', $client->projects()->select('id'))
+            ->count();
+
+        return [
+            'type' => 'client_detail',
+            'id' => $client->id,
+            'name' => $client->name,
+            'email' => $client->email,
+            'behavior' => $client->behavior?->name,
+            'country_of_origin' => $client->country_of_origin,
+            'industry' => $client->industry,
+            'origin' => $client->origin,
+            'birthday' => $client->birthday?->toDateString(),
+            'date_of_first_interaction' => $client->date_of_first_interaction?->toDateString(),
+            'notes' => $client->notes,
+            'stats' => [
+                'members' => $memberCount,
+                'projects' => $projectCount,
+                'issues' => $issueCount,
+                'boards' => $boardCount,
+            ],
+            'created_at' => $client->created_at?->toDateTimeString(),
+        ];
+    }
+
+    private function executeGetProjectDetail(User $user, array $payload): array
+    {
+        $project = Project::findOrFail($payload['project_id']);
+
+        abort_unless($user->hasProjectAccess($project), 403);
+
+        $project->load(['client:id,name', 'status:id,name,slug']);
+
+        $issueCount = $project->issues()->count();
+        $boardCount = $project->boards()->count();
+        $transactionCount = $project->transactions()->count();
+        $invoiceCount = $project->invoices()->count();
+
+        return [
+            'type' => 'project_detail',
+            'id' => $project->id,
+            'name' => $project->name,
+            'description' => $project->description,
+            'client' => $project->client?->only(['id', 'name']),
+            'status' => $project->status?->name,
+            'budget' => $project->budget ? (string) $project->budget : null,
+            'currency' => $project->currency,
+            'starts_at' => $project->starts_at?->toDateString(),
+            'ends_at' => $project->ends_at?->toDateString(),
+            'notes' => $project->notes,
+            'stats' => [
+                'issues' => $issueCount,
+                'boards' => $boardCount,
+                'transactions' => $transactionCount,
+                'invoices' => $invoiceCount,
+            ],
+            'created_at' => $project->created_at?->toDateTimeString(),
+        ];
     }
 }

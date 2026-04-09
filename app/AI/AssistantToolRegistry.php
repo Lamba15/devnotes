@@ -440,6 +440,236 @@ class AssistantToolRegistry
                     'additionalProperties' => false,
                 ],
             ],
+            [
+                'name' => 'list_audit_logs',
+                'description' => 'List recent audit log entries. Platform owner only.',
+                'skill' => 'platform_admin',
+                'requires_confirmation' => false,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'search' => ['type' => ['string', 'null']],
+                        'event' => ['type' => ['string', 'null']],
+                        'source' => ['type' => ['string', 'null']],
+                        'limit' => [
+                            'type' => ['integer', 'null'],
+                            'minimum' => 1,
+                            'maximum' => 50,
+                        ],
+                    ],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'get_platform_stats',
+                'description' => 'Get platform-wide counts and summary stats. Platform owner only.',
+                'skill' => 'platform_admin',
+                'requires_confirmation' => false,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass,
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'manage_user_credits',
+                'description' => 'Set AI credits for a user. Use -1 for unlimited, 0 for none. Platform owner only.',
+                'skill' => 'platform_admin',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'user_id' => ['type' => 'integer'],
+                        'ai_credits' => ['type' => 'integer', 'minimum' => -1],
+                    ],
+                    'required' => ['user_id', 'ai_credits'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_issue',
+                'description' => 'Delete an issue the current user can manage.',
+                'skill' => 'issue_tracking',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'issue_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['issue_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'update_project',
+                'description' => 'Update a project the current user can manage.',
+                'skill' => 'project_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'project_id' => ['type' => 'integer'],
+                        'name' => ['type' => ['string', 'null']],
+                        'description' => ['type' => ['string', 'null']],
+                        'status_id' => ['type' => ['integer', 'null']],
+                    ],
+                    'required' => ['project_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'update_transaction',
+                'description' => 'Update a transaction the current user can manage.',
+                'skill' => 'finance_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'transaction_id' => ['type' => 'integer'],
+                        'description' => ['type' => ['string', 'null']],
+                        'amount' => ['type' => ['number', 'null']],
+                        'category' => ['type' => ['string', 'null']],
+                    ],
+                    'required' => ['transaction_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'update_invoice',
+                'description' => 'Update an invoice the current user can manage.',
+                'skill' => 'finance_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'invoice_id' => ['type' => 'integer'],
+                        'status' => ['type' => ['string', 'null']],
+                        'amount' => ['type' => ['number', 'null']],
+                        'notes' => ['type' => ['string', 'null']],
+                    ],
+                    'required' => ['invoice_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_project',
+                'description' => 'Delete a project the current user can manage.',
+                'skill' => 'project_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'project_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['project_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'list_client_members',
+                'description' => 'List all members of a client the current user can access.',
+                'skill' => 'client_management',
+                'requires_confirmation' => false,
+                'guard' => fn (User $user): bool => $user->exists,
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'client_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['client_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_client',
+                'description' => 'Delete a client record. Only platform owners can delete clients.',
+                'skill' => 'client_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'client_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['client_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_transaction',
+                'description' => 'Delete a financial transaction the current user can manage.',
+                'skill' => 'finance_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'transaction_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['transaction_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_invoice',
+                'description' => 'Delete an invoice the current user can manage.',
+                'skill' => 'finance_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'invoice_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['invoice_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'get_client_detail',
+                'description' => 'Get detailed information about a specific client including profile, stats, and recent activity.',
+                'skill' => 'client_management',
+                'requires_confirmation' => false,
+                'guard' => fn (User $user): bool => $user->exists,
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'client_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['client_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'get_project_detail',
+                'description' => 'Get detailed information about a specific project including stats, budget, and status.',
+                'skill' => 'project_management',
+                'requires_confirmation' => false,
+                'guard' => fn (User $user): bool => $user->exists,
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'project_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['project_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
         ];
     }
 }
