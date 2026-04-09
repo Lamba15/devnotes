@@ -1,27 +1,57 @@
+import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export function CrudPage({
     title,
     description,
     actions,
+    onBack,
     children,
 }: {
     title: string;
     description?: string;
     actions?: ReactNode;
+    onBack?: () => void;
     children: ReactNode;
 }) {
-    return (
-        <div className="flex flex-1 flex-col gap-6 p-4">
-            <section className="flex items-start justify-between gap-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                <div>
-                    <h1 className="text-xl font-semibold">{title}</h1>
+    const headerSlot =
+        typeof document !== 'undefined'
+            ? document.getElementById('app-page-header-slot')
+            : null;
+
+    const headerContent = (
+        <div className="flex min-w-0 items-center justify-between gap-6">
+            <div className="flex min-w-0 items-center gap-3">
+                {onBack ? (
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
+                        <ArrowLeft className="size-4" />
+                    </button>
+                ) : null}
+                <div className="min-w-0">
+                    <h1 className="truncate text-2xl font-bold tracking-tight">
+                        {title}
+                    </h1>
                     {description ? (
-                        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                            {description}
+                        </p>
                     ) : null}
                 </div>
-                {actions ? <div className="shrink-0">{actions}</div> : null}
-            </section>
+            </div>
+            {actions ? <div className="shrink-0">{actions}</div> : null}
+        </div>
+    );
+
+    return (
+        <div className="flex flex-1 flex-col gap-6 p-6">
+            {headerSlot
+                ? createPortal(headerContent, headerSlot)
+                : headerContent}
             {children}
         </div>
     );

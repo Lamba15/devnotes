@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\AI\AssistantConfirmationService;
 use App\AI\AssistantConversationService;
 use App\Models\AssistantThread;
 use Illuminate\Http\JsonResponse;
@@ -63,11 +64,15 @@ class AssistantController extends Controller
         return response()->json(['data' => ['deleted' => true]]);
     }
 
-    public function store(Request $request, AssistantConversationService $conversationService): JsonResponse
-    {
+    public function store(
+        Request $request,
+        AssistantConversationService $conversationService,
+        AssistantConfirmationService $confirmationService,
+    ): JsonResponse {
         $validated = $request->validate([
             'message' => ['required', 'string'],
             'thread_id' => ['nullable', 'integer', 'exists:assistant_threads,id'],
+            'page_context' => ['nullable', 'array'],
         ]);
 
         $thread = isset($validated['thread_id'])
@@ -77,11 +82,27 @@ class AssistantController extends Controller
                 ->firstOrFail()
             : null;
 
+        $pendingConfirmation = $thread?->confirmations()->where('status', 'pending')->latest('id')->first();
+        $confirmationIntent = $confirmationService->interpretUserReply($validated['message']);
+
+        if ($pendingConfirmation && $confirmationIntent === 'approve') {
+            return response()->json([
+                'data' => $confirmationService->approve($request->user(), $pendingConfirmation),
+            ]);
+        }
+
+        if ($pendingConfirmation && $confirmationIntent === 'reject') {
+            return response()->json([
+                'data' => $confirmationService->reject($request->user(), $pendingConfirmation),
+            ]);
+        }
+
         return response()->json([
             'data' => $conversationService->respond(
                 user: $request->user(),
                 content: $validated['message'],
                 thread: $thread,
+                pageContext: $validated['page_context'] ?? null,
             ),
         ]);
     }

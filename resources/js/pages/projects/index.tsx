@@ -1,10 +1,22 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormField } from '@/components/crud/dynamic-form';
-import AppLayout from '@/layouts/app-layout';
+import { FilterBar } from '@/components/crud/filter-bar';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type Status = {
     id: number;
@@ -22,37 +34,67 @@ type Project = {
 export default function ProjectsIndex({
     client,
     projects,
-    statuses,
     can_create_projects,
+    filters,
+    pagination,
 }: {
     client: { id: number; name: string };
     projects: Project[];
-    statuses: Status[];
     can_create_projects: boolean;
+    filters: { search: string; sort_by: string; sort_direction: string };
+    pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+    };
 }) {
-    const form = useForm({
-        name: '',
-        description: '',
-        status_id: '',
-    });
+    const [query, setQuery] = useState(filters.search ?? '');
+    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
+    const [sortDirection, setSortDirection] = useState(
+        filters.sort_direction ?? 'desc',
+    );
+    const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
+        null,
+    );
+    const [selectedProjectIds, setSelectedProjectIds] = useState<
+        Array<string | number>
+    >([]);
 
-    const fields: DynamicFormField[] = [
-        { name: 'name', label: 'Name', type: 'text', placeholder: 'Project name' },
-        { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional description' },
-        {
-            name: 'status_id',
-            label: 'Status',
-            type: 'select',
-            placeholder: 'Select status',
-            options: statuses.map((status) => ({ label: status.name, value: status.id })),
-        },
-    ];
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            router.get(
+                `/clients/${client.id}/projects`,
+                {
+                    search: query || undefined,
+                    sort_by: sortBy,
+                    sort_direction: sortDirection,
+                },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                },
+            );
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [client.id, query, sortBy, sortDirection]);
 
     const columns: DataTableColumn<Project>[] = [
         {
             key: 'name',
             header: 'Name',
-            render: (project) => project.name,
+            sortable: true,
+            sortKey: 'name',
+            render: (project) => (
+                <Link
+                    href={`/clients/${client.id}/projects/${project.id}`}
+                    className="font-medium underline-offset-4 hover:underline"
+                >
+                    {project.name}
+                </Link>
+            ),
         },
         {
             key: 'status',
@@ -62,9 +104,73 @@ export default function ProjectsIndex({
         {
             key: 'description',
             header: 'Description',
+            sortable: true,
+            sortKey: 'description',
             render: (project) => project.description ?? '—',
         },
+        {
+            key: 'actions',
+            header: '',
+            render: (project) => (
+                <ActionDropdown
+                    items={[
+                        {
+                            label: 'Edit',
+                            onClick: () =>
+                                window.location.assign(
+                                    `/clients/${client.id}/projects/${project.id}/edit`,
+                                ),
+                        },
+                        {
+                            label: 'Delete',
+                            destructive: true,
+                            onClick: () => setDeleteIds([project.id]),
+                        },
+                    ]}
+                />
+            ),
+        },
     ];
+
+    const bulkActions = [
+        {
+            label: 'Edit selected',
+            onClick: () => {
+                if (selectedProjectIds.length === 1) {
+                    window.location.assign(
+                        `/clients/${client.id}/projects/${selectedProjectIds[0]}/edit`,
+                    );
+                }
+            },
+        },
+        {
+            label: 'Delete selected',
+            destructive: true,
+            onClick: () => {
+                if (selectedProjectIds.length > 0) {
+                    setDeleteIds(selectedProjectIds);
+                }
+            },
+        },
+    ];
+
+    const confirmDelete = async () => {
+        if (!deleteIds) {
+            return;
+        }
+
+        for (const id of deleteIds) {
+            await router.delete(`/clients/${client.id}/projects/${id}`, {
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+
+        setSelectedProjectIds((current) =>
+            current.filter((id) => !deleteIds.includes(id)),
+        );
+        setDeleteIds(null);
+    };
 
     return (
         <>
@@ -72,27 +178,99 @@ export default function ProjectsIndex({
             <CrudPage
                 title={`${client.name} Projects`}
                 description="Projects are owned by exactly one client in v1."
+                actions={
+                    can_create_projects ? (
+                        <Link href={`/clients/${client.id}/projects/create`}>
+                            <Button>Create project</Button>
+                        </Link>
+                    ) : undefined
+                }
             >
-                {can_create_projects ? (
-                    <section className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                        <DynamicForm
-                            fields={fields}
-                            data={form.data}
-                            errors={form.errors}
-                            processing={form.processing}
-                            submitLabel="Create project"
-                            onChange={(name, value) =>
-                                form.setData(name as 'name' | 'description' | 'status_id', value)
-                            }
-                            onSubmit={() => form.post(`/clients/${client.id}/projects`)}
-                        />
-                    </section>
-                ) : null}
+                <FilterBar>
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search projects by name, description, or status"
+                        className="md:max-w-sm"
+                    />
+                </FilterBar>
 
-                <DataTable columns={columns} rows={projects} emptyText="No projects yet." />
+                <DataTable
+                    columns={columns}
+                    rows={projects}
+                    emptyText="No projects yet."
+                    getRowId={(project) => project.id}
+                    selectedRowIds={selectedProjectIds}
+                    onSelectedRowIdsChange={setSelectedProjectIds}
+                    bulkActions={bulkActions}
+                    currentSort={{
+                        sortBy,
+                        sortDirection: sortDirection as 'asc' | 'desc',
+                    }}
+                    onSortChange={(nextSortBy) => {
+                        if (sortBy === nextSortBy) {
+                            setSortDirection((current) =>
+                                current === 'asc' ? 'desc' : 'asc',
+                            );
+                        } else {
+                            setSortBy(nextSortBy);
+                            setSortDirection('asc');
+                        }
+                    }}
+                    pagination={pagination}
+                    onPageChange={(page) =>
+                        router.get(
+                            `/clients/${client.id}/projects`,
+                            {
+                                search: query || undefined,
+                                sort_by: sortBy,
+                                sort_direction: sortDirection,
+                                page,
+                            },
+                            {
+                                preserveState: true,
+                                preserveScroll: true,
+                                replace: true,
+                            },
+                        )
+                    }
+                />
+
+                <Dialog
+                    open={deleteIds !== null}
+                    onOpenChange={(open) => !open && setDeleteIds(null)}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>
+                                Delete project
+                                {deleteIds?.length === 1 ? '' : 's'}?
+                            </DialogTitle>
+                            <DialogDescription>
+                                This will permanently remove{' '}
+                                {deleteIds?.length ?? 0} project
+                                {deleteIds?.length === 1 ? '' : 's'} from this
+                                client workspace.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button
+                                variant="destructive"
+                                onClick={() => void confirmDelete()}
+                            >
+                                Delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </CrudPage>
         </>
     );
 }
 
-ProjectsIndex.layout = (page: React.ReactNode) => <AppLayout>{page}</AppLayout>;
+ProjectsIndex.layout = (page: any) => (
+    <ClientWorkspaceLayout>{page}</ClientWorkspaceLayout>
+);

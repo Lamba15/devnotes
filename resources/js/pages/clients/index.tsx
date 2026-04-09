@@ -1,9 +1,21 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormField } from '@/components/crud/dynamic-form';
+import { FilterBar } from '@/components/crud/filter-bar';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 
 type Behavior = {
@@ -22,35 +34,64 @@ type Client = {
 
 export default function ClientsIndex({
     clients,
-    behaviors,
+    filters,
+    pagination,
 }: {
     clients: Client[];
-    behaviors: Behavior[];
+    filters: { search: string; sort_by: string; sort_direction: string };
+    pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+    };
 }) {
-    const form = useForm({
-        name: '',
-        behavior_id: '',
-    });
+    const [query, setQuery] = useState(filters.search ?? '');
+    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
+    const [sortDirection, setSortDirection] = useState(
+        filters.sort_direction ?? 'desc',
+    );
+    const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
+        null,
+    );
+    const [selectedClientIds, setSelectedClientIds] = useState<
+        Array<string | number>
+    >([]);
 
-    const fields: DynamicFormField[] = [
-        { name: 'name', label: 'Name', type: 'text', placeholder: 'Client name' },
-        {
-            name: 'behavior_id',
-            label: 'Behavior',
-            type: 'select',
-            placeholder: 'Normal (default)',
-            options: behaviors.map((behavior) => ({
-                label: behavior.name,
-                value: behavior.id,
-            })),
-        },
-    ];
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            router.get(
+                '/clients',
+                {
+                    search: query || undefined,
+                    sort_by: sortBy,
+                    sort_direction: sortDirection,
+                },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                },
+            );
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [query, sortBy, sortDirection]);
 
     const columns: DataTableColumn<Client>[] = [
         {
             key: 'name',
             header: 'Name',
-            render: (client) => client.name,
+            sortable: true,
+            sortKey: 'name',
+            render: (client) => (
+                <Link
+                    href={`/clients/${client.id}`}
+                    className="font-medium underline-offset-4 hover:underline"
+                >
+                    {client.name}
+                </Link>
+            ),
         },
         {
             key: 'behavior',
@@ -60,32 +101,170 @@ export default function ClientsIndex({
         {
             key: 'email',
             header: 'Email',
+            sortable: true,
+            sortKey: 'email',
             render: (client) => client.email ?? '—',
         },
+        {
+            key: 'actions',
+            header: '',
+            render: (client) => (
+                <ActionDropdown
+                    items={[
+                        {
+                            label: 'Open workspace',
+                            onClick: () =>
+                                router.visit(`/clients/${client.id}`),
+                        },
+                        {
+                            label: 'Edit',
+                            onClick: () =>
+                                router.visit(`/clients/${client.id}/edit`),
+                        },
+                        {
+                            label: 'Delete',
+                            destructive: true,
+                            onClick: () => setDeleteIds([client.id]),
+                        },
+                    ]}
+                />
+            ),
+        },
     ];
+
+    const bulkActions = [
+        {
+            label: 'Edit selected',
+            onClick: () => {
+                if (selectedClientIds.length === 1) {
+                    router.visit(`/clients/${selectedClientIds[0]}/edit`);
+                }
+            },
+        },
+        {
+            label: 'Delete selected',
+            destructive: true,
+            onClick: () => {
+                if (selectedClientIds.length > 0) {
+                    setDeleteIds(selectedClientIds);
+                }
+            },
+        },
+    ];
+
+    const confirmDelete = async () => {
+        if (!deleteIds) {
+            return;
+        }
+
+        for (const id of deleteIds) {
+            await router.delete(`/clients/${id}`, {
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+
+        setSelectedClientIds((current) =>
+            current.filter((id) => !deleteIds.includes(id)),
+        );
+        setDeleteIds(null);
+    };
 
     return (
         <>
             <Head title="Clients" />
             <CrudPage
                 title="Clients"
-                description="Create the first client records for the new platform foundation."
+                description="Manage clients as a real domain and enter each client workspace for their own members, projects, tracking, and finance."
+                actions={
+                    <Link href="/clients/create">
+                        <Button>Create client</Button>
+                    </Link>
+                }
             >
-                <section className="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                    <DynamicForm
-                        fields={fields}
-                        data={form.data}
-                        errors={form.errors}
-                        processing={form.processing}
-                        submitLabel="Create client"
-                        onChange={(name, value) =>
-                            form.setData(name as 'name' | 'behavior_id', value)
-                        }
-                        onSubmit={() => form.post('/clients')}
+                <FilterBar>
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search clients by name, email, or behavior"
+                        className="md:max-w-sm"
                     />
-                </section>
+                </FilterBar>
 
-                <DataTable columns={columns} rows={clients} emptyText="No clients yet." />
+                <DataTable
+                    columns={columns}
+                    rows={clients}
+                    emptyText="No clients yet."
+                    getRowId={(client) => client.id}
+                    selectedRowIds={selectedClientIds}
+                    onSelectedRowIdsChange={setSelectedClientIds}
+                    bulkActions={bulkActions}
+                    currentSort={{
+                        sortBy,
+                        sortDirection: sortDirection as 'asc' | 'desc',
+                    }}
+                    onSortChange={(nextSortBy) => {
+                        if (sortBy === nextSortBy) {
+                            setSortDirection((current) =>
+                                current === 'asc' ? 'desc' : 'asc',
+                            );
+                        } else {
+                            setSortBy(nextSortBy);
+                            setSortDirection('asc');
+                        }
+                    }}
+                    pagination={pagination}
+                    onPageChange={(page) =>
+                        router.get(
+                            '/clients',
+                            {
+                                search: query || undefined,
+                                sort_by: sortBy,
+                                sort_direction: sortDirection,
+                                page,
+                            },
+                            {
+                                preserveState: true,
+                                preserveScroll: true,
+                                replace: true,
+                            },
+                        )
+                    }
+                />
+
+                <Dialog
+                    open={deleteIds !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setDeleteIds(null);
+                        }
+                    }}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>
+                                Delete client
+                                {deleteIds?.length === 1 ? '' : 's'}?
+                            </DialogTitle>
+                            <DialogDescription>
+                                This will permanently remove{' '}
+                                {deleteIds?.length ?? 0} client
+                                {deleteIds?.length === 1 ? '' : 's'}.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button
+                                variant="destructive"
+                                onClick={() => void confirmDelete()}
+                            >
+                                Delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </CrudPage>
         </>
     );

@@ -96,7 +96,7 @@ export function SearchableSelect({
                 disabled={disabled}
                 onClick={() => setIsOpen((open) => !open)}
                 className={cn(
-                    'border-input bg-background ring-offset-background focus-visible:ring-ring/50 flex h-9 w-full items-center justify-between rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+                    'border-input ring-offset-background focus-visible:ring-ring/50 flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
                     !selectedOption && 'text-muted-foreground',
                 )}
             >

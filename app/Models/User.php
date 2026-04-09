@@ -3,17 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\WorkspaceAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'email_verified_at', 'openrouter_api_key', 'openrouter_model', 'openrouter_system_prompt'])]
+#[Fillable(['name', 'email', 'password', 'email_verified_at', 'avatar_path', 'job_title', 'timezone', 'ai_credits', 'ai_credits_used', 'openrouter_api_key', 'openrouter_model', 'openrouter_system_prompt'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'openrouter_api_key'])]
 class User extends Authenticatable
 {
@@ -40,6 +40,11 @@ class User extends Authenticatable
         return $this->hasMany(AssistantThread::class);
     }
 
+    public function workspaceAccess(): WorkspaceAccess
+    {
+        return new WorkspaceAccess($this);
+    }
+
     public function clientMemberships(): HasMany
     {
         return $this->hasMany(ClientMembership::class);
@@ -57,129 +62,66 @@ class User extends Authenticatable
 
     public function isPlatformOwner(): bool
     {
-        if ($this->relationLoaded('clientMemberships')) {
-            /** @var Collection<int, ClientMembership> $memberships */
-            $memberships = $this->getRelation('clientMemberships');
-
-            return $memberships->isEmpty();
-        }
-
-        return ! $this->clientMemberships()->exists();
+        return $this->workspaceAccess()->isPlatformOwner();
     }
 
     public function belongsToClient(Client $client): bool
     {
-        return $this->clientRole($client) !== null;
+        return $this->workspaceAccess()->belongsToClient($client);
     }
 
     public function clientRole(Client $client): ?string
     {
-        if ($this->relationLoaded('clientMemberships')) {
-            /** @var Collection<int, ClientMembership> $memberships */
-            $memberships = $this->getRelation('clientMemberships');
-
-            return $memberships
-                ->firstWhere('client_id', $client->id)
-                ?->role;
-        }
-
-        return $this->clientMemberships()
-            ->where('client_id', $client->id)
-            ->value('role');
+        return $this->workspaceAccess()->clientRole($client);
     }
 
     public function canAccessClient(Client $client): bool
     {
-        return $this->isPlatformOwner() || $this->belongsToClient($client);
+        return $this->workspaceAccess()->canAccessClient($client);
     }
 
     public function canManageClient(Client $client): bool
     {
-        return $this->isPlatformOwner()
-            || in_array($this->clientRole($client), ['owner', 'admin'], true);
+        return $this->workspaceAccess()->canManageClient($client);
+    }
+
+    public function canViewInternalClientProfile(Client $client): bool
+    {
+        return $this->workspaceAccess()->canViewInternalClientProfile($client);
+    }
+
+    public function canEditInternalClientProfile(Client $client): bool
+    {
+        return $this->workspaceAccess()->canEditInternalClientProfile($client);
     }
 
     public function hasProjectAccess(Project $project): bool
     {
-        if (! $this->canAccessClient($project->client)) {
-            return false;
-        }
-
-        if ($this->canManageClient($project->client)) {
-            return true;
-        }
-
-        return $this->projectMemberships()
-            ->where('project_id', $project->id)
-            ->exists();
+        return $this->workspaceAccess()->hasProjectAccess($project);
     }
 
     public function canManageProject(Project $project): bool
     {
-        return $this->canManageClient($project->client);
+        return $this->workspaceAccess()->canManageProject($project);
     }
 
     public function canAccessBoard(Board $board): bool
     {
-        $project = $board->project()->with('client')->firstOrFail();
-
-        if ($this->canManageProject($project)) {
-            return true;
-        }
-
-        if (! $this->hasProjectAccess($project)) {
-            return false;
-        }
-
-        $role = $this->clientRole($project->client);
-
-        if ($role === 'viewer') {
-            return true;
-        }
-
-        if ($role !== 'member') {
-            return false;
-        }
-
-        return $this->boardMemberships()
-            ->where('board_id', $board->id)
-            ->exists();
+        return $this->workspaceAccess()->canAccessBoard($board);
     }
 
     public function canMoveIssueOnBoard(Board $board): bool
     {
-        $project = $board->project()->with('client')->firstOrFail();
-
-        if ($this->canManageProject($project)) {
-            return true;
-        }
-
-        if (! $this->hasProjectAccess($project)) {
-            return false;
-        }
-
-        return $this->clientRole($project->client) === 'member'
-            && $this->boardMemberships()->where('board_id', $board->id)->exists();
+        return $this->workspaceAccess()->canMoveIssueOnBoard($board);
     }
 
     public function canCommentOnIssue(Issue $issue): bool
     {
-        $project = $issue->project()->with('client')->firstOrFail();
-
-        if ($this->canManageProject($project)) {
-            return true;
-        }
-
-        if (! $this->hasProjectAccess($project)) {
-            return false;
-        }
-
-        return $this->clientRole($project->client) === 'member';
+        return $this->workspaceAccess()->canCommentOnIssue($issue);
     }
 
     public function canAccessAssistantDebug(): bool
     {
-        return $this->isPlatformOwner()
-            || $this->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists();
+        return $this->workspaceAccess()->canAccessAssistantDebug();
     }
 }

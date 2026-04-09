@@ -34,6 +34,7 @@ class OpenRouterAssistantModelClient implements AssistantModelClient
         $response = $this->http
             ->withToken($apiKey)
             ->acceptJson()
+            ->timeout(120)
             ->post(config('services.openrouter.base_url').'/chat/completions', [
                 'model' => $model,
                 'messages' => $messages,

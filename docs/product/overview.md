@@ -18,6 +18,20 @@ Domains such as clients, finance, website, CMS, skills, and tracking exist insid
 - Do not frame the product around `Organization` as the top-level user-facing concept.
 - Tracking is one subsystem inside the larger OS.
 
+## Perspective Rule
+
+- `Client` is the owner's concept, not necessarily the portal user's concept.
+- From Nour's perspective, the record is a `Client`.
+- From the other side, the person using the workspace should usually experience it as their own work portal with Nour, not as "the client area" in a cold CRM sense.
+- Internal modeling can still use `Client`, but user-facing scope, navigation, and copy should respect the portal user's perspective.
+- When a portal user is inside a client-scoped workspace, the product should feel like:
+    - their workspace
+    - their projects
+    - their boards
+    - their issues
+    - their finance context with Nour when relevant
+      rather than a detached admin view of "a client record"
+
 ## Scope Philosophy
 
 - The full product scope is intentionally broader than the first implementation scope.

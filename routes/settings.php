@@ -10,6 +10,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+Route::middleware(['auth', 'platform.owner'])->group(function () {
     Route::get('settings/ai', [AISettingsController::class, 'edit'])->name('ai-settings.edit');
     Route::patch('settings/ai', [AISettingsController::class, 'update'])->name('ai-settings.update');
 });

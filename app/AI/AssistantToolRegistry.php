@@ -47,6 +47,24 @@ class AssistantToolRegistry
                 ],
             ],
             [
+                'name' => 'update_client',
+                'description' => 'Update a client record visible to the current user.',
+                'skill' => 'client_management',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->exists,
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'client_id' => ['type' => 'integer'],
+                        'name' => ['type' => ['string', 'null']],
+                        'email' => ['type' => ['string', 'null']],
+                        'behavior_id' => ['type' => ['integer', 'null']],
+                    ],
+                    'required' => ['client_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
                 'name' => 'create_project',
                 'description' => 'Create a new project inside a client the current user can manage.',
                 'skill' => 'project_management',
@@ -264,6 +282,31 @@ class AssistantToolRegistry
                         'column_id' => ['type' => 'integer'],
                     ],
                     'required' => ['board_id', 'issue_id', 'column_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'move_issues_on_board',
+                'description' => 'Move multiple issues onto the same board column in one confirmed action.',
+                'skill' => 'issue_tracking',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists()
+                    || ($user->clientMemberships()->where('role', 'member')->exists()
+                        && $user->projectMemberships()->exists()
+                        && $user->boardMemberships()->exists()),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'board_id' => ['type' => 'integer'],
+                        'issue_ids' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'integer'],
+                            'minItems' => 1,
+                        ],
+                        'column_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['board_id', 'issue_ids', 'column_id'],
                     'additionalProperties' => false,
                 ],
             ],

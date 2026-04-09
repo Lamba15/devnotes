@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\AI\AssistantConfirmationPresenter;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,11 +29,14 @@ class AssistantActionConfirmation extends Model
 
     public function toApiArray(): array
     {
+        $presentation = app(AssistantConfirmationPresenter::class)->present($this);
+
         return [
             'id' => $this->id,
             'thread_id' => $this->thread_id,
             'tool_name' => $this->tool_name,
             'payload' => $this->payload_json,
+            'presentation' => $presentation,
             'status' => $this->status,
             'created_at' => $this->created_at?->toISOString(),
         ];

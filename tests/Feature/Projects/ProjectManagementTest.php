@@ -87,4 +87,66 @@ class ProjectManagementTest extends TestCase
             'subject_id' => $project->id,
         ]);
     }
+
+    public function test_client_admins_can_delete_projects_and_deletion_is_audited(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+            'name' => 'Delete Me Project',
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('clients.projects.destroy', [$client, $project]))
+            ->assertRedirect(route('clients.projects.index', $client));
+
+        $this->assertDatabaseMissing('projects', ['id' => $project->id]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'project.deleted',
+            'source' => 'manual_ui',
+            'subject_type' => Project::class,
+            'subject_id' => $project->id,
+        ]);
+    }
+
+    public function test_projects_index_supports_server_backed_search_and_sorting(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+
+        Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+            'name' => 'Alpha Project',
+        ]);
+        Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+            'name' => 'Zulu Project',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.index', [
+                'client' => $client,
+                'search' => 'project',
+                'sort_by' => 'name',
+                'sort_direction' => 'desc',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/index')
+                ->where('projects.0.name', 'Zulu Project')
+                ->where('projects.1.name', 'Alpha Project')
+                ->where('filters.search', 'project')
+                ->where('filters.sort_by', 'name')
+                ->where('filters.sort_direction', 'desc')
+            );
+    }
 }

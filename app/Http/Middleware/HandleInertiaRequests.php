@@ -43,7 +43,16 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user ? [
                     ...$user->toArray(),
-                    'assistant_debug' => $user->canAccessAssistantDebug(),
+                    'capabilities' => $user->workspaceAccess()->capabilities(),
+                    'portal_context' => $user->isPlatformOwner()
+                        ? null
+                        : [
+                            'client_id' => $user->clientMemberships()->orderBy('id')->value('client_id'),
+                            'client_name' => $user->clientMemberships()
+                                ->with('client:id,name')
+                                ->orderBy('id')
+                                ->first()?->client?->name,
+                        ],
                 ] : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

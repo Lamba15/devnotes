@@ -14,6 +14,25 @@ use Laravel\Dusk\Browser;
 
 uses(DatabaseMigrations::class);
 
+function setNativeIssueInputValue(Browser $browser, string $selector, string $value): void
+{
+    $encodedSelector = json_encode($selector, JSON_THROW_ON_ERROR);
+    $encodedValue = json_encode($value, JSON_THROW_ON_ERROR);
+
+    $browser->script(
+        "const element = document.querySelector({$encodedSelector});".
+        "const value = {$encodedValue};".
+        'const previousValue = element.value;'.
+        'const prototype = element instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;'.
+        "const setter = Object.getOwnPropertyDescriptor(prototype, 'value').set;".
+        'setter.call(element, value);'.
+        'const tracker = element._valueTracker;'.
+        'if (tracker) { tracker.setValue(previousValue); }'.
+        "element.dispatchEvent(new Event('input', { bubbles: true }));".
+        "element.dispatchEvent(new Event('change', { bubbles: true }));"
+    );
+}
+
 test('owner can create an issue from the project issue index', function () {
     $owner = User::factory()->create([
         'password' => 'password',
@@ -32,14 +51,25 @@ test('owner can create an issue from the project issue index', function () {
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
-            ->visit(route('clients.projects.issues.index', [$client, $project], false))
-            ->waitFor("input[name='title']", 20)
-            ->type('title', 'Browser issue')
-            ->type('description', 'Created through Dusk')
-            ->select('status', 'todo')
-            ->select('priority', 'high')
-            ->select('type', 'bug')
-            ->press('Create issue')
+            ->visit(route('clients.projects.issues.create', [$client, $project], false))
+            ->waitFor("input[name='title']", 20);
+
+        setNativeIssueInputValue($browser, "input[name='title']", 'Browser issue');
+        setNativeIssueInputValue($browser, "textarea[name='description']", 'Created through Dusk');
+
+        $browser->click('#status')
+            ->waitForText('todo', 20);
+        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'todo')?.click();");
+
+        $browser->click('#priority')
+            ->waitForText('high', 20);
+        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'high')?.click();");
+
+        $browser->click('#type')
+            ->waitForText('bug', 20);
+        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'bug')?.click();");
+
+        $browser->press('Create issue')
             ->waitForText('Browser issue', 20)
             ->assertSee('Browser issue')
             ->assertSee('high');
@@ -107,14 +137,15 @@ test('owner can create an issue through the assistant with confirmation', functi
     ]);
 
     $this->browse(function (Browser $browser) use ($owner, $project) {
-        $prompt = json_encode("Create issue Browser AI Issue for project {$project->id}", JSON_THROW_ON_ERROR);
+        $prompt = json_encode("Use the create_issue tool to create issue titled 'Browser AI Issue' for project {$project->id}, status todo, priority high, type bug", JSON_THROW_ON_ERROR);
 
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
             ->visit('/overview#assistant')
             ->waitForText('Reads run directly. Mutations require confirmation.', 20)
-            ->waitFor("textarea[name='assistant_message']");
+            ->waitFor("textarea[name='assistant_message']")
+            ->waitFor("button[data-testid='assistant-send']");
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -131,14 +162,14 @@ test('owner can create an issue through the assistant with confirmation', functi
         $browser
             ->assertScript(
                 "document.querySelector(\"textarea[name='assistant_message']\").value",
-                "Create issue Browser AI Issue for project {$project->id}"
+                "Use the create_issue tool to create issue titled 'Browser AI Issue' for project {$project->id}, status todo, priority high, type bug"
             )
             ->click("button[data-testid='assistant-send']")
-            ->waitForText('Pending confirmation', 20)
+            ->waitForText('Review and confirm this action before it executes.', 60)
             ->assertSee('create_issue')
             ->assertSee('Browser AI Issue')
             ->click("button[data-testid='assistant-confirm']")
-            ->waitForText('Issue created: Browser AI Issue', 20)
+            ->waitForText('Issue created: Browser AI Issue', 60)
             ->assertSee('Assistant Issue Project')
             ->assertSee('todo / high');
     });
@@ -232,14 +263,15 @@ test('member can add an issue comment through the assistant with confirmation', 
     ]);
 
     $this->browse(function (Browser $browser) use ($member, $client, $project, $issue) {
-        $prompt = json_encode("Add comment Browser AI comment to issue {$issue->id}", JSON_THROW_ON_ERROR);
+        $prompt = json_encode("Use the add_issue_comment tool to add comment 'Browser AI comment' to issue {$issue->id}", JSON_THROW_ON_ERROR);
 
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($member)
             ->visit(route('clients.projects.issues.show', [$client, $project, $issue], false).'#assistant')
             ->waitForText('Reads run directly. Mutations require confirmation.', 20)
-            ->waitFor("textarea[name='assistant_message']");
+            ->waitFor("textarea[name='assistant_message']")
+            ->waitFor("button[data-testid='assistant-send']");
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -256,13 +288,13 @@ test('member can add an issue comment through the assistant with confirmation', 
         $browser
             ->assertScript(
                 "document.querySelector(\"textarea[name='assistant_message']\").value",
-                "Add comment Browser AI comment to issue {$issue->id}"
+                "Use the add_issue_comment tool to add comment 'Browser AI comment' to issue {$issue->id}"
             )
             ->click("button[data-testid='assistant-send']")
-            ->waitForText('Pending confirmation', 20)
+            ->waitForText('Review and confirm this action before it executes.', 60)
             ->assertSee('add_issue_comment')
             ->click("button[data-testid='assistant-confirm']")
-            ->waitForText('Comment added:', 20)
+            ->waitForText('Comment added:', 60)
             ->assertSee('Assistant comment issue')
             ->assertSee('Browser AI comment');
     });
@@ -311,15 +343,17 @@ test('member can add an issue reply through the assistant with confirmation', fu
     ]);
 
     $this->browse(function (Browser $browser) use ($member, $client, $project, $issue, $parentComment) {
-        $prompt = json_encode("Reply Browser AI reply to comment {$parentComment->id} on issue {$issue->id}", JSON_THROW_ON_ERROR);
+        $prompt = json_encode("Use the reply_to_issue_comment tool to post reply 'Browser AI reply' to comment {$parentComment->id} on issue {$issue->id}", JSON_THROW_ON_ERROR);
 
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($member)
+            ->visit(route('clients.projects.issues.show', [$client, $project, $issue], false))
+            ->waitForText('Existing thread root', 20)
             ->visit(route('clients.projects.issues.show', [$client, $project, $issue], false).'#assistant')
             ->waitForText('Reads run directly. Mutations require confirmation.', 20)
             ->waitFor("textarea[name='assistant_message']")
-            ->assertSee('Existing thread root');
+            ->waitFor("button[data-testid='assistant-send']");
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -336,13 +370,13 @@ test('member can add an issue reply through the assistant with confirmation', fu
         $browser
             ->assertScript(
                 "document.querySelector(\"textarea[name='assistant_message']\").value",
-                "Reply Browser AI reply to comment {$parentComment->id} on issue {$issue->id}"
+                "Use the reply_to_issue_comment tool to post reply 'Browser AI reply' to comment {$parentComment->id} on issue {$issue->id}"
             )
             ->click("button[data-testid='assistant-send']")
-            ->waitForText('Pending confirmation', 20)
+            ->waitForText('Review and confirm this action before it executes.', 60)
             ->assertSee('reply_to_issue_comment')
             ->click("button[data-testid='assistant-confirm']")
-            ->waitForText('Reply added:', 20)
+            ->waitForText('Reply added:', 60)
             ->assertSee('Assistant reply issue')
             ->assertSee('Browser AI reply');
     });

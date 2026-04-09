@@ -56,7 +56,7 @@ test('owner can create a client project and client user through the browser', fu
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
-            ->visit('/clients')
+            ->visit('/clients/create')
             ->waitFor("input[name='name']", 20);
 
         setNativeInputValue($browser, "input[name='name']", 'Acme Studio');
@@ -73,25 +73,37 @@ test('owner can create a client project and client user through the browser', fu
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
-            ->visit("/clients/{$client->id}/projects")
+            ->visit("/clients/{$client->id}/projects/create")
             ->waitFor("input[name='name']", 20);
 
         setNativeInputValue($browser, "input[name='name']", 'Website Refresh');
         setNativeInputValue($browser, "textarea[name='description']", 'Refresh the public website');
 
-        $browser->select('status_id', (string) $activeStatus->id)
-            ->press('Create project')
+        $browser->click('#status_id')
+            ->waitForText($activeStatus->name, 20);
+
+        $browser->script(
+            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ".json_encode($activeStatus->name, JSON_THROW_ON_ERROR).")?.click();"
+        );
+
+        $browser->press('Create project')
             ->waitForText('Website Refresh', 20)
             ->assertSee('Website Refresh')
-            ->visit("/clients/{$client->id}/members")
+            ->visit("/clients/{$client->id}/members/create")
             ->waitFor("input[name='name']", 20);
 
         setNativeInputValue($browser, "input[name='name']", 'Portal Viewer');
         setNativeInputValue($browser, "input[name='email']", 'portal-viewer@example.com');
         setNativeInputValue($browser, "input[name='password']", 'secret-pass-123');
 
-        $browser->select('role', 'viewer')
-            ->press('Create client user')
+        $browser->click('#role')
+            ->waitForText('Viewer', 20);
+
+        $browser->script(
+            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Viewer')?.click();"
+        );
+
+        $browser->press('Create client user')
             ->waitForText('portal-viewer@example.com', 20)
             ->assertSee('portal-viewer@example.com')
             ->assertSee('viewer');
@@ -117,10 +129,16 @@ test('owner can create a project linked transaction through the browser', functi
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
-            ->visit('/finance')
-            ->waitFor("select[name='project_id']", 20);
+            ->visit('/finance/transactions/create')
+            ->waitFor('#project_id', 20);
 
-        $browser->select('project_id', (string) $project->id);
+        $browser->click('#project_id')
+            ->waitForText('Finance Client / Finance Project', 20);
+
+        $browser->script(
+            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Finance Client / Finance Project')?.click();"
+        );
+
         setNativeInputValue($browser, "input[name='description']", 'Discovery session');
         setNativeInputValue($browser, "input[name='amount']", '1200.00');
         setNativeInputValue($browser, "input[name='occurred_at']", '2026-04-05');
@@ -147,14 +165,15 @@ test('owner can create a project linked invoice through the assistant with confi
     ]);
 
     $this->browse(function (Browser $browser) use ($owner, $project) {
-        $prompt = json_encode("Create invoice INV-DUSK-001 for project {$project->id}", JSON_THROW_ON_ERROR);
+        $prompt = json_encode("Create invoice with reference INV-DUSK-001 for project {$project->id}, amount 4500, status draft", JSON_THROW_ON_ERROR);
 
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
             ->visit('/overview#assistant')
             ->waitForText('Reads run directly. Mutations require confirmation.', 20)
-            ->waitFor("textarea[name='assistant_message']");
+            ->waitFor("textarea[name='assistant_message']")
+            ->waitFor("button[data-testid='assistant-send']");
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -171,14 +190,14 @@ test('owner can create a project linked invoice through the assistant with confi
         $browser
             ->assertScript(
                 "document.querySelector(\"textarea[name='assistant_message']\").value",
-                "Create invoice INV-DUSK-001 for project {$project->id}"
+                "Create invoice with reference INV-DUSK-001 for project {$project->id}, amount 4500, status draft"
             )
             ->click("button[data-testid='assistant-send']")
-            ->waitForText('Pending confirmation', 20)
+            ->waitForText('Review and confirm this action before it executes.', 60)
             ->assertSee('create_invoice')
             ->assertSee('INV-DUSK-001')
             ->click("button[data-testid='assistant-confirm']")
-            ->waitForText('Invoice created: INV-DUSK-001', 20)
+            ->waitForText('Invoice created: INV-DUSK-001', 60)
             ->assertSee('Assistant Finance Project')
             ->assertSee('4500.00');
     });

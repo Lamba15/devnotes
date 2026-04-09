@@ -71,7 +71,7 @@ test('member with board access can move an issue through the board UI', function
 
         $browser->loginAs($member)
             ->visit('/overview')
-            ->waitForLocation('/overview', 20)
+            ->waitForText($client->name, 20)
             ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
             ->waitForText('Portal issue', 20)
             ->press('Move to Doing')
@@ -137,7 +137,7 @@ test('viewer can see a board but cannot move issues', function () {
 
         $browser->loginAs($viewer)
             ->visit('/overview')
-            ->waitForLocation('/overview', 20)
+            ->waitForText($client->name, 20)
             ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
             ->waitForText('Viewer issue', 20)
             ->assertDontSee('Move to Doing')
@@ -210,16 +210,17 @@ test('member can discover boards and read board context through the assistant', 
         'user_id' => $member->id,
     ]);
 
-    $this->browse(function (Browser $browser) use ($member, $board) {
+    $this->browse(function (Browser $browser) use ($member, $client, $board) {
         $listPrompt = json_encode('List my boards', JSON_THROW_ON_ERROR);
         $contextPrompt = json_encode("Show board context for board {$board->id}", JSON_THROW_ON_ERROR);
 
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($member)
-            ->visit('/overview#assistant')
+            ->visit(route('clients.show', $client, false).'#assistant')
             ->waitForText('Reads run directly. Mutations require confirmation.', 20)
-            ->waitFor("textarea[name='assistant_message']");
+            ->waitFor("textarea[name='assistant_message']")
+            ->waitFor("button[data-testid='assistant-send']");
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -234,9 +235,10 @@ test('member can discover boards and read board context through the assistant', 
         );
 
         $browser->click("button[data-testid='assistant-send']")
-            ->waitForText('Accessible boards', 20)
+            ->waitForText('Accessible boards', 60)
             ->assertSee('Assistant Insight Board')
-            ->assertSee('Assistant Board Client / Assistant Board Project');
+            ->assertSee('Assistant Board Client')
+            ->assertSee('Assistant Board Project');
 
         $browser->script(
             "const textarea = document.querySelector(\"textarea[name='assistant_message']\");".
@@ -251,7 +253,7 @@ test('member can discover boards and read board context through the assistant', 
         );
 
         $browser->click("button[data-testid='assistant-send']")
-            ->waitForText('Board context', 20)
+            ->waitForText('Board context', 60)
             ->assertSee('Assistant backlog issue')
             ->assertSee('Assistant placed issue')
             ->assertSee('Doing');

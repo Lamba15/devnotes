@@ -50,7 +50,7 @@ export default function AISettings({
                 <Heading
                     variant="small"
                     title="AI settings"
-                    description="Configure how your assistant is powered, how it speaks, and which OpenRouter model it uses"
+                    description="Configure how your agent is powered, how it speaks, and which OpenRouter model it uses"
                 />
 
                 <Form
@@ -125,7 +125,7 @@ export default function AISettings({
                             <Card className="gap-0 py-0 shadow-none">
                                 <CardHeader className="py-5">
                                     <CardTitle className="text-base">
-                                        Assistant behavior
+                                        Agent behavior
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-6 pb-5">
@@ -172,17 +172,17 @@ export default function AISettings({
                                                 );
                                             }}
                                             className="min-h-52"
-                                            placeholder="You are the devnotes assistant..."
+                                            placeholder="You are the devnotes agent..."
                                         />
                                         <p className="text-sm text-muted-foreground">
-                                            This controls how the assistant
+                                            This controls how the agent
                                             speaks, explains work, and behaves
                                             for your account.
                                         </p>
                                         <p className="text-sm text-muted-foreground">
                                             Resetting to default removes your
                                             custom override and makes the
-                                            assistant use the built-in prompt
+                                            agent use the built-in prompt
                                             again.
                                         </p>
                                         <InputError

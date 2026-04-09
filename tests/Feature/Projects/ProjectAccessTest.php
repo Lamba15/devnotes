@@ -76,6 +76,62 @@ test('client admins can see all client projects without explicit project members
         );
 });
 
+test('project users can open an assigned project details page', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Allowed project',
+        'description' => 'Project details page',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.show', [$client, $project]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('projects/show')
+            ->where('project.id', $project->id)
+            ->where('project.name', 'Allowed project')
+            ->where('project.description', 'Project details page')
+            ->where('can_manage_project', false)
+        );
+});
+
+test('client users cannot open a project details page without project access', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $viewer = User::factory()->create();
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $viewer->id,
+        'role' => 'viewer',
+    ]);
+
+    $this->actingAs($viewer)
+        ->get(route('clients.projects.show', [$client, $project]))
+        ->assertForbidden();
+});
+
 test('client users cannot access projects for a different client', function () {
     $allowedClient = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

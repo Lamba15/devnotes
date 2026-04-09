@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'address',
     'birthday',
     'date_of_first_interaction',
+    'origin',
+    'social_links_json',
     'notes',
 ])]
 class Client extends Model
@@ -31,6 +33,7 @@ class Client extends Model
         return [
             'birthday' => 'date',
             'date_of_first_interaction' => 'date',
+            'social_links_json' => 'array',
         ];
     }
 
@@ -47,5 +50,15 @@ class Client extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function phoneNumbers(): HasMany
+    {
+        return $this->hasMany(ClientPhoneNumber::class)->orderBy('position');
+    }
+
+    public function tags(): HasMany
+    {
+        return $this->hasMany(ClientTag::class)->orderBy('position');
     }
 }

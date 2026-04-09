@@ -2,17 +2,124 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Boards\CreateBoard;
+use App\Actions\Boards\CreateBoardColumn;
+use App\Actions\Boards\DeleteBoard;
+use App\Actions\Boards\UpdateBoard;
 use App\Models\Board;
 use App\Models\BoardIssuePlacement;
 use App\Models\Client;
 use App\Models\Issue;
 use App\Models\Project;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class BoardController extends Controller
 {
+    public function create(Request $request, Client $client): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user->canManageClient($client), 403);
+
+        return Inertia::render('boards/create', [
+            'client' => $client->only(['id', 'name']),
+            'projects' => Project::query()
+                ->whereBelongsTo($client)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'status_options' => ['todo', 'in_progress', 'done'],
+        ]);
+    }
+
+    public function store(Request $request, Client $client, CreateBoard $createBoard): RedirectResponse
+    {
+        $validated = $request->validate([
+            'project_id' => ['required', 'integer', 'exists:projects,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'columns' => ['nullable', 'array'],
+            'columns.*.name' => ['required', 'string', 'max:255'],
+            'columns.*.updates_status' => ['nullable', 'boolean'],
+            'columns.*.mapped_status' => ['nullable', 'in:todo,in_progress,done'],
+        ]);
+
+        foreach ($validated['columns'] ?? [] as $index => $column) {
+            if (($column['updates_status'] ?? false) && ! filled($column['mapped_status'] ?? null)) {
+                abort(422, 'Column '.($index + 1).' must choose a status mapping.');
+            }
+        }
+
+        $createBoard->handle($request->user(), $client, $validated);
+
+        return to_route('clients.boards.index', $client);
+    }
+
+    public function edit(Request $request, Client $client, Board $board): Response
+    {
+        $board->load('project');
+
+        abort_unless($board->project?->client_id === $client->id, 404);
+        abort_unless($request->user()->canManageClient($client), 403);
+
+        return Inertia::render('boards/edit', [
+            'client' => $client->only(['id', 'name']),
+            'board' => [
+                'id' => $board->id,
+                'name' => $board->name,
+                'project_id' => $board->project_id,
+                'columns' => $board->columns()
+                    ->orderBy('position')
+                    ->get(['id', 'name', 'position', 'updates_status', 'mapped_status'])
+                    ->all(),
+            ],
+            'projects' => Project::query()
+                ->whereBelongsTo($client)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'status_options' => ['todo', 'in_progress', 'done'],
+        ]);
+    }
+
+    public function update(Request $request, Client $client, Board $board, UpdateBoard $updateBoard): RedirectResponse
+    {
+        $board->load('project');
+
+        abort_unless($board->project?->client_id === $client->id, 404);
+
+        $validated = $request->validate([
+            'project_id' => ['sometimes', 'integer', 'exists:projects,id'],
+            'name' => ['required', 'string', 'max:255'],
+            'columns' => ['nullable', 'array'],
+            'columns.*.id' => ['nullable', 'integer', 'exists:board_columns,id'],
+            'columns.*.name' => ['required', 'string', 'max:255'],
+            'columns.*.updates_status' => ['nullable', 'boolean'],
+            'columns.*.mapped_status' => ['nullable', 'in:todo,in_progress,done'],
+        ]);
+
+        foreach ($validated['columns'] ?? [] as $index => $column) {
+            if (($column['updates_status'] ?? false) && ! filled($column['mapped_status'] ?? null)) {
+                abort(422, 'Column '.($index + 1).' must choose a status mapping.');
+            }
+        }
+
+        $updateBoard->handle($request->user(), $board, $validated);
+
+        return to_route('clients.boards.index', $client);
+    }
+
+    public function destroy(Request $request, Client $client, Board $board, DeleteBoard $deleteBoard): RedirectResponse
+    {
+        $board->load('project');
+
+        abort_unless($board->project?->client_id === $client->id, 404);
+
+        $deleteBoard->handle($request->user(), $board);
+
+        return to_route('clients.boards.index', $client);
+    }
+
     public function show(Request $request, Client $client, Project $project, Board $board): Response
     {
         abort_unless(
@@ -43,7 +150,11 @@ class BoardController extends Controller
         return Inertia::render('boards/show', [
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
-            'board' => $board->only(['id', 'name']),
+            'board' => [
+                'id' => $board->id,
+                'name' => $board->name,
+                'columns_count' => $board->columns->count(),
+            ],
             'backlog' => Issue::query()
                 ->where('project_id', $project->id)
                 ->whereNotIn('id', $placedIssueIds)
@@ -57,12 +168,44 @@ class BoardController extends Controller
                 'position' => $column->position,
                 'updates_status' => $column->updates_status,
                 'mapped_status' => $column->mapped_status,
+                'issues_count' => $column->placements->count(),
                 'issues' => $column->placements
                     ->map(fn (BoardIssuePlacement $placement) => $this->serializeIssue($placement->issue))
                     ->values()
                     ->all(),
             ])->values()->all(),
             'can_move_issues' => $user->canMoveIssueOnBoard($board),
+            'can_manage_board' => $user->canManageProject($project),
+            'status_options' => ['todo', 'in_progress', 'done'],
+        ]);
+    }
+
+    public function storeColumn(
+        Request $request,
+        Client $client,
+        Board $board,
+        CreateBoardColumn $createBoardColumn,
+    ): RedirectResponse {
+        $board->loadMissing('project');
+
+        abort_unless($board->project?->client_id === $client->id, 404);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'updates_status' => ['nullable', 'boolean'],
+            'mapped_status' => ['nullable', 'in:todo,in_progress,done'],
+        ]);
+
+        if (($validated['updates_status'] ?? false) && ! filled($validated['mapped_status'] ?? null)) {
+            abort(422, 'Status-updating columns must choose a mapped status.');
+        }
+
+        $createBoardColumn->handle($request->user(), $board, $validated);
+
+        return to_route('clients.projects.boards.show', [
+            'client' => $client,
+            'project' => $board->project,
+            'board' => $board,
         ]);
     }
 

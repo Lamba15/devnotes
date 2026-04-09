@@ -12,11 +12,9 @@ export default function AppSidebarLayout({
     return (
         <AppShell variant="sidebar">
             <AppSidebar />
+            <AssistantPanel hideTrigger />
             <AppContent variant="sidebar" className="overflow-x-hidden">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
-                <div className="flex justify-end px-4 pt-4 md:px-6">
-                    <AssistantPanel />
-                </div>
                 {children}
             </AppContent>
         </AppShell>

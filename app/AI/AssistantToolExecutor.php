@@ -3,6 +3,7 @@
 namespace App\AI;
 
 use App\Actions\Clients\CreateClient;
+use App\Actions\Clients\UpdateClient;
 use App\Actions\Finance\CreateInvoice;
 use App\Actions\Finance\CreateTransaction;
 use App\Actions\Projects\CreateProject;
@@ -28,6 +29,7 @@ class AssistantToolExecutor
 {
     public function __construct(
         private readonly CreateClient $createClient,
+        private readonly UpdateClient $updateClient,
         private readonly CreateProject $createProject,
         private readonly CreateIssue $createIssue,
         private readonly UpdateIssue $updateIssue,
@@ -41,6 +43,7 @@ class AssistantToolExecutor
     {
         return match ($toolName) {
             'create_client' => $this->executeCreateClient($user, $payload, $confirmation),
+            'update_client' => $this->executeUpdateClient($user, $payload, $confirmation),
             'list_accessible_clients' => $this->executeListAccessibleClients($user, $payload),
             'create_project' => $this->executeCreateProject($user, $payload, $confirmation),
             'list_accessible_projects' => $this->executeListAccessibleProjects($user, $payload),
@@ -52,6 +55,7 @@ class AssistantToolExecutor
             'get_board_context' => $this->executeGetBoardContext($user, $payload),
             'list_accessible_boards' => $this->executeListAccessibleBoards($user, $payload),
             'move_issue_on_board' => $this->executeMoveIssueOnBoard($user, $payload, $confirmation),
+            'move_issues_on_board' => $this->executeMoveIssuesOnBoard($user, $payload, $confirmation),
             'add_issue_comment' => $this->executeAddIssueComment($user, $payload, $confirmation),
             'reply_to_issue_comment' => $this->executeReplyToIssueComment($user, $payload, $confirmation),
             'create_transaction' => $this->executeCreateTransaction($user, $payload, $confirmation),
@@ -72,6 +76,21 @@ class AssistantToolExecutor
             'type' => 'client',
             'id' => $client->id,
             'name' => $client->name,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeUpdateClient(User $user, array $payload, ?AssistantActionConfirmation $confirmation): array
+    {
+        $client = Client::query()->findOrFail($payload['client_id']);
+        $updatedClient = $this->updateClient->handle($user, $client, $payload, 'ai_assistant');
+
+        return [
+            'type' => 'client',
+            'id' => $updatedClient->id,
+            'name' => $updatedClient->name,
+            'email' => $updatedClient->email,
+            'behavior' => $updatedClient->behavior?->only(['id', 'name', 'slug']),
             'confirmation_id' => $confirmation?->id,
         ];
     }
@@ -526,7 +545,14 @@ class AssistantToolExecutor
         $issue = Issue::query()->findOrFail($payload['issue_id']);
         $column = BoardColumn::query()->findOrFail($payload['column_id']);
 
-        $placement = $this->moveIssueOnBoard->handle($user, $board, $issue, $column, 'ai_assistant');
+        $placement = $this->moveIssueOnBoard->handle(
+            $user,
+            $board,
+            $issue,
+            $column,
+            $payload['position'] ?? null,
+            'ai_assistant',
+        );
 
         return [
             'type' => 'board_issue_move',
@@ -540,6 +566,43 @@ class AssistantToolExecutor
                 'priority' => $placement->issue?->priority,
                 'type' => $placement->issue?->type,
             ],
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
+    private function executeMoveIssuesOnBoard(
+        User $user,
+        array $payload,
+        ?AssistantActionConfirmation $confirmation,
+    ): array {
+        $board = Board::query()->findOrFail($payload['board_id']);
+        $column = BoardColumn::query()->findOrFail($payload['column_id']);
+        $issueIds = collect($payload['issue_ids'] ?? [])->map(fn ($id) => (int) $id)->filter()->values();
+
+        $placements = $issueIds->map(function (int $issueId) use ($user, $board, $column) {
+            $issue = Issue::query()->findOrFail($issueId);
+
+            return $this->moveIssueOnBoard->handle(
+                $user,
+                $board,
+                $issue,
+                $column,
+                null,
+                'ai_assistant',
+            );
+        })->filter()->values();
+
+        return [
+            'type' => 'board_issue_bulk_move',
+            'board' => $board->only(['id', 'name']),
+            'column' => $column->only(['id', 'name']),
+            'issues' => $placements->map(fn ($placement) => [
+                'id' => $placement->issue?->id,
+                'title' => $placement->issue?->title,
+                'status' => $placement->issue?->status,
+                'priority' => $placement->issue?->priority,
+                'type' => $placement->issue?->type,
+            ])->all(),
             'confirmation_id' => $confirmation?->id,
         ];
     }

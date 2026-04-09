@@ -3,12 +3,56 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Finance\CreateTransaction;
+use App\Actions\Finance\DeleteTransaction;
+use App\Actions\Finance\UpdateTransaction;
 use App\Models\Project;
+use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class TransactionController extends Controller
 {
+    public function show(Request $request, Transaction $transaction): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user->canManageClient($transaction->project->client), 403);
+
+        $transaction->load('project.client:id,name');
+
+        return Inertia::render('finance/transactions-show', [
+            'transaction' => [
+                'id' => $transaction->id,
+                'description' => $transaction->description,
+                'amount' => (string) $transaction->amount,
+                'occurred_at' => $transaction->occurred_at?->toDateString() ?? $transaction->occurred_at,
+                'project' => [
+                    'id' => $transaction->project->id,
+                    'name' => $transaction->project->name,
+                    'client' => $transaction->project->client?->only(['id', 'name']),
+                ],
+            ],
+        ]);
+    }
+
+    public function edit(Request $request, Transaction $transaction): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user->canManageClient($transaction->project->client), 403);
+
+        return Inertia::render('finance/transactions-edit', [
+            'transaction' => $transaction->only(['id', 'project_id', 'description', 'amount', 'occurred_at']),
+            'projects' => Project::query()
+                ->with('client:id,name')
+                ->whereHas('client.memberships', fn ($query) => $query->where('user_id', $user->id)->whereIn('role', ['owner', 'admin']))
+                ->orderBy('name')
+                ->get(),
+        ]);
+    }
+
     public function store(Request $request, CreateTransaction $createTransaction): RedirectResponse
     {
         $validated = $request->validate([
@@ -23,5 +67,27 @@ class TransactionController extends Controller
         $createTransaction->handle($request->user(), $project, $validated);
 
         return to_route('finance.index');
+    }
+
+    public function update(Request $request, Transaction $transaction, UpdateTransaction $updateTransaction): RedirectResponse
+    {
+        $validated = $request->validate([
+            'project_id' => ['required', 'integer', 'exists:projects,id'],
+            'description' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'numeric'],
+            'occurred_at' => ['required', 'date'],
+        ]);
+
+        $project = Project::query()->findOrFail($validated['project_id']);
+        $updateTransaction->handle($request->user(), $transaction, $project, $validated);
+
+        return to_route('finance.transactions.index');
+    }
+
+    public function destroy(Request $request, Transaction $transaction, DeleteTransaction $deleteTransaction): RedirectResponse
+    {
+        $deleteTransaction->handle($request->user(), $transaction);
+
+        return to_route('finance.transactions.index');
     }
 }

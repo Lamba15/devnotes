@@ -15,13 +15,22 @@ class BoardIssueMovementController extends Controller
     {
         $validated = $request->validate([
             'issue_id' => ['required', 'integer', 'exists:issues,id'],
-            'column_id' => ['required', 'integer', 'exists:board_columns,id'],
+            'column_id' => ['nullable', 'integer', 'exists:board_columns,id'],
+            'position' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $issue = Issue::query()->findOrFail($validated['issue_id']);
-        $column = BoardColumn::query()->findOrFail($validated['column_id']);
+        $column = array_key_exists('column_id', $validated) && $validated['column_id'] !== null
+            ? BoardColumn::query()->findOrFail($validated['column_id'])
+            : null;
 
-        $moveIssueOnBoard->handle($request->user(), $board, $issue, $column);
+        $moveIssueOnBoard->handle(
+            $request->user(),
+            $board,
+            $issue,
+            $column,
+            $validated['position'] ?? null,
+        );
 
         return to_route('clients.projects.boards.show', [
             'client' => $board->project->client,

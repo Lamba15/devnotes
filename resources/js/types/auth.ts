@@ -3,7 +3,19 @@ export type User = {
     name: string;
     email: string;
     avatar?: string;
-    assistant_debug?: boolean;
+    capabilities?: {
+        platform?: boolean;
+        assistant_debug?: boolean;
+        create_clients?: boolean;
+        manage_client_tags?: boolean;
+        manage_finance?: boolean;
+        manage_tracking?: boolean;
+        manage_cms?: boolean;
+    };
+    portal_context?: {
+        client_id?: number | null;
+        client_name?: string | null;
+    } | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
     created_at: string;

@@ -1,4 +1,4 @@
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import DOMPurify from 'dompurify';
 import {
     Bot,
@@ -20,13 +20,6 @@ import { marked } from 'marked';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     Dialog,
     DialogClose,
@@ -77,6 +70,7 @@ type AssistantMessageMeta = {
         provider?: string | null;
         configured_via?: string | null;
         system_prompt_source?: string | null;
+        page_context?: Record<string, unknown> | null;
         usage?: {
             prompt_tokens?: number | null;
             completion_tokens?: number | null;
@@ -142,6 +136,20 @@ type PendingConfirmation = {
     tool_name: string;
     status: string;
     payload?: Record<string, unknown>;
+    presentation?: {
+        title?: string | null;
+        summary?: string | null;
+        context?: {
+            board?: { id: number; name: string } | null;
+            project?: { id: number; name: string } | null;
+            client?: { id: number; name: string } | null;
+        } | null;
+        items?: Array<{
+            label: string;
+            description?: string | null;
+        }>;
+        impact?: string | null;
+    } | null;
     created_at?: string | null;
 };
 
@@ -291,6 +299,18 @@ type AssistantToolResult =
           } | null;
       }
     | {
+          type: 'board_issue_bulk_move';
+          board?: { id: number; name: string } | null;
+          column?: { id: number; name: string } | null;
+          issues: Array<{
+              id: number | null;
+              title: string | null;
+              status: string | null;
+              priority: string | null;
+              type: string | null;
+          }>;
+      }
+    | {
           type: 'transaction';
           id: number;
           description: string;
@@ -371,9 +391,15 @@ const ASSISTANT_LOADING_PHASES = [
     },
 ] as const;
 
-export function AssistantPanel() {
-    const { auth } = usePage<AssistantPageProps>().props;
-    const canDebug = Boolean(auth.user?.assistant_debug);
+export function AssistantPanel({
+    hideTrigger = false,
+}: {
+    hideTrigger?: boolean;
+}) {
+    const page = usePage<AssistantPageProps & Record<string, unknown>>();
+    const { auth } = page.props;
+    const canDebug = Boolean(auth.user?.capabilities?.assistant_debug);
+    const pageContext = useMemo(() => buildPageContext(page), [page]);
     const [open, setOpen] = useState(false);
     const [message, setMessage] = useState('');
     const [threads, setThreads] = useState<AssistantThread[]>([]);
@@ -569,6 +595,7 @@ export function AssistantPanel() {
             body: JSON.stringify({
                 message: outgoingMessage,
                 thread_id: threadId,
+                page_context: pageContext,
             }),
         });
 
@@ -584,6 +611,8 @@ export function AssistantPanel() {
         setMessages(payload.data.messages ?? []);
         setPendingConfirmation(payload.data.pending_confirmation ?? null);
         setThreadId(payload.data.thread.id);
+        syncCurrentBoardFromMessages(pageContext, payload.data.messages ?? []);
+        reloadCurrentBoardIfAffected(pageContext, payload.data.messages ?? []);
         setPendingRun(null);
         await loadThreads();
         setIsLoading(false);
@@ -630,6 +659,14 @@ export function AssistantPanel() {
             const payload = await response.json();
             setMessages(payload.data.messages ?? []);
             setPendingConfirmation(payload.data.pending_confirmation ?? null);
+            syncCurrentBoardFromMessages(
+                pageContext,
+                payload.data.messages ?? [],
+            );
+            reloadCurrentBoardIfAffected(
+                pageContext,
+                payload.data.messages ?? [],
+            );
             setPendingRun(null);
             await loadThreads();
         }
@@ -645,36 +682,48 @@ export function AssistantPanel() {
         setOpen(nextOpen);
 
         if (nextOpen) {
+            if (window.location.hash !== '#assistant') {
+                window.location.hash = 'assistant';
+            }
+
             void loadThreads();
+
+            return;
+        }
+
+        if (window.location.hash === '#assistant') {
+            const { pathname, search } = window.location;
+            window.history.replaceState(null, '', `${pathname}${search}`);
         }
     };
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
-            <SheetTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2"
-                    data-testid="assistant-toggle"
-                >
-                    <Bot className="size-4" />
-                    Assistant
-                </Button>
-            </SheetTrigger>
-            <SheetContent className="flex w-full flex-col gap-4 bg-muted/30 sm:max-w-7xl">
-                <SheetHeader>
-                    <SheetTitle>Assistant</SheetTitle>
+            {!hideTrigger ? (
+                <SheetTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2"
+                        data-testid="assistant-toggle"
+                    >
+                        <Bot className="size-4" />
+                        Agent Chat
+                    </Button>
+                </SheetTrigger>
+            ) : null}
+            <SheetContent className="flex w-full flex-col gap-0 bg-background p-0 sm:max-w-7xl">
+                <SheetHeader className="border-b border-border px-5 py-4">
+                    <SheetTitle>Agent Chat</SheetTitle>
                     <SheetDescription>
                         Reads run directly. Mutations require confirmation.
-                        Debug is visible for admins.
                     </SheetDescription>
                 </SheetHeader>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-                    <Card className="flex w-full flex-col gap-0 overflow-hidden lg:w-72">
-                        <CardHeader className="flex-row items-center justify-between space-y-0 border-b bg-background/80 py-4">
-                            <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                    <div className="flex w-full flex-col overflow-hidden border-r border-border lg:w-72">
+                        <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
                                 <History className="size-4" />
                                 History
                             </div>
@@ -685,19 +734,19 @@ export function AssistantPanel() {
                                 disabled={isLoading}
                             >
                                 <Plus className="size-4" />
-                                New chat
+                                New
                             </Button>
-                        </CardHeader>
-                        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-card p-3">
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto p-2">
                             {isHistoryLoading ? (
-                                <p className="rounded-lg bg-muted px-3 py-3 text-sm text-muted-foreground">
+                                <p className="px-3 py-3 text-sm text-muted-foreground">
                                     Loading chats...
                                 </p>
                             ) : null}
                             {!isHistoryLoading && threads.length === 0 ? (
-                                <div className="rounded-lg bg-muted px-3 py-3 text-sm text-muted-foreground">
+                                <p className="px-3 py-3 text-sm text-muted-foreground">
                                     No chats yet. Start a new chat.
-                                </div>
+                                </p>
                             ) : null}
                             <div className="space-y-1">
                                 {threads.map((thread) => (
@@ -710,9 +759,9 @@ export function AssistantPanel() {
                                             onClick={() =>
                                                 void loadThread(thread.id)
                                             }
-                                            className={`flex-1 rounded-xl border px-3 py-3 text-left text-sm transition ${thread.id === threadId ? 'border-primary/30 bg-primary/5 shadow-sm' : 'border-transparent bg-background hover:border-border hover:bg-muted/40'}`}
+                                            className={`flex-1 rounded-lg px-3 py-2.5 text-left text-sm transition ${thread.id === threadId ? 'bg-accent font-semibold text-accent-foreground shadow-[inset_3px_0_0_0_var(--primary)]' : 'text-foreground hover:bg-muted/60'}`}
                                         >
-                                            <p className="truncate font-medium text-foreground">
+                                            <p className="truncate">
                                                 {thread.title}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
@@ -737,20 +786,20 @@ export function AssistantPanel() {
                                     </div>
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
-                        <CardHeader className="flex-row items-center justify-between space-y-0 border-b bg-background/80 py-4">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
                             <div>
-                                <CardTitle className="text-base">
+                                <p className="text-base font-semibold">
                                     {currentThread?.title ?? 'New chat'}
-                                </CardTitle>
-                                <CardDescription className="mt-1 text-xs">
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     {currentThread
                                         ? 'Persistent history and message trace.'
                                         : 'Start a chat to create a thread.'}
-                                </CardDescription>
+                                </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
@@ -777,17 +826,17 @@ export function AssistantPanel() {
                                     </Button>
                                 ) : null}
                             </div>
-                        </CardHeader>
+                        </div>
 
-                        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-card p-5">
+                        <div className="min-h-0 flex-1 overflow-y-auto bg-background p-5">
                             {displayedMessages.length === 0 ? (
-                                <Card className="gap-0 border-dashed bg-muted/30 py-0 shadow-none">
-                                    <CardContent className="p-6 text-sm text-muted-foreground">
+                                <div className="flex flex-col items-center justify-center py-16 text-center">
+                                    <Bot className="mb-3 size-10 text-muted-foreground/50" />
+                                    <p className="text-sm text-muted-foreground">
                                         Ask about clients, projects, boards,
-                                        issues, or finance. This panel now keeps
-                                        chat history and admin debug traces.
-                                    </CardContent>
-                                </Card>
+                                        issues, or finance.
+                                    </p>
+                                </div>
                             ) : (
                                 <div className="space-y-4">
                                     {displayedMessages.map((entry) => (
@@ -817,26 +866,91 @@ export function AssistantPanel() {
                                     ) : null}
                                 </div>
                             )}
-                        </CardContent>
+                        </div>
 
                         {pendingConfirmation ? (
-                            <div className="border-t bg-background/70 p-4">
-                                <Card className="gap-0 border-amber-200/60 bg-amber-50/60 py-0 shadow-none dark:border-amber-900/40 dark:bg-amber-950/20">
-                                    <CardHeader className="py-4">
-                                        <CardTitle className="text-sm">
-                                            Pending confirmation
-                                        </CardTitle>
-                                        <CardDescription>
-                                            {pendingConfirmation.tool_name}
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3 pb-4">
-                                        <JsonBlock
-                                            data={
-                                                pendingConfirmation.payload ??
-                                                {}
-                                            }
-                                        />
+                            <div className="border-t border-border bg-card p-4">
+                                <div className="rounded-xl bg-amber-50/60 p-4 dark:bg-amber-950/20">
+                                    <div className="mb-3">
+                                        <p className="text-sm font-semibold">
+                                            {pendingConfirmation.presentation
+                                                ?.title ??
+                                                'Pending confirmation'}
+                                        </p>
+                                        <p className="mt-1 text-sm text-muted-foreground">
+                                            {pendingConfirmation.presentation
+                                                ?.summary ??
+                                                pendingConfirmation.tool_name}
+                                        </p>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {pendingConfirmation.presentation
+                                            ?.context ? (
+                                            <div className="rounded-lg border bg-background/70 p-3 text-sm text-muted-foreground">
+                                                {[
+                                                    pendingConfirmation
+                                                        .presentation.context
+                                                        .client?.name,
+                                                    pendingConfirmation
+                                                        .presentation.context
+                                                        .project?.name,
+                                                    pendingConfirmation
+                                                        .presentation.context
+                                                        .board?.name,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' / ')}
+                                            </div>
+                                        ) : null}
+
+                                        {pendingConfirmation.presentation?.items
+                                            ?.length ? (
+                                            <div className="space-y-2 rounded-lg border bg-background/70 p-3">
+                                                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                    Affected items
+                                                </p>
+                                                <div className="space-y-2">
+                                                    {pendingConfirmation.presentation.items.map(
+                                                        (item, index) => (
+                                                            <div
+                                                                key={`${item.label}-${index}`}
+                                                                className="rounded-md border bg-background px-3 py-2"
+                                                            >
+                                                                <p className="text-sm font-medium">
+                                                                    {item.label}
+                                                                </p>
+                                                                {item.description ? (
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        {
+                                                                            item.description
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        {pendingConfirmation.presentation
+                                            ?.impact ? (
+                                            <div className="rounded-lg border border-amber-200/70 bg-amber-100/50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                                                {
+                                                    pendingConfirmation
+                                                        .presentation.impact
+                                                }
+                                            </div>
+                                        ) : null}
+
+                                        {debugMode ? (
+                                            <JsonBlock
+                                                data={
+                                                    pendingConfirmation.payload ??
+                                                    {}
+                                                }
+                                            />
+                                        ) : null}
                                         <div className="flex gap-2">
                                             <Button
                                                 size="sm"
@@ -865,45 +979,36 @@ export function AssistantPanel() {
                                                 Reject
                                             </Button>
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
                             </div>
                         ) : null}
 
-                        <div className="border-t bg-background/70 p-4">
-                            <Card className="gap-0 py-0 shadow-none">
-                                <CardContent className="space-y-3 p-4">
-                                    <Textarea
-                                        name="assistant_message"
-                                        value={message}
-                                        onChange={(
-                                            event: ChangeEvent<HTMLTextAreaElement>,
-                                        ) => setMessage(event.target.value)}
-                                        onKeyDown={handleComposerKeyDown}
-                                        placeholder="Ask the assistant what is happening, inspect context, or perform a confirmed action..."
-                                        className="min-h-28 bg-background"
-                                    />
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-xs leading-5 text-muted-foreground">
-                                            New chat, history, and debug now
-                                            expose more of the actual assistant
-                                            flow.
-                                        </p>
-                                        <Button
-                                            onClick={() => void sendMessage()}
-                                            disabled={isLoading}
-                                            data-testid="assistant-send"
-                                        >
-                                            {isLoading ? (
-                                                <LoaderCircle className="size-4 animate-spin" />
-                                            ) : null}
-                                            Send
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                        <div className="border-t border-border bg-card p-4">
+                            <Textarea
+                                name="assistant_message"
+                                value={message}
+                                onChange={(
+                                    event: ChangeEvent<HTMLTextAreaElement>,
+                                ) => setMessage(event.target.value)}
+                                onKeyDown={handleComposerKeyDown}
+                                placeholder="Ask the agent about clients, projects, issues..."
+                                className="min-h-24 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                            />
+                            <div className="mt-3 flex items-center justify-end">
+                                <Button
+                                    onClick={() => void sendMessage()}
+                                    disabled={isLoading}
+                                    data-testid="assistant-send"
+                                >
+                                    {isLoading ? (
+                                        <LoaderCircle className="size-4 animate-spin" />
+                                    ) : null}
+                                    Send
+                                </Button>
+                            </div>
                         </div>
-                    </Card>
+                    </div>
                 </div>
 
                 <Dialog
@@ -917,8 +1022,9 @@ export function AssistantPanel() {
                     <DialogContent>
                         <DialogTitle>Delete chat history?</DialogTitle>
                         <DialogDescription>
-                            This will permanently delete the selected assistant
-                            thread, including its messages and confirmations.
+                            This will permanently delete the selected agent
+                            chat thread, including its messages and
+                            confirmations.
                         </DialogDescription>
 
                         <DialogFooter className="gap-2">
@@ -946,6 +1052,175 @@ export function AssistantPanel() {
     );
 }
 
+function buildPageContext(
+    page: ReturnType<
+        typeof usePage<AssistantPageProps & Record<string, unknown>>
+    >,
+): Record<string, unknown> {
+    const props = page.props as Record<string, unknown>;
+
+    return {
+        component: page.component,
+        url: page.url,
+        summary:
+            props.summary && typeof props.summary === 'object'
+                ? props.summary
+                : null,
+        client:
+            props.client && typeof props.client === 'object'
+                ? summarizeRecord(props.client as Record<string, unknown>, [
+                      'id',
+                      'name',
+                      'email',
+                      'industry',
+                      'country_of_origin',
+                  ])
+                : null,
+        project:
+            props.project && typeof props.project === 'object'
+                ? summarizeRecord(props.project as Record<string, unknown>, [
+                      'id',
+                      'name',
+                  ])
+                : null,
+        issue:
+            props.issue && typeof props.issue === 'object'
+                ? summarizeRecord(props.issue as Record<string, unknown>, [
+                      'id',
+                      'title',
+                      'status',
+                      'priority',
+                      'type',
+                  ])
+                : null,
+        board:
+            props.board && typeof props.board === 'object'
+                ? summarizeRecord(props.board as Record<string, unknown>, [
+                      'id',
+                      'name',
+                  ])
+                : null,
+        recent_projects:
+            Array.isArray(props.recent_projects) &&
+            props.recent_projects.length > 0
+                ? props.recent_projects.slice(0, 5)
+                : null,
+        recent_members:
+            Array.isArray(props.recent_members) &&
+            props.recent_members.length > 0
+                ? props.recent_members.slice(0, 5)
+                : null,
+        page_title: typeof document !== 'undefined' ? document.title : null,
+    };
+}
+
+function summarizeRecord(
+    record: Record<string, unknown>,
+    keys: string[],
+): Record<string, unknown> {
+    return keys.reduce<Record<string, unknown>>((carry, key) => {
+        if (key in record) {
+            carry[key] = record[key];
+        }
+
+        return carry;
+    }, {});
+}
+
+function reloadCurrentBoardIfAffected(
+    pageContext: Record<string, unknown>,
+    messages: AssistantMessage[],
+) {
+    const currentBoardId = Number(
+        (pageContext.board as { id?: number } | null | undefined)?.id,
+    );
+
+    if (
+        pageContext.component !== 'boards/show' ||
+        !Number.isFinite(currentBoardId) ||
+        currentBoardId <= 0
+    ) {
+        return;
+    }
+
+    const affectsCurrentBoard = messages.some((message) =>
+        (message.tool_results ?? []).some((result) => {
+            if (
+                result.type === 'board_context' &&
+                result.board?.id === currentBoardId
+            ) {
+                return true;
+            }
+
+            if (
+                result.type === 'board_issue_move' &&
+                result.board?.id === currentBoardId
+            ) {
+                return true;
+            }
+
+            return (
+                result.type === 'board_issue_bulk_move' &&
+                result.board?.id === currentBoardId
+            );
+        }),
+    );
+
+    if (!affectsCurrentBoard) {
+        return;
+    }
+
+    router.visit(String(pageContext.url ?? window.location.pathname), {
+        preserveScroll: true,
+        preserveState: true,
+        only: [
+            'board',
+            'backlog',
+            'columns',
+            'can_move_issues',
+            'can_manage_board',
+            'status_options',
+        ],
+    });
+}
+
+function syncCurrentBoardFromMessages(
+    pageContext: Record<string, unknown>,
+    messages: AssistantMessage[],
+) {
+    const currentBoardId = Number(
+        (pageContext.board as { id?: number } | null | undefined)?.id,
+    );
+
+    if (
+        pageContext.component !== 'boards/show' ||
+        !Number.isFinite(currentBoardId) ||
+        currentBoardId <= 0 ||
+        typeof window === 'undefined'
+    ) {
+        return;
+    }
+
+    const boardContext = [...messages]
+        .reverse()
+        .flatMap((message) => message.tool_results ?? [])
+        .find(
+            (result) =>
+                result.type === 'board_context' &&
+                result.board?.id === currentBoardId,
+        );
+
+    if (!boardContext || boardContext.type !== 'board_context') {
+        return;
+    }
+
+    window.dispatchEvent(
+        new CustomEvent('assistant:board-sync', {
+            detail: boardContext,
+        }),
+    );
+}
+
 function AssistantMessageCard({
     message,
     canDebug,
@@ -968,28 +1243,33 @@ function AssistantMessageCard({
         <div
             className={`flex ${isAssistant ? 'justify-start' : 'justify-end'}`}
         >
-            <Card
-                className={`w-full max-w-4xl gap-0 py-0 ${isAssistant ? 'bg-card shadow-sm' : 'border-primary/20 bg-primary/5 shadow-sm'}`}
+            <div
+                className={`max-w-4xl space-y-2 ${isAssistant ? 'w-full' : ''}`}
             >
-                <CardHeader className="flex-row items-start justify-between space-y-0 border-b py-4">
-                    <div>
-                        <CardTitle className="text-sm">
-                            {isAssistant ? 'Assistant' : 'You'}
-                        </CardTitle>
-                        <CardDescription>
-                            {message.created_at
-                                ? new Date(
-                                      message.created_at,
-                                  ).toLocaleTimeString()
-                                : null}
-                        </CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-3 p-4">
+                <div
+                    className={`flex items-center gap-2 text-xs text-muted-foreground ${isAssistant ? '' : 'justify-end'}`}
+                >
+                    {isAssistant ? (
+                        <Bot className="size-3.5" />
+                    ) : null}
+                    <span className="font-medium">
+                        {isAssistant ? 'Agent' : 'You'}
+                    </span>
+                    <span>
+                        {message.created_at
+                            ? new Date(
+                                  message.created_at,
+                              ).toLocaleTimeString()
+                            : null}
+                    </span>
+                </div>
+                <div
+                    className={`rounded-2xl p-4 ${isAssistant ? 'rounded-tl-sm bg-card shadow-sm' : 'rounded-tr-sm bg-primary/10'}`}
+                >
                     <div className="space-y-2">
                         {isAssistant ? (
                             <div
-                                className="prose prose-sm prose-zinc dark:prose-invert prose-headings:mb-2 prose-headings:mt-4 prose-p:my-2 prose-p:leading-7 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-table:my-3 prose-table:w-full prose-th:border prose-th:px-2 prose-th:py-1 prose-td:border prose-td:px-2 prose-td:py-1 prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.9em] prose-pre:bg-muted prose-pre:text-foreground max-w-none"
+                                className="prose prose-sm prose-zinc dark:prose-invert prose-headings:mb-2 prose-headings:mt-4 prose-p:my-2 prose-p:leading-7 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.9em] prose-pre:bg-muted prose-pre:text-foreground max-w-none [&_.assistant-table]:w-full [&_.assistant-table]:border-collapse [&_.assistant-table-head]:bg-muted/50 [&_.assistant-table-shell]:my-4 [&_.assistant-table-shell]:overflow-x-auto [&_.assistant-table-shell]:rounded-xl [&_.assistant-table-shell]:border [&_.assistant-table-shell]:bg-background [&_.assistant-table-td]:border-t [&_.assistant-table-td]:px-3 [&_.assistant-table-td]:py-2 [&_.assistant-table-td]:align-top [&_.assistant-table-td]:text-sm [&_.assistant-table-th]:border-b [&_.assistant-table-th]:px-3 [&_.assistant-table-th]:py-2 [&_.assistant-table-th]:text-left [&_.assistant-table-th]:text-xs [&_.assistant-table-th]:font-semibold [&_.assistant-table-th]:tracking-wide [&_.assistant-table-th]:uppercase"
                                 dangerouslySetInnerHTML={{
                                     __html: renderedContent,
                                 }}
@@ -1002,22 +1282,20 @@ function AssistantMessageCard({
                         {message.tool_results?.length ? (
                             <div className="space-y-2">
                                 {message.tool_results.map((result, index) => (
-                                    <Card
+                                    <div
                                         key={`${message.id}-${index}`}
-                                        className="gap-0 border-dashed bg-muted/30 py-0 shadow-none"
+                                        className="rounded-lg border border-dashed border-border/60 bg-muted/40 p-3 text-sm"
                                     >
-                                        <CardContent className="p-3 text-sm">
-                                            <ToolResultBlock result={result} />
-                                        </CardContent>
-                                    </Card>
+                                        <ToolResultBlock result={result} />
+                                    </div>
                                 ))}
                             </div>
                         ) : null}
                     </div>
-                </CardContent>
+                </div>
 
                 {isAssistant && canDebug && debugMode ? (
-                    <div className="border-t bg-muted/20 px-4 py-3">
+                    <div className="rounded-lg bg-muted/30 px-4 py-3">
                         <button
                             type="button"
                             onClick={onToggleDebug}
@@ -1037,7 +1315,7 @@ function AssistantMessageCard({
                         ) : null}
                     </div>
                 ) : null}
-            </Card>
+            </div>
         </div>
     );
 }
@@ -1049,25 +1327,27 @@ function AssistantLoadingCard({ run }: { run: PendingRunState }) {
 
     return (
         <div className="flex justify-start">
-            <Card className="w-full max-w-4xl gap-0 border-dashed bg-muted/30 py-0 shadow-none">
-                <CardHeader className="flex-row items-start justify-between space-y-0 border-b py-4">
-                    <div>
-                        <CardTitle className="flex items-center gap-2 text-sm">
+            <div className="w-full max-w-4xl space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Bot className="size-3.5" />
+                    <span className="font-medium">Agent</span>
+                </div>
+                <div className="rounded-2xl rounded-tl-sm bg-card p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-medium">
                             <LoaderCircle className="size-4 animate-spin" />
-                            Assistant is working
-                        </CardTitle>
-                        <CardDescription>
-                            {run.kind === 'confirmation'
-                                ? 'Executing the confirmed action and preparing the final reply.'
-                                : 'Your message is queued and visible immediately while the assistant works.'}
-                        </CardDescription>
+                            Agent is working
+                        </div>
+                        <span className="text-xs font-medium text-muted-foreground">
+                            {run.progress}%
+                        </span>
                     </div>
-                    <div className="text-xs font-medium text-muted-foreground">
-                        {run.progress}%
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-4 p-4">
-                    <div className="space-y-2">
+                    <p className="mb-3 text-sm text-muted-foreground">
+                        {run.kind === 'confirmation'
+                            ? 'Executing the confirmed action and preparing the final reply.'
+                            : 'Your message is queued while the agent works.'}
+                    </p>
+                    <div className="mb-4 space-y-2">
                         <div className="h-2 overflow-hidden rounded-full bg-muted">
                             <div
                                 className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
@@ -1078,9 +1358,6 @@ function AssistantLoadingCard({ run }: { run: PendingRunState }) {
                             <PhaseIcon className="size-4" />
                             {phase.title}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                            {phase.description}
-                        </p>
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-4">
@@ -1096,7 +1373,7 @@ function AssistantLoadingCard({ run }: { run: PendingRunState }) {
                             return (
                                 <div
                                     key={item.title}
-                                    className={`rounded-lg border px-3 py-3 text-xs ${state === 'done' ? 'border-primary/20 bg-primary/5' : state === 'active' ? 'border-primary/30 bg-background shadow-sm' : 'bg-background/70 text-muted-foreground'}`}
+                                    className={`rounded-lg px-3 py-3 text-xs ${state === 'done' ? 'bg-primary/10' : state === 'active' ? 'bg-muted shadow-sm' : 'bg-muted/50 text-muted-foreground'}`}
                                 >
                                     <div className="flex items-center gap-2 font-medium">
                                         <ItemIcon className="size-4" />
@@ -1106,8 +1383,8 @@ function AssistantLoadingCard({ run }: { run: PendingRunState }) {
                             );
                         })}
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     );
 }
@@ -1116,7 +1393,7 @@ function renderAssistantMarkdown(content: string): string {
     try {
         const rawHtml = marked.parse(content, { async: false }) as string;
 
-        return DOMPurify.sanitize(rawHtml, {
+        const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
             ALLOWED_TAGS: [
                 'p',
                 'br',
@@ -1149,6 +1426,17 @@ function renderAssistantMarkdown(content: string): string {
             ],
             ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
         });
+
+        return sanitizedHtml
+            .replaceAll(
+                '<table>',
+                '<div class="assistant-table-shell"><table class="assistant-table">',
+            )
+            .replaceAll('</table>', '</table></div>')
+            .replaceAll('<thead>', '<thead class="assistant-table-head">')
+            .replaceAll('<tbody>', '<tbody class="assistant-table-body">')
+            .replaceAll('<th>', '<th class="assistant-table-th">')
+            .replaceAll('<td>', '<td class="assistant-table-td">');
     } catch {
         return DOMPurify.sanitize(content);
     }
@@ -1205,6 +1493,14 @@ function AssistantDebugPanel({ message }: { message: AssistantMessage }) {
                         ],
                     ]}
                 />
+            </DebugSection>
+
+            <DebugSection title="Page context" defaultOpen>
+                {trace?.page_context ? (
+                    <JsonBlock data={trace.page_context} />
+                ) : (
+                    <EmptyDebugState text="No current page context was captured for this run." />
+                )}
             </DebugSection>
 
             <DebugSection title="Timeline" defaultOpen>
@@ -1461,25 +1757,21 @@ function DebugSection({
     const [open, setOpen] = useState(defaultOpen);
 
     return (
-        <Card className="gap-0 bg-background/80 py-0 shadow-none">
-            <CardHeader className="py-3">
-                <button
-                    type="button"
-                    onClick={() => setOpen((current) => !current)}
-                    className="flex w-full items-center justify-between gap-3 text-left"
-                >
-                    <CardTitle className="text-sm">{title}</CardTitle>
-                    {open ? (
-                        <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                        <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                </button>
-            </CardHeader>
-            {open ? (
-                <CardContent className="pb-3">{children}</CardContent>
-            ) : null}
-        </Card>
+        <div className="rounded-lg bg-muted/30 px-4 py-3">
+            <button
+                type="button"
+                onClick={() => setOpen((current) => !current)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+            >
+                <span className="text-sm font-semibold">{title}</span>
+                {open ? (
+                    <ChevronDown className="size-4 text-muted-foreground" />
+                ) : (
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                )}
+            </button>
+            {open ? <div className="mt-3">{children}</div> : null}
+        </div>
     );
 }
 
@@ -1748,6 +2040,18 @@ function ToolResultBlock({ result }: { result: AssistantToolResult }) {
                 to {result.board?.name ?? 'Board'} /{' '}
                 {result.column?.name ?? 'Column'}
             </p>
+        );
+    }
+
+    if (result.type === 'board_issue_bulk_move') {
+        return (
+            <SimpleList
+                title={`Issues moved to ${result.board?.name ?? 'board'} / ${result.column?.name ?? 'column'}`}
+                items={result.issues.map(
+                    (issue) =>
+                        `${issue.title ?? 'Issue'} - ${issue.status ?? 'unknown'} / ${issue.priority ?? 'unknown'}`,
+                )}
+            />
         );
     }
 

@@ -69,4 +69,56 @@ class ClientManagementTest extends TestCase
             'subject_id' => $client->id,
         ]);
     }
+
+    public function test_platform_owner_can_delete_clients_and_deletion_is_audited(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+            'name' => 'Delete Me',
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('clients.destroy', $client))
+            ->assertRedirect(route('clients.index'));
+
+        $this->assertDatabaseMissing('clients', ['id' => $client->id]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'client.deleted',
+            'source' => 'manual_ui',
+            'subject_type' => Client::class,
+            'subject_id' => $client->id,
+        ]);
+    }
+
+    public function test_clients_index_supports_server_backed_search_and_sorting(): void
+    {
+        $user = User::factory()->create();
+
+        Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+            'name' => 'Alpha Client',
+        ]);
+        Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+            'name' => 'Zulu Client',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.index', [
+                'search' => 'client',
+                'sort_by' => 'name',
+                'sort_direction' => 'desc',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('clients/index')
+                ->where('clients.0.name', 'Zulu Client')
+                ->where('clients.1.name', 'Alpha Client')
+                ->where('filters.search', 'client')
+                ->where('filters.sort_by', 'name')
+                ->where('filters.sort_direction', 'desc')
+            );
+    }
 }

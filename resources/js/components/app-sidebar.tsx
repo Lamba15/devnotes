@@ -1,5 +1,13 @@
-import { Link } from '@inertiajs/react';
-import { BriefcaseBusiness, Bot, FileBox, LayoutGrid, Wallet } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    BriefcaseBusiness,
+    Bot,
+    FileBox,
+    LayoutGrid,
+    Ticket,
+    Users,
+    Wallet,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,32 +24,152 @@ import {
 import type { NavItem } from '@/types';
 
 export function AppSidebar() {
+    const page = usePage<{
+        auth: {
+            user?: {
+                capabilities?: { platform?: boolean } | null;
+                portal_context?: {
+                    client_id?: number | null;
+                    client_name?: string | null;
+                } | null;
+            } | null;
+        };
+    }>();
+    const canAccessPlatform = Boolean(
+        page.props.auth.user?.capabilities?.platform,
+    );
+    const portalClientId = page.props.auth.user?.portal_context?.client_id;
+    const portalClientName = page.props.auth.user?.portal_context?.client_name;
+    const homeHref = canAccessPlatform
+        ? '/overview'
+        : portalClientId
+          ? `/clients/${portalClientId}`
+          : '/clients';
+
     const mainNavItems: NavItem[] = [
-        {
-            title: 'Overview',
-            href: '/overview',
-            icon: LayoutGrid,
-        },
-        {
-            title: 'Clients',
-            href: '/clients',
-            icon: BriefcaseBusiness,
-        },
-        {
-            title: 'Finance',
-            href: '/finance',
-            icon: Wallet,
-        },
-        {
-            title: 'CMS',
-            href: '#',
-            icon: FileBox,
-        },
+        ...(canAccessPlatform
+            ? [
+                  {
+                      title: 'Overview',
+                      href: '/overview',
+                      icon: LayoutGrid,
+                  },
+                  {
+                      title: 'Clients',
+                      href: '/clients',
+                      icon: BriefcaseBusiness,
+                      items: [
+                          {
+                              title: 'Clients',
+                              href: '/clients',
+                          },
+                          {
+                              title: 'Tags',
+                              href: '/clients/tags',
+                          },
+                      ],
+                  },
+              ]
+            : portalClientId
+              ? [
+                    {
+                        title: 'Workspace',
+                        href: `/clients/${portalClientId}`,
+                        icon: BriefcaseBusiness,
+                    },
+                    {
+                        title: 'Team',
+                        href: `/clients/${portalClientId}/members`,
+                        icon: Users,
+                    },
+                    {
+                        title: 'Projects',
+                        href: `/clients/${portalClientId}/projects`,
+                        icon: BriefcaseBusiness,
+                    },
+                    {
+                        title: 'Issues',
+                        href: `/clients/${portalClientId}/issues`,
+                        icon: Ticket,
+                    },
+                    {
+                        title: 'Boards',
+                        href: `/clients/${portalClientId}/boards`,
+                        icon: LayoutGrid,
+                    },
+                    {
+                        title: 'Finance',
+                        href: `/clients/${portalClientId}/finance`,
+                        icon: Wallet,
+                    },
+                ]
+              : []),
+        ...(canAccessPlatform
+            ? [
+                  {
+                      title: 'Tracking',
+                      href: '/tracking/issues',
+                      icon: Ticket,
+                      items: [
+                          {
+                              title: 'Issues',
+                              href: '/tracking/issues',
+                          },
+                          {
+                              title: 'Boards',
+                              href: '/tracking/boards',
+                          },
+                          {
+                              title: 'Statuses',
+                              href: '/tracking/statuses',
+                          },
+                      ],
+                  },
+                  {
+                      title: 'Finance',
+                      href: '/finance/transactions',
+                      icon: Wallet,
+                      items: [
+                          {
+                              title: 'Transactions',
+                              href: '/finance/transactions',
+                          },
+                          {
+                              title: 'Invoices',
+                              href: '/finance/invoices',
+                          },
+                          {
+                              title: 'Categories',
+                              href: '/finance/categories',
+                          },
+                      ],
+                  },
+                  {
+                      title: 'CMS',
+                      href: '/cms/pages',
+                      icon: FileBox,
+                      items: [
+                          {
+                              title: 'Pages',
+                              href: '/cms/pages',
+                          },
+                          {
+                              title: 'Skills',
+                              href: '/cms/skills',
+                          },
+                          {
+                              title: 'Feedback',
+                              href: '/cms/feedback',
+                          },
+                      ],
+                  },
+              ]
+            : []),
     ];
 
     const footerNavItems: NavItem[] = [
         {
-            title: 'Assistant',
+            title: 'Agent Chat',
             href: '#assistant',
             icon: Bot,
         },
@@ -53,7 +181,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/overview" prefetch>
+                            <Link href={homeHref} prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -62,7 +190,14 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain
+                    items={mainNavItems}
+                    label={
+                        canAccessPlatform
+                            ? 'Platform'
+                            : (portalClientName ?? 'Workspace')
+                    }
+                />
             </SidebarContent>
 
             <SidebarFooter>

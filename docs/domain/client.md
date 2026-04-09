@@ -6,6 +6,19 @@ Client records should support a small required core and many optional attributes
 
 The intent is not a narrow CRM card. A client record should be able to hold a rich working profile over time.
 
+## Perspective Note
+
+- `Client` is still the correct domain term for modeling from the owner's side.
+- But when the other side logs in, the system should not feel like they are browsing a record inside someone else's CRM.
+- The client-scoped workspace should be shaped as their collaborative work portal with Nour.
+- That means the client domain should not stop at profile data. It should gather the work that matters to them in one place, such as:
+    - members
+    - projects
+    - issues
+    - boards
+    - statuses
+    - finance context when appropriate
+
 ## Current Known Fields
 
 Current known client fields or groups include:
@@ -39,6 +52,9 @@ Current known client fields or groups include:
 - Only a small subset of fields should be required.
 - Most client fields should be optional.
 - The record should be extensible enough to reflect real working relationships without forcing every client into the same narrow structure.
+- The client workspace should include both:
+    - rich profile data
+    - nested work surfaces relevant to that client relationship
 
 ## Minimum V1 Client Creation
 
