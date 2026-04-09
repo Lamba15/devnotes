@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\ProjectStatus;
 use Illuminate\Http\RedirectResponse;
@@ -87,11 +88,20 @@ class ClientStatusController extends Controller
             'slug' => ['required', 'string', 'max:255', 'unique:project_statuses,slug'],
         ]);
 
-        ProjectStatus::query()->create([
+        $status = ProjectStatus::query()->create([
             'client_id' => $client->id,
             'name' => $validated['name'],
             'slug' => $validated['slug'],
             'is_system' => false,
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $request->user()->id,
+            'event' => 'project_status.created',
+            'source' => 'web',
+            'subject_type' => ProjectStatus::class,
+            'subject_id' => $status->id,
+            'after_json' => $status->toArray(),
         ]);
 
         return to_route('clients.statuses.index', $client);
@@ -123,7 +133,18 @@ class ClientStatusController extends Controller
             'slug' => ['required', 'string', 'max:255', 'unique:project_statuses,slug,'.$status->id],
         ]);
 
+        $before = $status->toArray();
         $status->update($validated);
+
+        AuditLog::query()->create([
+            'user_id' => $request->user()->id,
+            'event' => 'project_status.updated',
+            'source' => 'web',
+            'subject_type' => ProjectStatus::class,
+            'subject_id' => $status->id,
+            'before_json' => $before,
+            'after_json' => $status->fresh()->toArray(),
+        ]);
 
         return to_route('clients.statuses.index', $client);
     }
@@ -133,7 +154,18 @@ class ClientStatusController extends Controller
         abort_unless($request->user()->canManageClient($client), 403);
         abort_unless($status->client_id === $client->id, 404);
 
+        $statusData = $status->toArray();
+        $statusId = $status->id;
         $status->delete();
+
+        AuditLog::query()->create([
+            'user_id' => $request->user()->id,
+            'event' => 'project_status.deleted',
+            'source' => 'web',
+            'subject_type' => ProjectStatus::class,
+            'subject_id' => $statusId,
+            'before_json' => $statusData,
+        ]);
 
         return to_route('clients.statuses.index', $client);
     }

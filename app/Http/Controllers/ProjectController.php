@@ -47,6 +47,8 @@ class ProjectController extends Controller
                 'name' => $project->name,
                 'description' => $project->description,
                 'status_id' => $project->status_id,
+                'budget' => $project->budget,
+                'currency' => $project->currency,
             ],
             'statuses' => ProjectStatus::query()
                 ->where(function ($query) use ($client): void {
@@ -74,6 +76,8 @@ class ProjectController extends Controller
                 'name' => $project->name,
                 'description' => $project->description,
                 'status' => $project->status?->only(['id', 'name', 'slug']),
+                'budget' => $project->budget,
+                'currency' => $project->currency,
             ],
             'summary' => [
                 'issues_count' => $project->issues()->count(),
@@ -149,6 +153,8 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
             'description' => ['nullable', 'string'],
+            'budget' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $createProject->handle($request->user(), $client, $validated);
@@ -164,6 +170,8 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
             'description' => ['nullable', 'string'],
+            'budget' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $updateProject->handle($request->user(), $project, $validated);

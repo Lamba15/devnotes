@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Settings;
 use App\AI\DefaultAssistantSystemPrompt;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\AISettingsUpdateRequest;
+use App\Models\AuditLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
@@ -40,6 +42,18 @@ class AISettingsController extends Controller
                 ? $validated['openrouter_system_prompt']
                 : null,
         ])->save();
+
+        AuditLog::query()->create([
+            'user_id' => $user->id,
+            'event' => 'user.ai_settings_updated',
+            'source' => 'web',
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'after_json' => [
+                'openrouter_model' => $user->openrouter_model,
+                'has_custom_prompt' => filled($user->openrouter_system_prompt),
+            ],
+        ]);
 
         return to_route('ai-settings.edit');
     }

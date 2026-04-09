@@ -63,7 +63,7 @@ class ClientMembershipController extends Controller
         $sortDirection = $validated['sort_direction'] ?? 'desc';
 
         $query = $client->memberships()
-            ->with('user:id,name,email,email_verified_at')
+            ->with('user:id,name,email,email_verified_at,avatar_path,ai_credits,ai_credits_used')
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($membershipQuery) use ($search): void {
                     $membershipQuery->where('role', 'like', "%{$search}%")
@@ -93,6 +93,9 @@ class ClientMembershipController extends Controller
                         'name' => $membership->user->name,
                         'email' => $membership->user->email,
                         'email_verified_at' => $membership->user->email_verified_at?->toISOString(),
+                        'avatar_path' => $membership->user->avatar_path,
+                        'ai_credits' => $membership->user->ai_credits,
+                        'ai_credits_used' => $membership->user->ai_credits_used,
                     ],
                 ]),
             'pagination' => [

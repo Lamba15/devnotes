@@ -44,7 +44,11 @@ class TransactionController extends Controller
         abort_unless($user->canManageClient($transaction->project->client), 403);
 
         return Inertia::render('finance/transactions-edit', [
-            'transaction' => $transaction->only(['id', 'project_id', 'description', 'amount', 'occurred_at']),
+            'transaction' => [
+                ...$transaction->only(['id', 'project_id', 'description', 'amount', 'occurred_at']),
+                'category' => $transaction->category,
+                'currency' => $transaction->currency,
+            ],
             'projects' => Project::query()
                 ->with('client:id,name')
                 ->whereHas('client.memberships', fn ($query) => $query->where('user_id', $user->id)->whereIn('role', ['owner', 'admin']))
@@ -60,6 +64,8 @@ class TransactionController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric'],
             'occurred_at' => ['required', 'date'],
+            'category' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $project = Project::query()->findOrFail($validated['project_id']);
@@ -76,6 +82,8 @@ class TransactionController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric'],
             'occurred_at' => ['required', 'date'],
+            'category' => ['nullable', 'string', 'max:255'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $project = Project::query()->findOrFail($validated['project_id']);

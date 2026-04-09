@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Clients\CreateClient;
 use App\Actions\Clients\DeleteClient;
 use App\Actions\Clients\UpdateClient;
+use App\Models\AuditLog;
 use App\Models\Behavior;
 use App\Models\Board;
 use App\Models\Client;
@@ -15,6 +16,7 @@ use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -162,6 +164,52 @@ class ClientController extends Controller
         return to_route('clients.index');
     }
 
+    public function uploadImage(Request $request, Client $client): RedirectResponse
+    {
+        abort_unless($request->user()->canEditInternalClientProfile($client), 403);
+
+        $request->validate([
+            'image' => ['required', 'image', 'max:2048'],
+        ]);
+
+        if ($client->image_path) {
+            Storage::disk('public')->delete($client->image_path);
+        }
+
+        $path = $request->file('image')->store('clients', 'public');
+        $client->update(['image_path' => $path]);
+
+        AuditLog::query()->create([
+            'user_id' => $request->user()->id,
+            'event' => 'client.image_uploaded',
+            'source' => 'web',
+            'subject_type' => Client::class,
+            'subject_id' => $client->id,
+        ]);
+
+        return back();
+    }
+
+    public function removeImage(Request $request, Client $client): RedirectResponse
+    {
+        abort_unless($request->user()->canEditInternalClientProfile($client), 403);
+
+        if ($client->image_path) {
+            Storage::disk('public')->delete($client->image_path);
+            $client->update(['image_path' => null]);
+
+            AuditLog::query()->create([
+                'user_id' => $request->user()->id,
+                'event' => 'client.image_removed',
+                'source' => 'web',
+                'subject_type' => Client::class,
+                'subject_id' => $client->id,
+            ]);
+        }
+
+        return back();
+    }
+
     public function show(Request $request, Client $client): Response
     {
         $user = $request->user();
@@ -216,7 +264,7 @@ class ClientController extends Controller
                 ])
                 ->all(),
             'recent_members' => $client->memberships()
-                ->with('user:id,name,email')
+                ->with('user:id,name,email,avatar_path')
                 ->latest()
                 ->take(5)
                 ->get()
@@ -227,6 +275,7 @@ class ClientController extends Controller
                         'id' => $membership->user->id,
                         'name' => $membership->user->name,
                         'email' => $membership->user->email,
+                        'avatar_path' => $membership->user->avatar_path,
                     ],
                 ])
                 ->all(),

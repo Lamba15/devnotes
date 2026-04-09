@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Models\AuditLog;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -49,8 +51,17 @@ class SecurityController extends Controller implements HasMiddleware
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
-        $request->user()->update([
+        $user = $request->user();
+        $user->update([
             'password' => $request->password,
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $user->id,
+            'event' => 'user.password_changed',
+            'source' => 'web',
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
         ]);
 
         return back();

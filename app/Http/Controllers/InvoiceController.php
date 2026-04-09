@@ -48,7 +48,7 @@ class InvoiceController extends Controller
         abort_unless($user->canManageClient($invoice->project->client), 403);
 
         return Inertia::render('finance/invoices-edit', [
-            'invoice' => $invoice->only(['id', 'project_id', 'reference', 'status', 'amount', 'issued_at', 'due_at', 'paid_at', 'notes']),
+            'invoice' => $invoice->only(['id', 'project_id', 'reference', 'status', 'amount', 'currency', 'issued_at', 'due_at', 'paid_at', 'notes']),
             'projects' => Project::query()
                 ->with('client:id,name')
                 ->whereHas('client.memberships', fn ($query) => $query->where('user_id', $user->id)->whereIn('role', ['owner', 'admin']))
@@ -68,6 +68,7 @@ class InvoiceController extends Controller
             'due_at' => ['nullable', 'date'],
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $project = Project::query()->findOrFail($validated['project_id']);
@@ -88,6 +89,7 @@ class InvoiceController extends Controller
             'due_at' => ['nullable', 'date'],
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
+            'currency' => ['nullable', 'string', 'size:3'],
         ]);
 
         $project = Project::query()->findOrFail($validated['project_id']);

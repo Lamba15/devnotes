@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AssistantConfirmationController;
 use App\Http\Controllers\AssistantController;
+use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\BoardIssueMovementController;
 use App\Http\Controllers\ClientController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\IssueCommentController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UserCreditsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -25,7 +28,31 @@ Route::inertia('/', 'welcome', [
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('overview', function (Request $request) {
         if ($request->user()->isPlatformOwner()) {
-            return Inertia::render('overview');
+            return Inertia::render('overview', [
+                'stats' => [
+                    'clients' => \App\Models\Client::count(),
+                    'projects' => \App\Models\Project::count(),
+                    'issues' => \App\Models\Issue::count(),
+                    'open_issues' => \App\Models\Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
+                    'invoices' => \App\Models\Invoice::count(),
+                    'transactions' => \App\Models\Transaction::count(),
+                    'users' => \App\Models\User::count(),
+                    'boards' => \App\Models\Board::count(),
+                ],
+                'recent_activity' => \App\Models\AuditLog::with('user:id,name')
+                    ->orderByDesc('created_at')
+                    ->limit(8)
+                    ->get()
+                    ->map(fn ($log) => [
+                        'id' => $log->id,
+                        'event' => $log->event,
+                        'source' => $log->source,
+                        'subject_type' => class_basename($log->subject_type ?? ''),
+                        'subject_id' => $log->subject_id,
+                        'user_name' => $log->user?->name ?? 'System',
+                        'created_at' => $log->created_at->toISOString(),
+                    ]),
+            ]);
         }
 
         $firstClientId = $request->user()->clientMemberships()->orderBy('id')->value('client_id');
@@ -45,6 +72,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('clients/{client}', [ClientController::class, 'show'])->name('clients.show');
     Route::get('clients/{client}/edit', [ClientController::class, 'edit'])->name('clients.edit');
     Route::put('clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+    Route::post('clients/{client}/image', [ClientController::class, 'uploadImage'])->name('clients.image.upload');
+    Route::delete('clients/{client}/image', [ClientController::class, 'removeImage'])->name('clients.image.remove');
     Route::delete('clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
     Route::get('clients/{client}/members/create', [ClientMembershipController::class, 'create'])->name('clients.members.create');
     Route::get('clients/{client}/members/{membership}/edit', [ClientMembershipController::class, 'edit'])->name('clients.members.edit');
@@ -91,12 +120,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('clients.projects.issues.destroy');
     Route::post('clients/{client}/projects/{project}/issues/{issue}/comments', [IssueCommentController::class, 'store'])
         ->name('clients.projects.issues.comments.store');
+    Route::put('clients/{client}/projects/{project}/issues/{issue}/comments/{comment}', [IssueCommentController::class, 'update'])
+        ->name('clients.projects.issues.comments.update');
+    Route::delete('clients/{client}/projects/{project}/issues/{issue}/comments/{comment}', [IssueCommentController::class, 'destroy'])
+        ->name('clients.projects.issues.comments.destroy');
     Route::get('clients/{client}/projects/{project}/boards/{board}', [BoardController::class, 'show'])
         ->name('clients.projects.boards.show');
     Route::post('boards/{board}/issues/move', [BoardIssueMovementController::class, 'store'])
         ->name('boards.issues.move');
 
+    // Attachments
+    Route::post('attachments', [AttachmentController::class, 'store'])->name('attachments.store');
+    Route::delete('attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
+
     Route::middleware('platform.owner')->group(function () {
+        // Audit logs
+        Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+
+        // User credit management
+        Route::put('users/{user}/credits', [UserCreditsController::class, 'update'])->name('users.credits.update');
+
         Route::redirect('finance', '/finance/transactions')->name('finance.index');
         Route::get('finance/transactions/create', [FinanceController::class, 'transactionsCreate'])->name('finance.transactions.create');
         Route::get('finance/transactions', [FinanceController::class, 'transactions'])->name('finance.transactions.index');

@@ -106,6 +106,9 @@ class IssueController extends Controller
             'priority' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
             'assignee_id' => ['nullable', 'integer', Rule::in($this->availableAssigneeIds($project)->all())],
+            'due_date' => ['nullable', 'date'],
+            'estimated_hours' => ['nullable', 'string', 'max:255'],
+            'label' => ['nullable', 'string', 'max:255'],
         ]);
 
         $createIssue->handle($request->user(), $project, $validated);
@@ -147,6 +150,10 @@ class IssueController extends Controller
             'can_manage_issue' => $request->user()->canManageProject($project),
             'can_comment' => $request->user()->canCommentOnIssue($issue),
             'comments' => $this->serializeComments($issue),
+            'attachments' => $issue->attachments()
+                ->orderBy('id')
+                ->get(['id', 'file_name', 'file_path', 'mime_type', 'file_size'])
+                ->all(),
             'assignee_options' => $this->serializeAssigneeOptions($project, $issue),
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
@@ -173,6 +180,9 @@ class IssueController extends Controller
             'priority' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
             'assignee_id' => ['nullable', 'integer', Rule::in($this->availableAssigneeIds($project, $issue)->all())],
+            'due_date' => ['nullable', 'date'],
+            'estimated_hours' => ['nullable', 'string', 'max:255'],
+            'label' => ['nullable', 'string', 'max:255'],
         ]);
 
         $updateIssue->handle($request->user(), $issue, $validated);
@@ -199,7 +209,7 @@ class IssueController extends Controller
 
     private function serializeIssue(Issue $issue): array
     {
-        $issue->loadMissing('assignee:id,name');
+        $issue->loadMissing('assignee:id,name,avatar_path');
 
         return [
             'id' => $issue->id,
@@ -209,7 +219,11 @@ class IssueController extends Controller
             'priority' => $issue->priority,
             'type' => $issue->type,
             'assignee_id' => $issue->assignee_id,
-            'assignee' => $issue->assignee?->only(['id', 'name']),
+            'assignee' => $issue->assignee?->only(['id', 'name', 'avatar_path']),
+            'due_date' => $issue->due_date?->toDateString(),
+            'estimated_hours' => $issue->estimated_hours,
+            'label' => $issue->label,
+            'created_at' => $issue->created_at?->toISOString(),
         ];
     }
 
@@ -266,7 +280,7 @@ class IssueController extends Controller
     private function serializeComments(Issue $issue): array
     {
         $comments = $issue->comments()
-            ->with('user:id,name')
+            ->with('user:id,name,avatar_path')
             ->orderBy('id')
             ->get();
 
@@ -281,7 +295,7 @@ class IssueController extends Controller
                 'id' => $comment->id,
                 'body' => $comment->body,
                 'parent_id' => $comment->parent_id,
-                'user' => $comment->user?->only(['id', 'name']),
+                'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
                 'created_at' => $comment->created_at?->toISOString(),
                 'replies' => $this->buildCommentTree($comments, $comment->id),
             ])
