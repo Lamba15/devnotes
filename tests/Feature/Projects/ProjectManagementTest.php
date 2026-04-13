@@ -8,6 +8,8 @@ use App\Models\Project;
 use App\Models\ProjectStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -148,5 +150,98 @@ class ProjectManagementTest extends TestCase
                 ->where('filters.sort_by', 'name')
                 ->where('filters.sort_direction', 'desc')
             );
+    }
+
+    public function test_platform_owner_can_visit_the_cross_client_projects_index(): void
+    {
+        $user = User::factory()->create();
+        $firstClient = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+            'name' => 'Alpha Client',
+        ]);
+        $secondClient = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+            'name' => 'Zulu Client',
+        ]);
+        $status = ProjectStatus::query()->where('slug', 'active')->firstOrFail();
+
+        Project::factory()->create([
+            'client_id' => $firstClient->id,
+            'status_id' => $status->id,
+            'name' => 'First Client Project',
+        ]);
+        Project::factory()->create([
+            'client_id' => $secondClient->id,
+            'status_id' => $status->id,
+            'name' => 'Second Client Project',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.all', [
+                'search' => 'client',
+                'sort_by' => 'client_name',
+                'sort_direction' => 'asc',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/all')
+                ->has('projects', 2)
+                ->where('projects.0.client.name', 'Alpha Client')
+                ->where('projects.1.client.name', 'Zulu Client')
+                ->where('filters.search', 'client')
+                ->where('filters.sort_by', 'client_name')
+                ->where('filters.sort_direction', 'asc')
+            );
+    }
+
+    public function test_project_logo_can_be_uploaded_and_removed(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('clients.projects.image.upload', [$client, $project]), [
+                'image' => UploadedFile::fake()->createWithContent(
+                    'logo.png',
+                    base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sZrxh0AAAAASUVORK5CYII='),
+                ),
+            ])
+            ->assertRedirect();
+
+        $project->refresh();
+
+        $this->assertNotNull($project->image_path);
+        Storage::disk('public')->assertExists($project->image_path);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'project.image_uploaded',
+            'subject_type' => Project::class,
+            'subject_id' => $project->id,
+        ]);
+
+        $storedPath = $project->image_path;
+
+        $this->actingAs($user)
+            ->delete(route('clients.projects.image.remove', [$client, $project]))
+            ->assertRedirect();
+
+        $project->refresh();
+
+        $this->assertNull($project->image_path);
+        Storage::disk('public')->assertMissing($storedPath);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'project.image_removed',
+            'subject_type' => Project::class,
+            'subject_id' => $project->id,
+        ]);
     }
 }

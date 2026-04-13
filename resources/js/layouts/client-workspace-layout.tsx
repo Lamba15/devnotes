@@ -17,6 +17,12 @@ type ClientWorkspacePageProps = {
             capabilities?: {
                 platform?: boolean;
             } | null;
+            portal_context?: {
+                role?: 'owner' | 'admin' | 'member' | null;
+                permissions?: string[];
+                can_access_finance?: boolean;
+                can_view_members?: boolean;
+            } | null;
         } | null;
     };
     client: {
@@ -31,14 +37,36 @@ type ClientWorkspacePageProps = {
     };
 };
 
-const sections = (clientId: number): Array<{ title: string; href: string; exact?: boolean; icon: LucideIcon }> => [
+const sections = (
+    clientId: number,
+    options: {
+        canViewMembers: boolean;
+        canViewProjects: boolean;
+        canViewIssues: boolean;
+        canViewBoards: boolean;
+        canViewStatuses: boolean;
+        canViewFinance: boolean;
+    },
+): Array<{ title: string; href: string; exact?: boolean; icon: LucideIcon }> => [
     { title: 'Overview', href: `/clients/${clientId}`, exact: true, icon: LayoutDashboard },
-    { title: 'Members', href: `/clients/${clientId}/members`, icon: Users },
-    { title: 'Projects', href: `/clients/${clientId}/projects`, icon: FolderKanban },
-    { title: 'Issues', href: `/clients/${clientId}/issues`, icon: Ticket },
-    { title: 'Boards', href: `/clients/${clientId}/boards`, icon: LayoutGrid },
-    { title: 'Statuses', href: `/clients/${clientId}/statuses`, icon: ListChecks },
-    { title: 'Finance', href: `/clients/${clientId}/finance`, icon: DollarSign },
+    ...(options.canViewMembers
+        ? [{ title: 'Members', href: `/clients/${clientId}/members`, icon: Users }]
+        : []),
+    ...(options.canViewProjects
+        ? [{ title: 'Projects', href: `/clients/${clientId}/projects`, icon: FolderKanban }]
+        : []),
+    ...(options.canViewIssues
+        ? [{ title: 'Issues', href: `/clients/${clientId}/issues`, icon: Ticket }]
+        : []),
+    ...(options.canViewBoards
+        ? [{ title: 'Boards', href: `/clients/${clientId}/boards`, icon: LayoutGrid }]
+        : []),
+    ...(options.canViewStatuses
+        ? [{ title: 'Statuses', href: `/clients/${clientId}/statuses`, icon: ListChecks }]
+        : []),
+    ...(options.canViewFinance
+        ? [{ title: 'Finance', href: `/clients/${clientId}/finance`, icon: DollarSign }]
+        : []),
 ];
 
 export default function ClientWorkspaceLayout({
@@ -49,6 +77,20 @@ export default function ClientWorkspaceLayout({
     const { auth, client } = usePage<ClientWorkspacePageProps>().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const canAccessPlatform = Boolean(auth.user?.capabilities?.platform);
+    const role = auth.user?.portal_context?.role;
+    const permissions = auth.user?.portal_context?.permissions ?? [];
+    const hasPermission = (permission: string): boolean =>
+        role === 'owner' ||
+        role === 'admin' ||
+        permissions.includes(permission);
+    const workspaceSections = sections(client.id, {
+        canViewMembers: Boolean(auth.user?.portal_context?.can_view_members) || canAccessPlatform,
+        canViewProjects: hasPermission('projects.read') || hasPermission('projects.write') || canAccessPlatform,
+        canViewIssues: hasPermission('issues.read') || hasPermission('issues.write') || canAccessPlatform,
+        canViewBoards: hasPermission('boards.read') || hasPermission('boards.write') || canAccessPlatform,
+        canViewStatuses: hasPermission('statuses.read') || hasPermission('statuses.write') || canAccessPlatform,
+        canViewFinance: Boolean(auth.user?.portal_context?.can_access_finance) || canAccessPlatform,
+    });
 
     return (
         <AppLayout>
@@ -73,7 +115,7 @@ export default function ClientWorkspaceLayout({
                     <div className="grid flex-1 lg:grid-cols-[220px_minmax(0,1fr)]">
                         <aside className="border-b border-border bg-card p-4 lg:border-b-0 lg:border-r">
                             <nav className="space-y-1">
-                                {sections(client.id).map((section) => {
+                                {workspaceSections.map((section) => {
                                     const active = section.exact
                                         ? isCurrentUrl(section.href)
                                         : isCurrentOrParentUrl(section.href);

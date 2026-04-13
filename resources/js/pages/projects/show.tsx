@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import {
-    DollarSign,
+    Camera,
+    Banknote,
     LayoutGrid,
     Pencil,
     Plus,
@@ -9,13 +10,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import SecretsCard from '@/components/secrets/secrets-card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 export default function ProjectShow({
     client,
     project,
+    secrets,
     summary,
     can_manage_project,
+    can_manage_secrets,
 }: {
     client: { id: number; name: string };
     project: {
@@ -25,12 +31,20 @@ export default function ProjectShow({
         status?: { id: number; name: string; slug: string } | null;
         budget?: string | null;
         currency?: string | null;
+        image_path?: string | null;
     };
+    secrets: Array<{
+        id: number;
+        label: string;
+        description: string | null;
+        updated_at: string | null;
+    }>;
     summary: {
         issues_count: number;
         boards_count: number;
     };
     can_manage_project: boolean;
+    can_manage_secrets: boolean;
 }) {
     return (
         <>
@@ -40,12 +54,42 @@ export default function ProjectShow({
                 <Card className="shadow-none">
                     <CardHeader className="flex-row items-start justify-between space-y-0">
                         <div className="space-y-1">
-                            <CardTitle>{project.name}</CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                                {client.name} / Project workspace
-                            </p>
+                            <div className="flex items-center gap-3">
+                                <Avatar className="size-12">
+                                    {project.image_path ? (
+                                        <AvatarImage
+                                            src={`/storage/${project.image_path}`}
+                                            alt={project.name}
+                                        />
+                                    ) : null}
+                                    <AvatarFallback className="bg-primary/10 text-sm font-bold text-primary">
+                                        {project.name
+                                            .split(' ')
+                                            .map((part) => part[0])
+                                            .slice(0, 2)
+                                            .join('')
+                                            .toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="space-y-1">
+                                    <CardTitle>{project.name}</CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        {client.name} / Project workspace
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            {can_manage_project ? (
+                                <Link
+                                    href={`/clients/${client.id}/projects/${project.id}/edit`}
+                                >
+                                    <Button variant="outline">
+                                        <Camera className="mr-1.5 size-3.5" />
+                                        {project.image_path ? 'Update logo' : 'Add logo'}
+                                    </Button>
+                                </Link>
+                            ) : null}
                             {can_manage_project ? (
                                 <Link
                                     href={`/clients/${client.id}/projects/${project.id}/issues/create`}
@@ -81,8 +125,8 @@ export default function ProjectShow({
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground">Budget</p>
                                 <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-foreground">
-                                    <DollarSign className="size-3.5 text-emerald-500" />
-                                    {Number(project.budget).toLocaleString()} {project.currency ?? 'USD'}
+                                    <Banknote className="size-3.5 text-emerald-500" />
+                                    {formatCurrencyAmount(project.budget, project.currency)}
                                 </p>
                             </div>
                         ) : null}
@@ -137,6 +181,17 @@ export default function ProjectShow({
                         );
                     })}
                 </div>
+                {can_manage_secrets ? (
+                    <SecretsCard
+                        title="Secrets"
+                        description="Platform-only credentials and private values for this project."
+                        secrets={secrets}
+                        createHref={`/clients/${client.id}/projects/${project.id}/secrets/create`}
+                        editHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/edit`}
+                        deleteHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}`}
+                        revealHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/reveal`}
+                    />
+                ) : null}
             </div>
         </>
     );

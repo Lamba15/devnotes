@@ -12,7 +12,7 @@ class UpdateTransaction
 {
     public function handle(User $actor, Transaction $transaction, Project $project, array $attributes, string $source = 'manual_ui'): Transaction
     {
-        if (! $actor->canManageClient($project->client)) {
+        if (! $actor->canManageProjectFinance($project)) {
             throw new AuthorizationException('You are not allowed to update transactions for this client.');
         }
 
@@ -21,6 +21,8 @@ class UpdateTransaction
             'description' => $attributes['description'],
             'amount' => $attributes['amount'],
             'occurred_at' => $attributes['occurred_at'],
+            'category' => $attributes['category'] ?? null,
+            'currency' => $attributes['currency'] ?? 'USD',
         ]);
         $transaction->save();
 

@@ -33,6 +33,7 @@ The product domain consists of these primary entities:
 
 ### Content Domain
 - **Attachment** — polymorphic file/image attached to issues or comments
+- **SecretEntry** — encrypted platform-only secret attached to a client or project
 
 ### AI Domain
 - **AssistantThread** — a conversation session between a user and the AI
@@ -56,6 +57,7 @@ The product domain consists of these primary entities:
 - Issues belong to projects but can appear on many boards.
 - Transactions and invoices are linked to projects, not directly to clients.
 - Client finance is aggregated from project-level financial records.
+- Secrets are polymorphic platform-only records attached to clients or projects.
 - Attachments are polymorphic and can belong to issues or comments.
 - Comments support unlimited nesting depth (Reddit-style threading).
 

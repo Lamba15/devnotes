@@ -20,7 +20,7 @@ export default function ClientMembersCreate({
         name: '',
         email: '',
         password: '',
-        role: 'viewer',
+        role: 'member',
     });
 
     const sections: DynamicFormSection[] = [
@@ -72,7 +72,11 @@ export default function ClientMembersCreate({
                     }
                     onChange={(name, value) =>
                         form.setData(
-                            name as 'name' | 'email' | 'password' | 'role',
+                            name as
+                                | 'name'
+                                | 'email'
+                                | 'password'
+                                | 'role',
                             value,
                         )
                     }

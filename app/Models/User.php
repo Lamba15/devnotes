@@ -65,6 +65,11 @@ class User extends Authenticatable
         return $this->workspaceAccess()->isPlatformOwner();
     }
 
+    public function canAccessPlatform(): bool
+    {
+        return $this->workspaceAccess()->canAccessPlatform();
+    }
+
     public function belongsToClient(Client $client): bool
     {
         return $this->workspaceAccess()->belongsToClient($client);
@@ -85,6 +90,16 @@ class User extends Authenticatable
         return $this->workspaceAccess()->canManageClient($client);
     }
 
+    public function canViewMembers(Client $client): bool
+    {
+        return $this->workspaceAccess()->canViewMembers($client);
+    }
+
+    public function canManageMembers(Client $client): bool
+    {
+        return $this->workspaceAccess()->canManageMembers($client);
+    }
+
     public function canViewInternalClientProfile(Client $client): bool
     {
         return $this->workspaceAccess()->canViewInternalClientProfile($client);
@@ -100,9 +115,69 @@ class User extends Authenticatable
         return $this->workspaceAccess()->hasProjectAccess($project);
     }
 
+    public function canCreateProject(Client $client): bool
+    {
+        return $this->workspaceAccess()->canCreateProject($client);
+    }
+
     public function canManageProject(Project $project): bool
     {
         return $this->workspaceAccess()->canManageProject($project);
+    }
+
+    public function canViewIssues(Project $project): bool
+    {
+        return $this->workspaceAccess()->canViewIssues($project);
+    }
+
+    public function canManageIssues(Project $project): bool
+    {
+        return $this->workspaceAccess()->canManageIssues($project);
+    }
+
+    public function canViewBoards(Client $client): bool
+    {
+        return $this->workspaceAccess()->canViewBoards($client);
+    }
+
+    public function canCreateBoard(Project $project): bool
+    {
+        return $this->workspaceAccess()->canCreateBoard($project);
+    }
+
+    public function canManageBoard(Board $board): bool
+    {
+        return $this->workspaceAccess()->canManageBoard($board);
+    }
+
+    public function canViewStatuses(Client $client): bool
+    {
+        return $this->workspaceAccess()->canViewStatuses($client);
+    }
+
+    public function canManageStatuses(Client $client): bool
+    {
+        return $this->workspaceAccess()->canManageStatuses($client);
+    }
+
+    public function canAccessClientFinance(Client $client): bool
+    {
+        return $this->workspaceAccess()->canAccessClientFinance($client);
+    }
+
+    public function canManageClientFinance(Client $client): bool
+    {
+        return $this->workspaceAccess()->canManageClientFinance($client);
+    }
+
+    public function canAccessProjectFinance(Project $project): bool
+    {
+        return $this->workspaceAccess()->canAccessProjectFinance($project);
+    }
+
+    public function canManageProjectFinance(Project $project): bool
+    {
+        return $this->workspaceAccess()->canManageProjectFinance($project);
     }
 
     public function canAccessBoard(Board $board): bool
@@ -123,5 +198,10 @@ class User extends Authenticatable
     public function canAccessAssistantDebug(): bool
     {
         return $this->workspaceAccess()->canAccessAssistantDebug();
+    }
+
+    public function canUseAssistant(): bool
+    {
+        return $this->workspaceAccess()->canUseAssistant();
     }
 }

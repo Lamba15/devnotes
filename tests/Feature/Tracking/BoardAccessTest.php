@@ -7,17 +7,29 @@ use App\Models\BoardIssuePlacement;
 use App\Models\BoardMembership;
 use App\Models\Client;
 use App\Models\ClientMembership;
+use App\Models\ClientMembershipPermission;
 use App\Models\Issue;
 use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
-test('viewer with project access can view a board and its backlog', function () {
+function grantClientPermissions(ClientMembership $membership, array $permissions): void
+{
+    foreach (ClientPermissionCatalog::normalize($permissions) as $permission) {
+        ClientMembershipPermission::query()->create([
+            'client_membership_id' => $membership->id,
+            'permission_name' => $permission,
+        ]);
+    }
+}
+
+test('member with project access, board membership, and board read permission can view a board and its backlog', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
     ]);
@@ -59,20 +71,29 @@ test('viewer with project access can view a board and its backlog', function () 
         'position' => 1,
     ]);
 
-    $viewer = User::factory()->create();
+    $member = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
-        'user_id' => $viewer->id,
-        'role' => 'viewer',
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
     ]);
 
     ProjectMembership::query()->create([
         'project_id' => $project->id,
-        'user_id' => $viewer->id,
+        'user_id' => $member->id,
     ]);
 
-    $this->actingAs($viewer)
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
         ->get(route('clients.projects.boards.show', [$client, $project, $board]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
@@ -90,6 +111,90 @@ test('viewer with project access can view a board and its backlog', function () 
     expect($backlogIssue->fresh()->status)->toBe('todo');
 });
 
+test('member with issues write and boards write can create issues from the board view without project write', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Issue intake board',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_WRITE,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.boards.show', [$client, $project, $board]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('boards/show')
+            ->where('can_create_issues', true)
+            ->where('can_manage_board', true)
+        );
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.issues.create', [$client, $project]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('issues/create'));
+});
+
+test('member without board permission cannot view a board', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Restricted viewer board',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.boards.show', [$client, $project, $board]))
+        ->assertForbidden();
+});
+
 test('member without board access cannot view a board', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
@@ -104,10 +209,14 @@ test('member without board access cannot view a board', function () {
     ]);
     $member = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
     ]);
 
     ProjectMembership::query()->create([
@@ -149,10 +258,14 @@ test('member with board access can move issues on that board', function () {
     ]);
     $member = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
     ]);
 
     ProjectMembership::query()->create([
@@ -181,7 +294,7 @@ test('member with board access can move issues on that board', function () {
     expect($issue->fresh()->status)->toBe('in_progress');
 });
 
-test('viewer cannot move issues on a board', function () {
+test('read only member cannot move issues on a board', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
     ]);
@@ -207,20 +320,24 @@ test('viewer cannot move issues on a board', function () {
         'type' => 'task',
         'creator_id' => User::factory()->create()->id,
     ]);
-    $viewer = User::factory()->create();
+    $member = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
-        'user_id' => $viewer->id,
-        'role' => 'viewer',
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
     ]);
 
     ProjectMembership::query()->create([
         'project_id' => $project->id,
-        'user_id' => $viewer->id,
+        'user_id' => $member->id,
     ]);
 
-    $this->actingAs($viewer)
+    $this->actingAs($member)
         ->post(route('boards.issues.move', $board), [
             'issue_id' => $issue->id,
             'column_id' => $column->id,
@@ -412,10 +529,14 @@ test('member client boards index only lists boards they can access', function ()
     ]);
     $member = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
     ]);
 
     ProjectMembership::query()->create([
@@ -435,6 +556,55 @@ test('member client boards index only lists boards they can access', function ()
             ->component('clients/boards')
             ->has('boards', 1)
             ->where('boards.0.name', 'Visible board')
+            ->where('boards.0.id', $visibleBoard->id)
+        );
+});
+
+test('member with board read permission only sees assigned boards in the boards index', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $visibleBoard = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Visible viewer board',
+    ]);
+    Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Hidden viewer board',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $visibleBoard->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.boards.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/boards')
+            ->has('boards', 1)
+            ->where('boards.0.name', 'Visible viewer board')
             ->where('boards.0.id', $visibleBoard->id)
         );
 });

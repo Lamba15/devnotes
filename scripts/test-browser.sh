@@ -3,8 +3,37 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DUSK_ENV_FILE="${ROOT_DIR}/.env.dusk.local"
 
 cd "$ROOT_DIR"
+
+abort_if_dusk_targets_primary_db() {
+    if [ ! -f "$DUSK_ENV_FILE" ]; then
+        echo "Missing .env.dusk.local. Refusing to run browser tests without an isolated Dusk env." >&2
+        exit 1
+    fi
+
+    local db_name=""
+    local app_env=""
+
+    db_name="$(grep '^DB_DATABASE=' "$DUSK_ENV_FILE" | cut -d '=' -f2- | tr -d '[:space:]')"
+    app_env="$(grep '^APP_ENV=' "$DUSK_ENV_FILE" | cut -d '=' -f2- | tr -d '[:space:]')"
+
+    if [ -z "$db_name" ]; then
+        echo "DB_DATABASE is not set in .env.dusk.local. Refusing to run browser tests." >&2
+        exit 1
+    fi
+
+    if [ "$db_name" = "devnotes" ]; then
+        echo "Refusing to run browser tests against primary database 'devnotes'. Use an isolated Dusk database." >&2
+        exit 1
+    fi
+
+    if [ "$app_env" = "local" ]; then
+        echo "Refusing to run browser tests with APP_ENV=local in .env.dusk.local. Use APP_ENV=dusk." >&2
+        exit 1
+    fi
+}
 
 detect_browser_version() {
     local version=""
@@ -27,6 +56,8 @@ detect_browser_version() {
 }
 
 BROWSER_VERSION="$(detect_browser_version)"
+
+abort_if_dusk_targets_primary_db
 
 if [ -z "$BROWSER_VERSION" ]; then
     echo "No Chrome-compatible browser found for Laravel Dusk." >&2

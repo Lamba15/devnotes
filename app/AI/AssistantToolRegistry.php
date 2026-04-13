@@ -354,8 +354,7 @@ class AssistantToolRegistry
                 'description' => 'Create a transaction for a project the current user can manage.',
                 'skill' => 'finance_ops',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -373,8 +372,7 @@ class AssistantToolRegistry
                 'description' => 'List transactions available to the current user.',
                 'skill' => 'finance_ops',
                 'requires_confirmation' => false,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -397,8 +395,7 @@ class AssistantToolRegistry
                 'description' => 'Create an invoice for a project the current user can manage.',
                 'skill' => 'finance_ops',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -420,8 +417,7 @@ class AssistantToolRegistry
                 'description' => 'List invoices available to the current user.',
                 'skill' => 'finance_ops',
                 'requires_confirmation' => false,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -529,8 +525,7 @@ class AssistantToolRegistry
                 'description' => 'Update a transaction the current user can manage.',
                 'skill' => 'finance_management',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -548,8 +543,7 @@ class AssistantToolRegistry
                 'description' => 'Update an invoice the current user can manage.',
                 'skill' => 'finance_management',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -613,8 +607,7 @@ class AssistantToolRegistry
                 'description' => 'Delete a financial transaction the current user can manage.',
                 'skill' => 'finance_management',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -629,8 +622,7 @@ class AssistantToolRegistry
                 'description' => 'Delete an invoice the current user can manage.',
                 'skill' => 'finance_management',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasAnyFinanceWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -671,5 +663,31 @@ class AssistantToolRegistry
                 ],
             ],
         ];
+    }
+
+    private function hasAnyFinanceAccess(User $user): bool
+    {
+        if ($user->isPlatformOwner()) {
+            return true;
+        }
+
+        return $user->workspaceAccess()
+            ->scopeAccessibleFinanceProjects(\App\Models\Project::query())
+            ->exists();
+    }
+
+    private function hasAnyFinanceWriteAccess(User $user): bool
+    {
+        if ($user->isPlatformOwner()) {
+            return true;
+        }
+
+        return $user->clientMemberships()
+            ->with('permissions')
+            ->get()
+            ->contains(function (\App\Models\ClientMembership $membership): bool {
+                return in_array($membership->normalizedRole(), ['owner', 'admin'], true)
+                    || in_array(\App\Support\ClientPermissionCatalog::FINANCE_WRITE, $membership->permissionNames(), true);
+            });
     }
 }

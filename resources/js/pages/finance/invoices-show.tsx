@@ -3,7 +3,6 @@ import {
     ArrowLeft,
     Calendar,
     CheckCircle2,
-    DollarSign,
     FolderKanban,
     Pencil,
     Users,
@@ -12,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 export default function FinanceInvoiceShow({
     invoice,
@@ -21,6 +21,7 @@ export default function FinanceInvoiceShow({
         reference: string;
         status: string;
         amount: string;
+        currency: string | null;
         issued_at: string | null;
         due_at: string | null;
         paid_at: string | null;
@@ -81,9 +82,8 @@ export default function FinanceInvoiceShow({
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground">Amount</p>
-                                <p className="mt-1 flex items-center gap-1 text-lg font-semibold text-foreground">
-                                    <DollarSign className="size-4 text-emerald-500" />
-                                    {Number(invoice.amount).toLocaleString()}
+                                <p className="mt-1 text-lg font-semibold text-foreground">
+                                    {formatCurrencyAmount(invoice.amount, invoice.currency)}
                                 </p>
                             </div>
                             <div>

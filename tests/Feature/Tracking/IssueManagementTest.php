@@ -9,10 +9,20 @@ use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
+
+function grantIssueManagementPermissions(ClientMembership $membership, array $permissions): void
+{
+    foreach (ClientPermissionCatalog::normalize($permissions) as $permission) {
+        $membership->permissions()->create([
+            'permission_name' => $permission,
+        ]);
+    }
+}
 
 test('project users can visit the issue index and only see issues in their project', function () {
     $client = Client::factory()->create([
@@ -29,10 +39,14 @@ test('project users can visit the issue index and only see issues in their proje
     ]);
     $viewer = User::factory()->create();
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $viewer->id,
-        'role' => 'viewer',
+        'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_READ,
     ]);
 
     ProjectMembership::query()->create([
@@ -70,6 +84,60 @@ test('project users can visit the issue index and only see issues in their proje
         );
 });
 
+test('client issues page exposes create links for projects where the member can write issues', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $writableProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Writable Project',
+    ]);
+    $readOnlyProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Read Only Project',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $writableProject->id,
+        'user_id' => $member->id,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $readOnlyProject->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.issues.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/issues')
+            ->where('creatable_projects', [
+                [
+                    'id' => $readOnlyProject->id,
+                    'name' => 'Read Only Project',
+                ],
+                [
+                    'id' => $writableProject->id,
+                    'name' => 'Writable Project',
+                ],
+            ])
+        );
+});
+
 test('project admins can visit dedicated issue create and edit pages', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
@@ -100,6 +168,54 @@ test('project admins can visit dedicated issue create and edit pages', function 
         ->assertInertia(fn (Assert $page) => $page->component('issues/create'));
 
     $this->actingAs($admin)
+        ->get(route('clients.projects.issues.edit', [$client, $project, $issue]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('issues/edit'));
+});
+
+test('project members with issues write can visit dedicated issue create and edit pages', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Editable member issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    foreach (ClientPermissionCatalog::normalize([
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_WRITE,
+    ]) as $permission) {
+        $membership->permissions()->create([
+            'permission_name' => $permission,
+        ]);
+    }
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.issues.create', [$client, $project]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('issues/create'));
+
+    $this->actingAs($member)
         ->get(route('clients.projects.issues.edit', [$client, $project, $issue]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->component('issues/edit'));
@@ -164,6 +280,9 @@ test('client admins can create issues and issue creation is audited', function (
             'status' => 'todo',
             'priority' => 'high',
             'type' => 'bug',
+            'due_date' => '2026-05-10',
+            'estimated_hours' => '6.5',
+            'label' => 'backend',
         ])
         ->assertRedirect(route('clients.projects.issues.index', [$client, $project]));
 
@@ -171,6 +290,9 @@ test('client admins can create issues and issue creation is audited', function (
 
     expect($issue->project_id)->toBe($project->id);
     expect($issue->creator_id)->toBe($admin->id);
+    expect($issue->due_date?->toDateString())->toBe('2026-05-10');
+    expect($issue->estimated_hours)->toBe('6.5');
+    expect($issue->label)->toBe('backend');
 
     $this->assertDatabaseHas('audit_logs', [
         'user_id' => $admin->id,
@@ -330,10 +452,14 @@ test('project viewers can open an issue detail page but cannot update it', funct
         'creator_id' => User::factory()->create()->id,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $viewer->id,
-        'role' => 'viewer',
+        'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_READ,
     ]);
 
     ProjectMembership::query()->create([
@@ -377,6 +503,9 @@ test('client admins can update issues and issue update is audited', function () 
         'status' => 'todo',
         'priority' => 'medium',
         'type' => 'task',
+        'due_date' => '2026-05-01',
+        'estimated_hours' => '2',
+        'label' => 'frontend',
         'creator_id' => $admin->id,
     ]);
 
@@ -393,11 +522,17 @@ test('client admins can update issues and issue update is audited', function () 
             'status' => 'done',
             'priority' => 'high',
             'type' => 'bug',
+            'due_date' => '2026-06-15',
+            'estimated_hours' => '7.5',
+            'label' => 'urgent',
         ])
         ->assertRedirect(route('clients.projects.issues.show', [$client, $project, $issue]));
 
     expect($issue->fresh()->title)->toBe('Updated issue');
     expect($issue->fresh()->status)->toBe('done');
+    expect($issue->fresh()->due_date?->toDateString())->toBe('2026-06-15');
+    expect($issue->fresh()->estimated_hours)->toBe('7.5');
+    expect($issue->fresh()->label)->toBe('urgent');
 
     $this->assertDatabaseHas('audit_logs', [
         'user_id' => $admin->id,
@@ -467,10 +602,14 @@ test('project members can add issue comments and nested replies', function () {
         'creator_id' => User::factory()->create()->id,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_WRITE,
     ]);
 
     ProjectMembership::query()->create([
@@ -576,10 +715,14 @@ test('issue detail exposes nested comments in thread order', function () {
         'creator_id' => User::factory()->create()->id,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_READ,
     ]);
 
     ProjectMembership::query()->create([

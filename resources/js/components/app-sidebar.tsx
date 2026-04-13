@@ -30,10 +30,14 @@ export function AppSidebar() {
     const page = usePage<{
         auth: {
             user?: {
-                capabilities?: { platform?: boolean } | null;
+                capabilities?: {
+                    platform?: boolean;
+                    use_assistant?: boolean;
+                } | null;
                 portal_context?: {
                     client_id?: number | null;
                     client_name?: string | null;
+                    can_access_finance?: boolean;
                 } | null;
             } | null;
         };
@@ -41,8 +45,14 @@ export function AppSidebar() {
     const canAccessPlatform = Boolean(
         page.props.auth.user?.capabilities?.platform,
     );
+    const canUseAssistant = Boolean(
+        page.props.auth.user?.capabilities?.use_assistant,
+    );
     const portalClientId = page.props.auth.user?.portal_context?.client_id;
     const portalClientName = page.props.auth.user?.portal_context?.client_name;
+    const portalCanAccessFinance = Boolean(
+        page.props.auth.user?.portal_context?.can_access_finance,
+    );
     const homeHref = canAccessPlatform
         ? '/overview'
         : portalClientId
@@ -65,6 +75,10 @@ export function AppSidebar() {
                           {
                               title: 'Clients',
                               href: '/clients',
+                          },
+                          {
+                              title: 'Projects',
+                              href: '/clients/projects',
                           },
                           {
                               title: 'Tags',
@@ -100,11 +114,15 @@ export function AppSidebar() {
                         href: `/clients/${portalClientId}/boards`,
                         icon: LayoutGrid,
                     },
-                    {
-                        title: 'Finance',
-                        href: `/clients/${portalClientId}/finance`,
-                        icon: Wallet,
-                    },
+                    ...(portalCanAccessFinance
+                        ? [
+                              {
+                                  title: 'Finance',
+                                  href: `/clients/${portalClientId}/finance`,
+                                  icon: Wallet,
+                              },
+                          ]
+                        : []),
                 ]
               : []),
         ...(canAccessPlatform
@@ -175,13 +193,15 @@ export function AppSidebar() {
             : []),
     ];
 
-    const footerNavItems: NavItem[] = [
-        {
-            title: 'Agent Chat',
-            href: '#assistant',
-            icon: Bot,
-        },
-    ];
+    const footerNavItems: NavItem[] = canUseAssistant
+        ? [
+              {
+                  title: 'Agent Chat',
+                  href: '#assistant',
+                  icon: Bot,
+              },
+          ]
+        : [];
 
     return (
         <Sidebar collapsible="icon" variant="inset">

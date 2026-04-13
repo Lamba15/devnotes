@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\Behavior;
 use App\Models\Client;
+use App\Models\ClientMembershipPermission;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -46,24 +49,25 @@ test('authenticated users can create a client user and attach a membership', fun
         'behavior_id' => Behavior::query()->firstOrFail()->id,
     ]);
 
-    $this->actingAs($owner)
-        ->post(route('clients.members.store', $client), [
-            'name' => 'Portal Viewer',
-            'email' => 'viewer@example.com',
-            'password' => 'secret-pass-123',
-            'role' => 'viewer',
-        ])
-        ->assertRedirect(route('clients.members.index', $client));
+    $response = $this->actingAs($owner)->post(route('clients.members.store', $client), [
+        'name' => 'Portal Member',
+        'email' => 'member@example.com',
+        'password' => 'secret-pass-123',
+        'role' => 'member',
+    ]);
 
-    $memberUser = User::query()->where('email', 'viewer@example.com')->firstOrFail();
+    $memberUser = User::query()->where('email', 'member@example.com')->firstOrFail();
+    $membership = $client->memberships()->where('user_id', $memberUser->id)->firstOrFail();
 
-    expect($memberUser->name)->toBe('Portal Viewer');
+    $response->assertRedirect(route('clients.members.show', [$client, $membership]));
+
+    expect($memberUser->name)->toBe('Portal Member');
     expect($memberUser->email_verified_at)->not->toBeNull();
 
     $this->assertDatabaseHas('client_memberships', [
         'client_id' => $client->id,
         'user_id' => $memberUser->id,
-        'role' => 'viewer',
+        'role' => 'member',
         'created_by' => $owner->id,
     ]);
 });
@@ -80,10 +84,15 @@ test('client user creation is audited', function () {
             'email' => 'client-admin@example.com',
             'password' => 'secret-pass-123',
             'role' => 'admin',
-        ])
-        ->assertRedirect(route('clients.members.index', $client));
+        ]);
 
     $memberUser = User::query()->where('email', 'client-admin@example.com')->firstOrFail();
+    $membership = $client->memberships()->where('user_id', $memberUser->id)->firstOrFail();
+
+    $this->actingAs($owner)
+        ->get(route('clients.members.show', [$client, $membership]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('clients/members/show'));
 
     $this->assertDatabaseHas('audit_logs', [
         'user_id' => $owner->id,
@@ -92,6 +101,40 @@ test('client user creation is audited', function () {
         'subject_type' => User::class,
         'subject_id' => $memberUser->id,
     ]);
+});
+
+test('member profile handles users with audit activity but no assistant runs', function () {
+    $owner = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->post(route('clients.members.store', $client), [
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
+            'password' => 'secret-pass-123',
+            'role' => 'member',
+        ]);
+
+    $memberUser = User::query()->where('email', 'member@example.com')->firstOrFail();
+    $membership = $client->memberships()->where('user_id', $memberUser->id)->firstOrFail();
+
+    AuditLog::query()->create([
+        'user_id' => $memberUser->id,
+        'event' => 'member.profile.viewed',
+        'source' => 'manual_ui',
+        'subject_type' => User::class,
+        'subject_id' => $memberUser->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('clients.members.show', [$client, $membership]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/members/show')
+            ->where('membership.activity.last_activity_at', fn ($value) => is_string($value) && $value !== '')
+        );
 });
 
 test('a created client user can log in with the assigned credentials', function () {
@@ -106,8 +149,7 @@ test('a created client user can log in with the assigned credentials', function 
             'email' => 'member@example.com',
             'password' => 'secret-pass-123',
             'role' => 'member',
-        ])
-        ->assertRedirect(route('clients.members.index', $client));
+        ]);
 
     auth()->logout();
 
@@ -119,7 +161,7 @@ test('a created client user can log in with the assigned credentials', function 
     $this->assertAuthenticated();
 });
 
-test('client admins can visit dedicated member edit page and update membership', function () {
+test('client staff managers can open member profiles, update identity, and sync permissions', function () {
     $owner = User::factory()->create();
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
@@ -127,29 +169,42 @@ test('client admins can visit dedicated member edit page and update membership',
 
     $this->actingAs($owner)
         ->post(route('clients.members.store', $client), [
-            'name' => 'Portal Viewer',
-            'email' => 'viewer@example.com',
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
             'password' => 'secret-pass-123',
-            'role' => 'viewer',
+            'role' => 'member',
         ]);
 
     $membership = $client->memberships()->with('user')->firstOrFail();
 
     $this->actingAs($owner)
         ->get(route('clients.members.edit', [$client, $membership]))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('clients/members/edit'));
+        ->assertRedirect(route('clients.members.show', [$client, $membership]));
 
     $this->actingAs($owner)
         ->put(route('clients.members.update', [$client, $membership]), [
             'name' => 'Portal Admin',
-            'email' => 'viewer@example.com',
-            'role' => 'admin',
+            'email' => 'member@example.com',
+            'role' => 'member',
         ])
-        ->assertRedirect(route('clients.members.index', $client));
+        ->assertRedirect(route('clients.members.show', [$client, $membership]));
 
-    expect($membership->fresh()->role)->toBe('admin');
+    $this->actingAs($owner)
+        ->put(route('clients.members.permissions.update', [$client, $membership]), [
+            'permissions' => [
+                ClientPermissionCatalog::FINANCE_WRITE,
+                ClientPermissionCatalog::MEMBERS_WRITE,
+            ],
+        ])
+        ->assertRedirect(route('clients.members.show', [$client, $membership]));
+
     expect($membership->user->fresh()->name)->toBe('Portal Admin');
+    expect($membership->fresh()->permissionNames())->toEqualCanonicalizing([
+        ClientPermissionCatalog::FINANCE_READ,
+        ClientPermissionCatalog::FINANCE_WRITE,
+        ClientPermissionCatalog::MEMBERS_READ,
+        ClientPermissionCatalog::MEMBERS_WRITE,
+    ]);
 
     $this->assertDatabaseHas('audit_logs', [
         'user_id' => $owner->id,
@@ -158,6 +213,95 @@ test('client admins can visit dedicated member edit page and update membership',
         'subject_type' => User::class,
         'subject_id' => $membership->user_id,
     ]);
+
+    $this->assertDatabaseHas('audit_logs', [
+        'user_id' => $owner->id,
+        'event' => 'client.user.permissions_synced',
+        'source' => 'manual_ui',
+        'subject_type' => User::class,
+        'subject_id' => $membership->user_id,
+    ]);
+});
+
+test('members with members read can open member profiles but cannot update them', function () {
+    $owner = User::factory()->create();
+    $viewer = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->post(route('clients.members.store', $client), [
+            'name' => 'Target Member',
+            'email' => 'target@example.com',
+            'password' => 'secret-pass-123',
+            'role' => 'member',
+        ]);
+
+    $targetMembership = $client->memberships()->whereHas('user', fn ($query) => $query->where('email', 'target@example.com'))->firstOrFail();
+
+    $viewerMembership = $client->memberships()->create([
+        'user_id' => $viewer->id,
+        'role' => 'member',
+        'created_by' => $owner->id,
+    ]);
+
+    ClientMembershipPermission::query()->create([
+        'client_membership_id' => $viewerMembership->id,
+        'permission_name' => ClientPermissionCatalog::MEMBERS_READ,
+        'granted_by' => $owner->id,
+    ]);
+
+    $this->actingAs($viewer)
+        ->get(route('clients.members.show', [$client, $targetMembership]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/members/show')
+            ->where('membership.id', $targetMembership->id)
+            ->where('can_manage_members', false)
+        );
+
+    $this->actingAs($viewer)
+        ->put(route('clients.members.update', [$client, $targetMembership]), [
+            'name' => 'Updated Name',
+            'email' => 'target@example.com',
+            'role' => 'member',
+        ])
+        ->assertForbidden();
+});
+
+test('switching a membership to admin clears stored permission rows', function () {
+    $owner = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->post(route('clients.members.store', $client), [
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
+            'password' => 'secret-pass-123',
+            'role' => 'member',
+        ]);
+
+    $membership = $client->memberships()->firstOrFail();
+
+    ClientMembershipPermission::query()->create([
+        'client_membership_id' => $membership->id,
+        'permission_name' => ClientPermissionCatalog::PROJECTS_READ,
+        'granted_by' => $owner->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->put(route('clients.members.update', [$client, $membership]), [
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
+            'role' => 'admin',
+        ])
+        ->assertRedirect(route('clients.members.show', [$client, $membership]));
+
+    expect($membership->fresh()->role)->toBe('admin');
+    expect($membership->fresh('permissions')->permissionNames())->toBe([]);
 });
 
 test('client admins can remove memberships and removal is audited', function () {
@@ -168,10 +312,10 @@ test('client admins can remove memberships and removal is audited', function () 
 
     $this->actingAs($owner)
         ->post(route('clients.members.store', $client), [
-            'name' => 'Portal Viewer',
-            'email' => 'viewer@example.com',
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
             'password' => 'secret-pass-123',
-            'role' => 'viewer',
+            'role' => 'member',
         ]);
 
     $membership = $client->memberships()->firstOrFail();
@@ -204,7 +348,14 @@ test('client members index supports server backed search and sorting', function 
             'name' => 'Alpha Member',
             'email' => 'alpha@example.com',
             'password' => 'secret-pass-123',
-            'role' => 'viewer',
+            'role' => 'member',
+        ]);
+
+    $alphaMembership = $client->memberships()->whereHas('user', fn ($query) => $query->where('email', 'alpha@example.com'))->firstOrFail();
+
+    $this->actingAs($owner)
+        ->put(route('clients.members.permissions.update', [$client, $alphaMembership]), [
+            'permissions' => [ClientPermissionCatalog::FINANCE_WRITE],
         ]);
 
     $this->actingAs($owner)
@@ -226,7 +377,12 @@ test('client members index supports server backed search and sorting', function 
         ->assertInertia(fn (Assert $page) => $page
             ->component('clients/members/index')
             ->where('memberships.0.user.name', 'Zulu Member')
+            ->where('memberships.0.role', 'admin')
             ->where('memberships.1.user.name', 'Alpha Member')
+            ->where('memberships.1.permissions', [
+                ClientPermissionCatalog::FINANCE_READ,
+                ClientPermissionCatalog::FINANCE_WRITE,
+            ])
             ->where('filters.search', 'member')
             ->where('filters.sort_by', 'name')
             ->where('filters.sort_direction', 'desc')

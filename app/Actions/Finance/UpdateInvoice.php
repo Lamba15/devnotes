@@ -12,7 +12,7 @@ class UpdateInvoice
 {
     public function handle(User $actor, Invoice $invoice, Project $project, array $attributes, string $source = 'manual_ui'): Invoice
     {
-        if (! $actor->canManageClient($project->client)) {
+        if (! $actor->canManageProjectFinance($project)) {
             throw new AuthorizationException('You are not allowed to update invoices for this client.');
         }
 
@@ -21,6 +21,7 @@ class UpdateInvoice
             'reference' => $attributes['reference'],
             'status' => $attributes['status'],
             'amount' => $attributes['amount'],
+            'currency' => $attributes['currency'] ?? 'USD',
             'issued_at' => $attributes['issued_at'] ?? null,
             'due_at' => $attributes['due_at'] ?? null,
             'paid_at' => $attributes['paid_at'] ?? null,

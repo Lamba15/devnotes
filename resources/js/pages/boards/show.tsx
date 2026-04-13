@@ -1,6 +1,32 @@
+import type {
+    CollisionDetection,
+    DragEndEvent,
+    DragOverEvent,
+    DragStartEvent,
+} from '@dnd-kit/core';
+import {
+    closestCorners,
+    DndContext,
+    DragOverlay,
+    KeyboardSensor,
+    PointerSensor,
+    pointerWithin,
+    useDroppable,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    defaultAnimateLayoutChanges,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { GripVertical, Pencil, Plus, Users, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +60,38 @@ type Column = {
     issues: Issue[];
 };
 
+type Lane = {
+    id: number | null;
+    name: string;
+    issues: Issue[];
+    issues_count: number;
+    mapped_status: string | null;
+    updates_status: boolean;
+};
+
+type BoardData = {
+    backlogIssues: Issue[];
+    boardColumns: Column[];
+};
+
+type IssueLocation = {
+    columnId: number | null;
+    index: number;
+};
+
+type DragDestination = {
+    columnId: number | null;
+    index: number;
+};
+
+type DragState = {
+    activeIssueId: number;
+    source: IssueLocation;
+    over: DragDestination;
+    overlayWidth: number | null;
+    overlayHeight: number | null;
+};
+
 type BoardContextResult = {
     type: 'board_context';
     board: {
@@ -65,6 +123,139 @@ const TYPE_COLORS: Record<string, string> = {
     improvement: 'bg-purple-500/15 text-purple-700 dark:text-purple-400',
 };
 
+const BACKLOG_LANE_ID = 'lane-backlog';
+
+function getLaneId(columnId: number | null) {
+    return columnId === null ? BACKLOG_LANE_ID : `lane-${columnId}`;
+}
+
+function getIssueId(issueId: number) {
+    return `issue-${issueId}`;
+}
+
+function buildLanes(backlogIssues: Issue[], boardColumns: Column[]): Lane[] {
+    return [
+        {
+            id: null,
+            name: 'Backlog',
+            issues: backlogIssues,
+            issues_count: backlogIssues.length,
+            mapped_status: null,
+            updates_status: false,
+        },
+        ...boardColumns.map((column) => ({
+            id: column.id,
+            name: column.name,
+            issues: column.issues,
+            issues_count: column.issues_count,
+            mapped_status: column.mapped_status,
+            updates_status: column.updates_status,
+        })),
+    ];
+}
+
+function findIssueLocation(
+    issueId: number,
+    backlogIssues: Issue[],
+    boardColumns: Column[],
+): IssueLocation | null {
+    const backlogIndex = backlogIssues.findIndex(
+        (issue) => issue.id === issueId,
+    );
+
+    if (backlogIndex >= 0) {
+        return { columnId: null, index: backlogIndex };
+    }
+
+    for (const column of boardColumns) {
+        const index = column.issues.findIndex((issue) => issue.id === issueId);
+
+        if (index >= 0) {
+            return { columnId: column.id, index };
+        }
+    }
+
+    return null;
+}
+
+function moveIssueInBoardData(
+    issueId: number,
+    columnId: number | null,
+    position: number,
+    boardData: BoardData,
+): BoardData | null {
+    const source = findIssueLocation(
+        issueId,
+        boardData.backlogIssues,
+        boardData.boardColumns,
+    );
+
+    if (!source) {
+        return null;
+    }
+
+    const sourceIssues =
+        source.columnId === null
+            ? boardData.backlogIssues
+            : (boardData.boardColumns.find(
+                  (item) => item.id === source.columnId,
+              )?.issues ?? []);
+    const issue = sourceIssues[source.index];
+
+    if (!issue) {
+        return null;
+    }
+
+    const nextBacklog = boardData.backlogIssues.filter(
+        (item) => item.id !== issueId,
+    );
+    const nextColumns = boardData.boardColumns.map((column) => {
+        const issues = column.issues.filter((item) => item.id !== issueId);
+
+        return {
+            ...column,
+            issues,
+            issues_count: issues.length,
+        };
+    });
+
+    if (columnId === null) {
+        const insertionIndex = Math.max(
+            0,
+            Math.min(position - 1, nextBacklog.length),
+        );
+        const updatedBacklog = [...nextBacklog];
+
+        updatedBacklog.splice(insertionIndex, 0, issue);
+
+        return {
+            backlogIssues: updatedBacklog,
+            boardColumns: nextColumns,
+        };
+    }
+
+    const targetColumn = nextColumns.find((item) => item.id === columnId);
+
+    if (!targetColumn) {
+        return null;
+    }
+
+    const insertionIndex = Math.max(
+        0,
+        Math.min(position - 1, targetColumn.issues.length),
+    );
+    const updatedIssues = [...targetColumn.issues];
+
+    updatedIssues.splice(insertionIndex, 0, issue);
+    targetColumn.issues = updatedIssues;
+    targetColumn.issues_count = updatedIssues.length;
+
+    return {
+        backlogIssues: nextBacklog,
+        boardColumns: nextColumns,
+    };
+}
+
 export default function BoardShow({
     client,
     project,
@@ -72,6 +263,7 @@ export default function BoardShow({
     backlog,
     columns,
     can_move_issues,
+    can_create_issues,
     can_manage_board,
     status_options,
 }: {
@@ -81,34 +273,40 @@ export default function BoardShow({
     backlog: Issue[];
     columns: Column[];
     can_move_issues: boolean;
+    can_create_issues: boolean;
     can_manage_board: boolean;
     status_options: string[];
 }) {
     const [movingIssueId, setMovingIssueId] = useState<number | null>(null);
-    const [boardColumns, setBoardColumns] = useState(columns);
-    const [backlogIssues, setBacklogIssues] = useState(backlog);
-    const [draggingIssue, setDraggingIssue] = useState<{
-        issueId: number;
-        fromColumnId: number | null;
-    } | null>(null);
-    const [activeDropTarget, setActiveDropTarget] = useState<{
-        columnId: number | null;
-        position: number;
-    } | null>(null);
+    const [boardDataOverride, setBoardDataOverride] =
+        useState<BoardData | null>(null);
+    const [dragState, setDragState] = useState<DragState | null>(null);
     const [showAddColumn, setShowAddColumn] = useState(false);
+    const lastOverIdRef = useRef<string | null>(null);
+    const pendingBoardDataRef = useRef<BoardData | null>(null);
     const columnForm = useForm({
         name: '',
         updates_status: false,
         mapped_status: status_options[0] ?? 'todo',
     });
-
-    useEffect(() => {
-        setBoardColumns(columns);
-    }, [columns]);
-
-    useEffect(() => {
-        setBacklogIssues(backlog);
-    }, [backlog]);
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 6,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        }),
+    );
+    const boardColumns = boardDataOverride?.boardColumns ?? columns;
+    const backlogIssues = boardDataOverride?.backlogIssues ?? backlog;
+    const allLanes = buildLanes(backlogIssues, boardColumns);
+    const activeIssue = dragState
+        ? (allLanes
+              .flatMap((lane) => lane.issues)
+              .find((issue) => issue.id === dragState.activeIssueId) ?? null)
+        : null;
 
     useEffect(() => {
         const handleAssistantBoardSync = (event: Event) => {
@@ -123,9 +321,9 @@ export default function BoardShow({
                 return;
             }
 
-            setBacklogIssues(payload.backlog);
-            setBoardColumns(
-                payload.columns.map((column) => ({
+            setBoardDataOverride({
+                backlogIssues: payload.backlog,
+                boardColumns: payload.columns.map((column) => ({
                     id: column.id,
                     name: column.name,
                     position: column.position ?? 0,
@@ -134,10 +332,10 @@ export default function BoardShow({
                     issues: column.issues,
                     issues_count: column.issues.length,
                 })),
-            );
+            });
             setMovingIssueId(null);
-            setDraggingIssue(null);
-            setActiveDropTarget(null);
+            setDragState(null);
+            lastOverIdRef.current = null;
         };
 
         window.addEventListener(
@@ -153,16 +351,46 @@ export default function BoardShow({
         };
     }, [board.id]);
 
+    const getIssuesForColumn = (
+        columnId: number | null,
+        excludeIssueId?: number,
+    ) => {
+        const issues =
+            columnId === null
+                ? backlogIssues
+                : (boardColumns.find((column) => column.id === columnId)
+                      ?.issues ?? []);
+
+        if (excludeIssueId === undefined) {
+            return issues;
+        }
+
+        return issues.filter((issue) => issue.id !== excludeIssueId);
+    };
+
     const moveIssue = (
         issueId: number,
         columnId: number | null,
-        position?: number,
-        sourceColumnId?: number | null,
+        position: number,
     ) => {
-        setMovingIssueId(issueId);
+        const currentBoardData: BoardData = {
+            backlogIssues,
+            boardColumns,
+        };
+        const optimisticBoardData = moveIssueInBoardData(
+            issueId,
+            columnId,
+            position,
+            currentBoardData,
+        );
 
-        if (sourceColumnId !== undefined) {
-            applyOptimisticMove(issueId, sourceColumnId, columnId, position);
+        setMovingIssueId(issueId);
+        setDragState(null);
+        lastOverIdRef.current = null;
+
+        if (optimisticBoardData) {
+            pendingBoardDataRef.current = currentBoardData;
+            setBoardDataOverride(optimisticBoardData);
         }
 
         router.post(
@@ -174,82 +402,162 @@ export default function BoardShow({
             },
             {
                 preserveScroll: true,
+                onError: () => {
+                    setBoardDataOverride(pendingBoardDataRef.current);
+                },
                 onFinish: () => {
                     setMovingIssueId(null);
-                    setDraggingIssue(null);
-                    setActiveDropTarget(null);
+                    lastOverIdRef.current = null;
+                    pendingBoardDataRef.current = null;
                 },
             },
         );
     };
 
-    const applyOptimisticMove = (
-        issueId: number,
-        fromColumnId: number | null,
-        toColumnId: number | null,
-        position?: number,
-    ) => {
-        const sourceIssues =
-            fromColumnId === null
-                ? backlogIssues
-                : (boardColumns.find((column) => column.id === fromColumnId)
-                      ?.issues ?? []);
-        const issue = sourceIssues.find((item) => item.id === issueId);
+    const getDropDestination = (
+        event: DragOverEvent | DragEndEvent,
+        draggedIssueId: number,
+    ): DragDestination | null => {
+        const overData = event.over?.data.current;
 
-        if (!issue) {
+        if (!overData) {
+            return null;
+        }
+
+        if (overData.type === 'lane') {
+            return {
+                columnId: overData.columnId as number | null,
+                index: getIssuesForColumn(
+                    overData.columnId as number | null,
+                    draggedIssueId,
+                ).length,
+            };
+        }
+
+        if (overData.type !== 'issue') {
+            return null;
+        }
+
+        const targetColumnId = overData.columnId as number | null;
+        const laneIssues = getIssuesForColumn(targetColumnId, draggedIssueId);
+        const overIndex = laneIssues.findIndex(
+            (issue) => issue.id === overData.issueId,
+        );
+
+        if (overIndex < 0) {
+            return null;
+        }
+
+        const isBelowOverItem =
+            event.over !== null && event.active.rect.current.translated !== null
+                ? event.active.rect.current.translated.top >
+                  event.over.rect.top + event.over.rect.height / 2
+                : false;
+
+        return {
+            columnId: targetColumnId,
+            index: overIndex + (isBelowOverItem ? 1 : 0),
+        };
+    };
+
+    const collisionDetection: CollisionDetection = (args) => {
+        const pointerCollisions = pointerWithin(args);
+        const collisions =
+            pointerCollisions.length > 0
+                ? pointerCollisions
+                : closestCorners(args);
+
+        if (collisions.length > 0) {
+            lastOverIdRef.current = String(collisions[0].id);
+
+            return collisions;
+        }
+
+        return lastOverIdRef.current ? [{ id: lastOverIdRef.current }] : [];
+    };
+
+    const handleDragStart = (event: DragStartEvent) => {
+        const issueId = event.active.data.current?.issueId;
+
+        if (typeof issueId !== 'number') {
             return;
         }
 
-        const cleanedBacklog = backlogIssues.filter(
-            (item) => item.id !== issueId,
-        );
-        const cleanedColumns = boardColumns.map((column) => ({
-            ...column,
-            issues: column.issues.filter((item) => item.id !== issueId),
-            issues_count: column.issues.filter((item) => item.id !== issueId)
-                .length,
-        }));
+        const source = findIssueLocation(issueId, backlogIssues, boardColumns);
 
-        if (toColumnId === null) {
-            const nextBacklog = [...cleanedBacklog];
-            const insertionIndex = Math.max(
-                0,
-                Math.min(
-                    (position ?? nextBacklog.length + 1) - 1,
-                    nextBacklog.length,
-                ),
-            );
-            nextBacklog.splice(insertionIndex, 0, issue);
-            setBacklogIssues(nextBacklog);
-            setBoardColumns(cleanedColumns);
+        if (!source) {
+            return;
+        }
+
+        lastOverIdRef.current = String(event.active.id);
+        setDragState({
+            activeIssueId: issueId,
+            source,
+            over: source,
+            overlayWidth: event.active.rect.current.initial?.width ?? null,
+            overlayHeight: event.active.rect.current.initial?.height ?? null,
+        });
+    };
+
+    const handleDragOver = (event: DragOverEvent) => {
+        const issueId = event.active.data.current?.issueId;
+
+        if (typeof issueId !== 'number' || !dragState) {
+            return;
+        }
+
+        const destination = getDropDestination(event, issueId);
+
+        if (!destination) {
+            return;
+        }
+
+        setDragState((current) => {
+            if (!current || current.activeIssueId !== issueId) {
+                return current;
+            }
+
+            if (
+                current.over.columnId === destination.columnId &&
+                current.over.index === destination.index
+            ) {
+                return current;
+            }
+
+            return {
+                ...current,
+                over: destination,
+            };
+        });
+    };
+
+    const handleDragCancel = () => {
+        setDragState(null);
+        lastOverIdRef.current = null;
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const issueId = event.active.data.current?.issueId;
+
+        if (typeof issueId !== 'number' || !dragState) {
+            handleDragCancel();
 
             return;
         }
 
-        setBacklogIssues(cleanedBacklog);
-        setBoardColumns(
-            cleanedColumns.map((column) => {
-                if (column.id !== toColumnId) {
-                    return column;
-                }
+        const destination =
+            getDropDestination(event, issueId) ?? dragState.over;
 
-                const nextIssues = [...column.issues];
-                const insertionIndex = Math.max(
-                    0,
-                    Math.min(
-                        (position ?? nextIssues.length + 1) - 1,
-                        nextIssues.length,
-                    ),
-                );
-                nextIssues.splice(insertionIndex, 0, issue);
+        if (
+            dragState.source.columnId === destination.columnId &&
+            dragState.source.index === destination.index
+        ) {
+            handleDragCancel();
 
-                return {
-                    ...column,
-                    issues: nextIssues,
-                    issues_count: nextIssues.length,
-                };
-            }),
-        );
+            return;
+        }
+
+        moveIssue(issueId, destination.columnId, destination.index + 1);
     };
 
     const submitColumn = () => {
@@ -267,25 +575,6 @@ export default function BoardShow({
         });
     };
 
-    const allLanes = [
-        {
-            id: null as number | null,
-            name: 'Backlog',
-            issues: backlogIssues,
-            issues_count: backlogIssues.length,
-            mapped_status: null as string | null,
-            updates_status: false,
-        },
-        ...boardColumns.map((col) => ({
-            id: col.id as number | null,
-            name: col.name,
-            issues: col.issues,
-            issues_count: col.issues_count,
-            mapped_status: col.mapped_status,
-            updates_status: col.updates_status,
-        })),
-    ];
-
     return (
         <>
             <Head title={board.name} />
@@ -294,7 +583,7 @@ export default function BoardShow({
                 description={`${client.name} / ${project.name}`}
                 actions={
                     <div className="flex items-center gap-2">
-                        {can_manage_board ? (
+                        {can_create_issues ? (
                             <Link
                                 href={`/clients/${client.id}/projects/${project.id}/issues/create`}
                             >
@@ -335,12 +624,14 @@ export default function BoardShow({
                     </div>
                 }
             >
-                {/* Inline add-column form */}
                 {showAddColumn ? (
-                    <div className="rounded-xl bg-card p-4 shadow-sm">
+                    <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm backdrop-blur-sm">
                         <div className="flex flex-wrap items-end gap-4">
                             <div className="grid min-w-48 gap-1.5">
-                                <Label htmlFor="column-name" className="text-xs">
+                                <Label
+                                    htmlFor="column-name"
+                                    className="text-xs"
+                                >
                                     Column name
                                 </Label>
                                 <Input
@@ -432,228 +723,325 @@ export default function BoardShow({
                     </div>
                 ) : null}
 
-                {/* Board swim lanes */}
-                <div className="flex overflow-x-auto pb-4 -mx-6 px-6">
-                    {allLanes.map((lane, laneIndex) => (
-                        <div
-                            key={lane.id ?? 'backlog'}
-                            className={cn(
-                                'flex w-64 min-w-[256px] shrink-0 flex-col',
-                                laneIndex > 0 && 'border-l border-border',
-                            )}
-                            onDragOver={(event) => event.preventDefault()}
-                            onDragEnter={(event) => {
-                                event.preventDefault();
-                                if (draggingIssue) {
-                                    setActiveDropTarget({
-                                        columnId: lane.id,
-                                        position: lane.issues.length + 1,
-                                    });
-                                }
-                            }}
-                            onDrop={(event) => {
-                                event.preventDefault();
-                                if (draggingIssue) {
-                                    moveIssue(
-                                        draggingIssue.issueId,
-                                        lane.id,
-                                        activeDropTarget?.columnId === lane.id
-                                            ? activeDropTarget.position
-                                            : lane.issues.length + 1,
-                                        draggingIssue.fromColumnId,
-                                    );
-                                }
-                            }}
-                        >
-                            {/* Column header */}
-                            <div className="sticky top-0 z-10 flex items-center gap-2 bg-background px-3 py-2.5">
-                                <h3 className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                    {lane.name}
-                                </h3>
-                                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                    {lane.issues_count}
-                                </span>
-                            </div>
-
-                            {/* Column body */}
-                            <div
-                                className={cn(
-                                    'flex min-h-[200px] flex-1 flex-col gap-1.5 p-2 transition-colors',
-                                    activeDropTarget?.columnId === lane.id &&
-                                        draggingIssue !== null &&
-                                        'bg-primary/5',
-                                )}
-                            >
-                                {lane.issues.length === 0 ? (
-                                    <p className="px-2 py-8 text-center text-xs text-muted-foreground">
-                                        {lane.id === null
-                                            ? 'No backlog issues'
-                                            : 'Drop issues here'}
-                                    </p>
-                                ) : (
-                                    lane.issues.map((issue, index) => (
-                                        <div key={issue.id}>
-                                            {index > 0 &&
-                                            draggingIssue !== null ? (
-                                                <DropZone
-                                                    active={
-                                                        activeDropTarget?.columnId ===
-                                                            lane.id &&
-                                                        activeDropTarget?.position ===
-                                                            index + 1
-                                                    }
-                                                    onDragEnter={() =>
-                                                        setActiveDropTarget({
-                                                            columnId: lane.id,
-                                                            position: index + 1,
-                                                        })
-                                                    }
-                                                    onDrop={() => {
-                                                        if (!draggingIssue)
-                                                            return;
-                                                        moveIssue(
-                                                            draggingIssue.issueId,
-                                                            lane.id,
-                                                            index + 1,
-                                                            draggingIssue.fromColumnId,
-                                                        );
-                                                    }}
-                                                />
-                                            ) : null}
-                                            <IssueCard
-                                                issue={issue}
-                                                href={`/clients/${client.id}/projects/${project.id}/issues/${issue.id}`}
-                                                canMove={can_move_issues}
-                                                isMoving={
-                                                    movingIssueId === issue.id
-                                                }
-                                                isDragging={
-                                                    draggingIssue?.issueId ===
-                                                    issue.id
-                                                }
-                                                onDragStart={() =>
-                                                    setDraggingIssue({
-                                                        issueId: issue.id,
-                                                        fromColumnId: lane.id,
-                                                    })
-                                                }
-                                                onDragEnd={() => {
-                                                    setDraggingIssue(null);
-                                                    setActiveDropTarget(null);
-                                                }}
-                                            />
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={collisionDetection}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDragEnd={handleDragEnd}
+                    onDragCancel={handleDragCancel}
+                >
+                    <div className="-mx-6 flex overflow-x-auto px-6 pb-4">
+                        <div className="flex">
+                            {allLanes.map((lane) => (
+                                <BoardLane
+                                    key={lane.id ?? 'backlog'}
+                                    lane={lane}
+                                    clientId={client.id}
+                                    projectId={project.id}
+                                    canMoveIssues={can_move_issues}
+                                    movingIssueId={movingIssueId}
+                                    dragState={dragState}
+                                />
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    </div>
+
+                    <DragOverlay>
+                        {activeIssue ? (
+                            <IssueCardBody
+                                issue={activeIssue}
+                                showHandle
+                                className="rounded-lg bg-card p-2.5 shadow-xl ring-1 ring-border/60"
+                                style={{
+                                    width: dragState?.overlayWidth ?? 256,
+                                    minHeight:
+                                        dragState?.overlayHeight ?? undefined,
+                                }}
+                            />
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
             </CrudPage>
         </>
+    );
+}
+
+function BoardLane({
+    lane,
+    clientId,
+    projectId,
+    canMoveIssues,
+    movingIssueId,
+    dragState,
+}: {
+    lane: Lane;
+    clientId: number;
+    projectId: number;
+    canMoveIssues: boolean;
+    movingIssueId: number | null;
+    dragState: DragState | null;
+}) {
+    const { isOver, setNodeRef } = useDroppable({
+        id: getLaneId(lane.id),
+        data: {
+            type: 'lane',
+            columnId: lane.id,
+        },
+    });
+    const insertionIndex =
+        dragState?.over.columnId === lane.id
+            ? Math.max(0, Math.min(dragState.over.index, lane.issues.length))
+            : null;
+    const adjustedInsertionIndex =
+        dragState &&
+        insertionIndex !== null &&
+        dragState.source.columnId === lane.id
+            ? insertionIndex >= dragState.source.index
+                ? insertionIndex + 1
+                : insertionIndex
+            : insertionIndex;
+
+    return (
+        <div
+            className={cn(
+                'flex w-64 min-w-[256px] shrink-0 flex-col',
+                lane.id !== null && 'border-l border-border',
+            )}
+        >
+            <div className="sticky top-0 z-10 flex items-center gap-2 bg-background px-3 py-2.5">
+                <h3 className="truncate text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    {lane.name}
+                </h3>
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {lane.issues_count}
+                </span>
+            </div>
+
+            <div
+                ref={setNodeRef}
+                className={cn(
+                    'flex min-h-[200px] flex-1 flex-col gap-1.5 p-2 transition-colors',
+                    isOver && 'bg-primary/5',
+                )}
+            >
+                <SortableContext
+                    items={lane.issues.map((issue) => getIssueId(issue.id))}
+                    strategy={verticalListSortingStrategy}
+                >
+                    <div className="flex flex-1 flex-col gap-1.5">
+                        {lane.issues.length === 0 &&
+                        adjustedInsertionIndex === null ? (
+                            <div className="px-2 py-8 text-center text-xs text-muted-foreground">
+                                {lane.id === null
+                                    ? 'No backlog issues'
+                                    : 'Drop issues here'}
+                            </div>
+                        ) : null}
+
+                        {lane.issues.map((issue, index) => (
+                            <div key={issue.id}>
+                                {adjustedInsertionIndex === index ? (
+                                    <InsertionMarker lane={lane} />
+                                ) : null}
+                                <IssueCard
+                                    issue={issue}
+                                    href={`/clients/${clientId}/projects/${projectId}/issues/${issue.id}`}
+                                    columnId={lane.id}
+                                    canMove={canMoveIssues}
+                                    isMoving={movingIssueId === issue.id}
+                                    isGhosted={
+                                        dragState?.activeIssueId === issue.id
+                                    }
+                                />
+                            </div>
+                        ))}
+
+                        {adjustedInsertionIndex === lane.issues.length ? (
+                            <InsertionMarker lane={lane} />
+                        ) : null}
+                    </div>
+                </SortableContext>
+            </div>
+        </div>
+    );
+}
+
+function InsertionMarker({ lane }: { lane: Lane }) {
+    return (
+        <div className="overflow-hidden">
+            <div className="mx-1 flex h-full items-center rounded-md border border-dashed border-primary/35 bg-primary/6 px-3 text-[11px] font-medium text-primary">
+                {lane.name}
+            </div>
+        </div>
     );
 }
 
 function IssueCard({
     issue,
     href,
+    columnId,
     canMove = false,
     isMoving = false,
-    isDragging = false,
-    onDragStart,
-    onDragEnd,
+    isGhosted = false,
 }: {
     issue: Issue;
     href: string;
+    columnId: number | null;
     canMove?: boolean;
     isMoving?: boolean;
-    isDragging?: boolean;
-    onDragStart?: () => void;
-    onDragEnd?: () => void;
+    isGhosted?: boolean;
 }) {
-    const priorityClass =
-        PRIORITY_COLORS[issue.priority] ??
-        'bg-muted text-muted-foreground';
-    const typeClass =
-        TYPE_COLORS[issue.type] ?? 'bg-muted text-muted-foreground';
+    const {
+        attributes,
+        listeners,
+        isDragging,
+        setActivatorNodeRef,
+        setNodeRef,
+        transform,
+        transition,
+    } = useSortable({
+        id: getIssueId(issue.id),
+        disabled: !canMove,
+        data: {
+            type: 'issue',
+            issueId: issue.id,
+            columnId,
+        },
+        transition: {
+            duration: 140,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        },
+        animateLayoutChanges: (args) => defaultAnimateLayoutChanges(args),
+    });
 
     return (
         <div
-            draggable={canMove}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
+            ref={setNodeRef}
+            style={{
+                transform: CSS.Transform.toString(transform),
+                transition,
+            }}
             className={cn(
-                'group rounded-lg bg-card p-2.5 shadow-sm transition-all hover:shadow-md',
-                canMove && 'cursor-grab active:cursor-grabbing',
-                isDragging && 'scale-[0.97] opacity-50',
-                isMoving && 'opacity-60',
+                'group rounded-lg bg-card p-2.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md',
+                isDragging && 'opacity-0',
+                isGhosted && !isDragging && 'opacity-20',
+                isMoving && 'scale-[0.985] opacity-60',
             )}
         >
-            <div className="flex items-start gap-2">
-                {canMove ? (
-                    <GripVertical className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/40 opacity-0 transition group-hover:opacity-100" />
-                ) : null}
-                <div className="min-w-0 flex-1">
-                    <Link
-                        href={href}
-                        className="block text-sm font-medium leading-snug text-foreground hover:text-primary"
+            <IssueCardBody
+                issue={issue}
+                href={href}
+                interactive
+                showHandle={canMove}
+                handleProps={
+                    canMove
+                        ? {
+                              ref: setActivatorNodeRef,
+                              'aria-label': `Move ${issue.title}`,
+                              ...attributes,
+                              ...listeners,
+                          }
+                        : undefined
+                }
+            />
+        </div>
+    );
+}
+
+function IssueCardBody({
+    issue,
+    href,
+    interactive = false,
+    showHandle = false,
+    handleProps,
+    className,
+    style,
+}: {
+    issue: Issue;
+    href?: string;
+    interactive?: boolean;
+    showHandle?: boolean;
+    handleProps?: Record<string, unknown>;
+    className?: string;
+    style?: CSSProperties;
+}) {
+    return (
+        <div className={className} style={style}>
+            <div className="flex items-start gap-2.5">
+                {showHandle ? (
+                    <button
+                        type="button"
+                        className="mt-0.5 shrink-0 cursor-grab rounded-sm p-0.5 text-muted-foreground/50 opacity-100 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted hover:text-foreground active:scale-95 active:cursor-grabbing"
+                        {...handleProps}
                     >
-                        {issue.title}
-                    </Link>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                        <span
-                            className={cn(
-                                'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                                priorityClass,
-                            )}
-                        >
-                            {issue.priority}
-                        </span>
-                        <span
-                            className={cn(
-                                'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                                typeClass,
-                            )}
-                        >
-                            {issue.type}
-                        </span>
+                        <GripVertical className="size-4" />
+                    </button>
+                ) : (
+                    <div className="mt-0.5 shrink-0 p-0.5 text-transparent">
+                        <GripVertical className="size-4" />
                     </div>
-                </div>
+                )}
+
+                {href ? (
+                    <Link href={href} className="min-w-0 flex-1">
+                        <IssueCardContent
+                            issue={issue}
+                            interactive={interactive}
+                        />
+                    </Link>
+                ) : (
+                    <IssueCardContent issue={issue} interactive={interactive} />
+                )}
             </div>
         </div>
     );
 }
 
-function DropZone({
-    active,
-    onDragEnter,
-    onDrop,
+function IssueCardContent({
+    issue,
+    interactive = false,
 }: {
-    active: boolean;
-    onDragEnter: () => void;
-    onDrop: () => void;
+    issue: Issue;
+    interactive?: boolean;
 }) {
+    const priorityClass =
+        PRIORITY_COLORS[issue.priority] ?? 'bg-muted text-muted-foreground';
+    const typeClass =
+        TYPE_COLORS[issue.type] ?? 'bg-muted text-muted-foreground';
+
     return (
-        <div
-            onDragOver={(event) => event.preventDefault()}
-            onDragEnter={(event) => {
-                event.preventDefault();
-                onDragEnter();
-            }}
-            onDrop={(event) => {
-                event.preventDefault();
-                onDrop();
-            }}
-            className={cn(
-                'mx-1 h-1 rounded-full transition-all',
-                active
-                    ? 'h-1.5 bg-primary'
-                    : 'bg-transparent',
-            )}
-        />
+        <div className="min-w-0 flex-1">
+            <div
+                className={cn(
+                    'text-sm leading-snug font-medium text-foreground transition-colors duration-150',
+                    interactive && 'hover:text-primary',
+                )}
+            >
+                {issue.title}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                <span
+                    className={cn(
+                        'rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                        priorityClass,
+                    )}
+                >
+                    {issue.priority}
+                </span>
+                <span
+                    className={cn(
+                        'rounded-md px-1.5 py-0.5 text-[10px] font-medium',
+                        typeClass,
+                    )}
+                >
+                    {issue.type}
+                </span>
+            </div>
+        </div>
     );
 }
 
-BoardShow.layout = (page: React.ReactNode) => (
+BoardShow.layout = (page: ReactNode) => (
     <ClientWorkspaceLayout>{page}</ClientWorkspaceLayout>
 );

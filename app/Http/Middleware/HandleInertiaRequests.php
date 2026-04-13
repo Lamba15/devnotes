@@ -36,6 +36,12 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $portalMembership = $user && ! $user->isPlatformOwner()
+            ? $user->clientMemberships()
+                ->with(['client:id,name', 'permissions'])
+                ->orderBy('id')
+                ->first()
+            : null;
 
         return [
             ...parent::share($request),
@@ -47,11 +53,19 @@ class HandleInertiaRequests extends Middleware
                     'portal_context' => $user->isPlatformOwner()
                         ? null
                         : [
-                            'client_id' => $user->clientMemberships()->orderBy('id')->value('client_id'),
-                            'client_name' => $user->clientMemberships()
-                                ->with('client:id,name')
-                                ->orderBy('id')
-                                ->first()?->client?->name,
+                            'client_id' => $portalMembership?->client_id,
+                            'client_name' => $portalMembership?->client?->name,
+                            'role' => $portalMembership?->normalizedRole(),
+                            'permissions' => $portalMembership?->permissionNames() ?? [],
+                            'can_access_finance' => $portalMembership
+                                ? $user->canAccessClientFinance($portalMembership->client)
+                                : false,
+                            'can_view_members' => $portalMembership
+                                ? $user->canViewMembers($portalMembership->client)
+                                : false,
+                            'can_manage_members' => $portalMembership
+                                ? $user->canManageMembers($portalMembership->client)
+                                : false,
                         ],
                 ] : null,
             ],

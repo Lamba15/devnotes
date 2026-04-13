@@ -2,7 +2,7 @@
 
 ## Position In The System
 
-Users are the identity layer for the platform. A user can be a platform owner (God Admin) or a client-scoped member with specific roles.
+Users are the identity layer for the platform. A user can be a platform owner (God Admin) or a client-scoped collaborator with a client role plus explicit member permissions where needed.
 
 ## Database Fields
 
@@ -80,17 +80,31 @@ The User model delegates all permission checks to `WorkspaceAccess`:
 |--------|---------|
 | `isPlatformOwner()` | True if user has no client memberships (God Admin) |
 | `belongsToClient(Client)` | True if user has any membership in this client |
-| `clientRole(Client)` | Returns role string: owner, admin, member, viewer |
+| `clientRole(Client)` | Returns role string: owner, admin, or member |
 | `canAccessClient(Client)` | Platform owner or has membership |
 | `canManageClient(Client)` | Platform owner or client owner/admin |
+| `canViewMembers(Client)` | Staff roster visibility |
+| `canManageMembers(Client)` | Staff profile and membership mutation |
 | `canViewInternalClientProfile(Client)` | Can see internal relationship fields |
 | `canEditInternalClientProfile(Client)` | Can modify internal relationship fields |
+| `canCreateProject(Client)` | Can create projects in the client |
 | `hasProjectAccess(Project)` | Platform owner, client owner/admin, or explicit membership |
 | `canManageProject(Project)` | Can create/edit/delete project resources |
+| `canViewIssues(Project)` | Can read issues in project scope |
+| `canManageIssues(Project)` | Can mutate issues in project scope |
+| `canViewBoards(Client)` | Can access the boards domain in this client |
+| `canManageBoard(Board)` | Can mutate a board they can manage |
+| `canViewStatuses(Client)` | Can access statuses inside this client |
+| `canManageStatuses(Client)` | Can mutate statuses inside this client |
+| `canAccessClientFinance(Client)` | Can access finance inside that client |
+| `canManageClientFinance(Client)` | Can mutate finance inside that client |
+| `canAccessProjectFinance(Project)` | Can access finance for that project |
+| `canManageProjectFinance(Project)` | Can mutate finance for that project |
 | `canAccessBoard(Board)` | Can view the board |
 | `canMoveIssueOnBoard(Board)` | Can drag issues between columns |
 | `canCommentOnIssue(Issue)` | Can add comments to issue discussions |
 | `canAccessAssistantDebug()` | Can see AI debug information |
+| `canUseAssistant()` | Assistant access after role/permission and credit checks |
 
 ## User Mini-Profile
 
@@ -114,6 +128,14 @@ This pattern appears in:
 - Can view audit logs.
 - Cannot delete their own account from settings.
 - Can manage AI credits for all users.
+- Can manage member credits from the member profile page.
+
+## Client Membership Assignment Rules
+
+- Client `owner` and `admin` users automatically access every project and board in that client.
+- Client `owner` and `admin` users should not keep project or board assignment rows.
+- Client `member` users use explicit project assignments and optional board assignments.
+- Board assignment is always constrained by the selected project assignments.
 
 ## Profile Management
 

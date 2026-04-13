@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
     ArrowDownRight,
     ArrowUpRight,
@@ -10,13 +10,16 @@ import { useState } from 'react';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type TransactionRow = {
     id: number;
     description: string;
     amount: string;
+    currency: string | null;
     occurred_at: string | null;
     project?: { id: number; name: string } | null;
 };
@@ -26,6 +29,7 @@ type InvoiceRow = {
     reference: string;
     status: string;
     amount: string;
+    currency: string | null;
     project?: { id: number; name: string } | null;
 };
 
@@ -70,7 +74,7 @@ export default function ClientFinancePage({
                 return (
                     <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                        ${Math.abs(num).toLocaleString()}
+                        {formatCurrencyAmount(num, row.currency, { absolute: true })}
                     </span>
                 );
             },
@@ -114,7 +118,7 @@ export default function ClientFinancePage({
             key: 'amount',
             header: 'Amount',
             render: (row) => (
-                <span className="font-medium">${Number(row.amount).toLocaleString()}</span>
+                <span className="font-medium">{formatCurrencyAmount(row.amount, row.currency)}</span>
             ),
         },
     ];
@@ -131,8 +135,24 @@ export default function ClientFinancePage({
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-muted-foreground">
-                        This brings together transactions and invoices across
-                        the client projects you can access.
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <p>
+                                This brings together transactions and invoices
+                                across the client projects you can access.
+                            </p>
+                            <div className="flex gap-2">
+                                <Link href="/finance/transactions">
+                                    <Button variant="outline" size="sm">
+                                        Transactions
+                                    </Button>
+                                </Link>
+                                <Link href="/finance/invoices">
+                                    <Button variant="outline" size="sm">
+                                        Invoices
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
 

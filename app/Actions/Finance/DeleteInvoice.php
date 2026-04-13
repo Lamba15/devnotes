@@ -11,7 +11,7 @@ class DeleteInvoice
 {
     public function handle(User $actor, Invoice $invoice, string $source = 'manual_ui'): void
     {
-        if (! $actor->canManageClient($invoice->project->client)) {
+        if (! $actor->canManageProjectFinance($invoice->project)) {
             throw new AuthorizationException('You are not allowed to delete this invoice.');
         }
 

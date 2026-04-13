@@ -139,10 +139,7 @@ export default function IssuesEdit({
                         )
                     }
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() =>
                         form.put(

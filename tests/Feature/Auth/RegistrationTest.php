@@ -10,25 +10,24 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered()
+    public function test_registration_screen_is_not_available()
     {
-        $response = $this->get(route('register'));
+        $response = $this->get('/register');
 
-        $response->assertOk();
+        $response->assertNotFound();
     }
 
-    public function test_new_users_can_register()
+    public function test_new_users_cannot_register()
     {
-        $response = $this->post(route('register.store'), [
+        $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-
-        $user = User::where('email', 'test@example.com')->first();
-        $response->assertRedirect(route('overview'));
+        $response->assertNotFound();
+        $this->assertGuest();
+        $this->assertNull(User::where('email', 'test@example.com')->first());
     }
 }

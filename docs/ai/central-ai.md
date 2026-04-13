@@ -17,6 +17,7 @@
 - Reads can run directly.
 - Mutations require explicit confirmation.
 - Before a mutation executes, the AI should tell the user what it is about to do and present a clear confirmation path.
+- Sensitive platform-only secrets are not exposed as AI tools in the current version, even for platform-side users.
 
 ## UI
 

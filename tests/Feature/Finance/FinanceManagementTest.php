@@ -2,15 +2,29 @@
 
 use App\Models\Behavior;
 use App\Models\Client;
+use App\Models\ClientMembership;
+use App\Models\ClientMembershipPermission;
 use App\Models\Invoice;
 use App\Models\Project;
+use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
+
+function grantFinancePermissions(ClientMembership $membership, array $permissions): void
+{
+    foreach (ClientPermissionCatalog::normalize($permissions) as $permission) {
+        ClientMembershipPermission::query()->create([
+            'client_membership_id' => $membership->id,
+            'permission_name' => $permission,
+        ]);
+    }
+}
 
 test('authenticated users are redirected from finance index to transactions', function () {
     $user = User::factory()->create();
@@ -36,6 +50,133 @@ test('authenticated users can visit the finance invoices page', function () {
         ->get(route('finance.invoices.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->component('finance/invoices'));
+});
+
+test('client members without finance permission cannot visit finance pages', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.finance.index', $client))
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->get(route('finance.transactions.index'))
+        ->assertForbidden();
+});
+
+test('client members with finance permission can visit finance pages in their project scope', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $allowedProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Allowed finance project',
+    ]);
+    $blockedProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Blocked finance project',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantFinancePermissions($membership, [ClientPermissionCatalog::FINANCE_READ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $allowedProject->id,
+        'user_id' => $member->id,
+    ]);
+
+    Transaction::query()->create([
+        'project_id' => $allowedProject->id,
+        'description' => 'Allowed transaction',
+        'amount' => 200,
+        'occurred_at' => '2026-04-05',
+    ]);
+    Transaction::query()->create([
+        'project_id' => $blockedProject->id,
+        'description' => 'Blocked transaction',
+        'amount' => 400,
+        'occurred_at' => '2026-04-05',
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.finance.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/finance')
+            ->has('transactions', 1)
+            ->where('transactions.0.description', 'Allowed transaction')
+        );
+
+    $this->actingAs($member)
+        ->get(route('finance.transactions.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('finance/transactions')
+            ->has('transactions', 1)
+            ->where('transactions.0.description', 'Allowed transaction')
+        );
+});
+
+test('client members with finance write permission can create transactions', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantFinancePermissions($membership, [ClientPermissionCatalog::FINANCE_WRITE]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->post(route('finance.transactions.store'), [
+            'project_id' => $project->id,
+            'description' => 'Member finance transaction',
+            'amount' => '250.00',
+            'occurred_at' => '2026-04-05',
+        ])
+        ->assertRedirect(route('finance.index'));
+
+    $this->assertDatabaseHas('transactions', [
+        'project_id' => $project->id,
+        'description' => 'Member finance transaction',
+    ]);
 });
 
 test('authenticated users can open transaction and invoice details pages', function () {

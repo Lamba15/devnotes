@@ -12,8 +12,8 @@
 - From the portal user's perspective, client scope should feel like their own workspace with Nour, not like access into a raw CRM record.
 - Client membership does not automatically grant access outside that client.
 - Project access is granted explicitly per project.
-- `admin` should not automatically mean unrestricted power.
-- Admins operate within explicit permissions in their scope.
+- Client `owner` and `admin` are unrestricted inside that client scope.
+- Explicit permission rows apply to `member` only.
 - The platform owner has platform-wide authority.
 - Other accounts should receive explicit permissions such as read/write over the things we decide.
 - Permissions should be intentional and capability-based, not implied by vague role labels.
@@ -67,16 +67,49 @@
 
 ## Current Client Portal Role Direction
 
-- `owner` is effectively the same as `admin` inside the client scope.
-- `admin` can do anything inside the client scope.
-- `viewer` can read but cannot mutate.
-- `member` is not full admin, but can perform normal work actions where access has been granted explicitly.
+- Valid client roles are `owner`, `admin`, and `member`.
+- `viewer` has been removed.
+- `owner` and `admin` both have unrestricted client access, including finance.
+- `owner` and `admin` do not use explicit project or board assignment rows.
+- `member` access is explicit and capability-based through client membership permissions.
+- Member profile pages are readable to people who can view members:
+    - `owner`
+    - `admin`
+    - `member` with `members.read`
+    - `member` with `members.write`
+- Member profile mutation remains limited to staff managers:
+    - `owner`
+    - `admin`
+    - `member` with `members.write`
 
-## Current Board And Issue Direction
+## Current Member Permission Direction
 
-- A `member` who has access to a board can read tickets on that board and in the related issue views.
-- A `member` who has access to a board can move tickets on that board.
-- In the current implementation, that member board access is granted explicitly per board.
-- A `viewer` can see boards and issues in their allowed scope but cannot edit them.
-- An `admin` can do anything to any board inside the client scope.
-- An `owner` can do the same as an `admin`.
+- Member permissions are stored per `ClientMembership`, not globally on the user.
+- The current member permission catalog is:
+    - `members.read`
+    - `members.write`
+    - `projects.read`
+    - `projects.write`
+    - `issues.read`
+    - `issues.write`
+    - `boards.read`
+    - `boards.write`
+    - `statuses.read`
+    - `statuses.write`
+    - `finance.read`
+    - `finance.write`
+    - `assistant.use`
+- Every `.write` permission implies the matching `.read` permission.
+- Project access still requires explicit project assignment.
+- Board access still requires explicit board assignment and the board must belong to an assigned project.
+- Project and board assignment controls apply to `member` only.
+- Web UI and AI tools should both read from the same centralized workspace access rules.
+
+## Current Client Finance Direction
+
+- Platform owners have global finance access.
+- Client `owner` and `admin` users always have finance access inside that client.
+- Client `member` users need explicit `finance.read` or `finance.write` permission to access finance.
+- Finance mutation requires `finance.write`.
+- Client-scoped finance access still respects project scope for members.
+- Controllers, UI, routes, and AI must all use the same central finance access checks.

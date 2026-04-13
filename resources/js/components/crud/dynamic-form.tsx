@@ -34,7 +34,7 @@ export type DynamicFormField =
       })
     | (BaseField & {
           type: 'select';
-          options: DynamicFormOption[];
+          options?: DynamicFormOption[];
       });
 
 export type DynamicFormSection = {
@@ -87,12 +87,17 @@ export function DynamicForm({
             }}
         >
             {resolvedSections.map((section) => {
-                const hasSidebar = Boolean(section.title || section.description);
+                const hasSidebar = Boolean(
+                    section.title || section.description,
+                );
+                const sectionFields = Array.isArray(section.fields)
+                    ? section.fields
+                    : [];
 
                 const fieldsBlock = (
                     <Card className="border border-border/50">
                         <CardContent className="grid gap-4 p-5 md:grid-cols-2">
-                            {section.fields.map((field) => (
+                            {sectionFields.map((field) => (
                                 <FormField
                                     key={field.name}
                                     field={field}
@@ -106,11 +111,7 @@ export function DynamicForm({
                 );
 
                 if (!hasSidebar) {
-                    return (
-                        <div key={section.name}>
-                            {fieldsBlock}
-                        </div>
-                    );
+                    return <div key={section.name}>{fieldsBlock}</div>;
                 }
 
                 return (
@@ -166,6 +167,10 @@ function FormField({
     onChange: (name: string, value: string) => void;
 }) {
     const spanFull = field.wide || field.type === 'textarea';
+    const selectOptions =
+        field.type === 'select' && Array.isArray(field.options)
+            ? field.options
+            : [];
 
     return (
         <div className={spanFull ? 'grid gap-2 md:col-span-2' : 'grid gap-2'}>
@@ -231,7 +236,7 @@ function FormField({
                     onValueChange={(nextValue) =>
                         onChange(field.name, nextValue)
                     }
-                    options={field.options.map((option) => ({
+                    options={selectOptions.map((option) => ({
                         value: String(option.value),
                         label: option.label,
                     }))}

@@ -9,13 +9,18 @@ use App\Models\AuditLog;
 use App\Models\Behavior;
 use App\Models\Board;
 use App\Models\Client;
+use App\Models\ClientMembership;
 use App\Models\Invoice;
 use App\Models\Issue;
 use App\Models\Project;
 use App\Models\ProjectStatus;
 use App\Models\Transaction;
+use App\Models\User;
+use App\Support\ClientPermissionCatalog;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,7 +32,7 @@ class ClientController extends Controller
         $user = $request->user();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'sort_by' => ['nullable', 'in:name,email,created_at'],
+            'sort_by' => ['nullable', 'in:name,email,created_at,running_account,relationship_volume'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
@@ -36,6 +41,7 @@ class ClientController extends Controller
         $sortDirection = $validated['sort_direction'] ?? 'desc';
 
         $clients = Client::query()
+            ->select('clients.*')
             ->with('behavior:id,name,slug')
             ->when(
                 ! $user->isPlatformOwner(),
@@ -51,12 +57,59 @@ class ClientController extends Controller
                         ->orWhereHas('behavior', fn ($behaviorQuery) => $behaviorQuery->where('name', 'like', "%{$search}%"));
                 });
             })
-            ->orderBy($sortBy, $sortDirection)
+            ->when(
+                $sortBy === 'running_account',
+                fn ($query) => $query
+                    ->selectSub($this->runningAccountSortSubquery($user), 'running_account_sort')
+                    ->orderBy('running_account_sort', $sortDirection)
+                    ->orderBy('clients.name'),
+            )
+            ->when(
+                $sortBy === 'relationship_volume',
+                fn ($query) => $query
+                    ->selectSub($this->relationshipVolumeSortSubquery($user), 'relationship_volume_sort')
+                    ->orderBy('relationship_volume_sort', $sortDirection)
+                    ->orderBy('clients.name'),
+            )
+            ->when(
+                ! in_array($sortBy, ['running_account', 'relationship_volume'], true),
+                fn ($query) => $query->orderBy($sortBy, $sortDirection),
+            )
             ->paginate(15)
             ->withQueryString();
 
+        $clientModels = collect($clients->items());
+        $clientIds = $clientModels->pluck('id')->values();
+        $financeAccessClientIds = $this->financeVisibleClientIdsForIndex($user, $clientIds);
+        $financeSummaries = $this->financeSummariesForClientIndex($user, $clientIds);
+
         return Inertia::render('clients/index', [
-            'clients' => $clients->items(),
+            'clients' => $clientModels
+                ->map(function (Client $client) use ($financeAccessClientIds, $financeSummaries) {
+                    $financeSummary = $financeSummaries[$client->id] ?? null;
+                    $canViewFinanceSummary = $financeAccessClientIds->contains($client->id);
+
+                    return [
+                        'id' => $client->id,
+                        'name' => $client->name,
+                        'email' => $client->email,
+                        'image_path' => $client->image_path,
+                        'behavior' => $client->behavior?->only(['id', 'name', 'slug']),
+                        'created_at' => $client->created_at?->toISOString(),
+                        'running_account' => [
+                            'amount' => $canViewFinanceSummary ? ($financeSummary['running_account']['amount'] ?? 0) : null,
+                            'currency' => $canViewFinanceSummary ? ($financeSummary['running_account']['currency'] ?? null) : null,
+                            'mixed_currencies' => $canViewFinanceSummary ? ($financeSummary['running_account']['mixed_currencies'] ?? false) : false,
+                        ],
+                        'relationship_volume' => [
+                            'amount' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['amount'] ?? 0) : null,
+                            'currency' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['currency'] ?? null) : null,
+                            'mixed_currencies' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['mixed_currencies'] ?? false) : false,
+                        ],
+                        'can_view_finance_summary' => $canViewFinanceSummary,
+                    ];
+                })
+                ->all(),
             'pagination' => [
                 'current_page' => $clients->currentPage(),
                 'last_page' => $clients->lastPage(),
@@ -241,6 +294,17 @@ class ClientController extends Controller
                 'phone_numbers' => $canViewInternalProfile ? $client->phoneNumbers()->get(['id', 'label', 'number'])->all() : [],
                 'tags' => $canViewInternalProfile ? $client->tags()->pluck('name')->all() : [],
             ],
+            'secrets' => $user->canAccessPlatform()
+                ? $client->secrets()
+                    ->get(['id', 'label', 'description', 'updated_at'])
+                    ->map(fn ($secret) => [
+                        'id' => $secret->id,
+                        'label' => $secret->label,
+                        'description' => $secret->description,
+                        'updated_at' => $secret->updated_at?->toISOString(),
+                    ])
+                    ->all()
+                : [],
             'summary' => [
                 'members_count' => $client->memberships()->count(),
                 'projects_count' => $projects->count(),
@@ -270,7 +334,7 @@ class ClientController extends Controller
                 ->get()
                 ->map(fn ($membership) => [
                     'id' => $membership->id,
-                    'role' => $membership->role,
+                    'role' => $membership->normalizedRole(),
                     'user' => [
                         'id' => $membership->user->id,
                         'name' => $membership->user->name,
@@ -280,6 +344,8 @@ class ClientController extends Controller
                 ])
                 ->all(),
             'can_manage_client' => $user->canManageClient($client),
+            'can_manage_members' => $user->canManageMembers($client),
+            'can_manage_secrets' => $user->canAccessPlatform(),
             'can_view_internal_client_profile' => $canViewInternalProfile,
             'can_edit_internal_client_profile' => $user->canEditInternalClientProfile($client),
             'behaviors' => Behavior::query()->orderBy('name')->get(['id', 'name', 'slug']),
@@ -292,7 +358,15 @@ class ClientController extends Controller
 
         abort_unless($user->canAccessClient($client), 403);
 
-        $projectIds = $this->accessibleProjectsQuery($user, $client)->pluck('id');
+        $accessibleProjects = $this->accessibleProjectsQuery($user, $client)
+            ->orderBy('name')
+            ->get(['id', 'name', 'client_id']);
+        $projectIds = $accessibleProjects->pluck('id');
+        $creatableProjects = $accessibleProjects
+            ->filter(fn (Project $project) => $user->canManageIssues($project))
+            ->map(fn (Project $project) => $project->only(['id', 'name']))
+            ->values()
+            ->all();
 
         return Inertia::render('clients/issues', [
             'client' => $this->serializeClientForWorkspace($client),
@@ -310,6 +384,7 @@ class ClientController extends Controller
                     'project' => $issue->project?->only(['id', 'name']),
                 ])
                 ->all(),
+            'creatable_projects' => $creatableProjects,
         ]);
     }
 
@@ -402,7 +477,7 @@ class ClientController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canAccessClient($client), 403);
+        abort_unless($user->canAccessClientFinance($client), 403);
 
         $projectIds = $this->accessibleProjectsQuery($user, $client)->pluck('id');
 
@@ -417,6 +492,7 @@ class ClientController extends Controller
                     'id' => $transaction->id,
                     'description' => $transaction->description,
                     'amount' => $transaction->amount,
+                    'currency' => $transaction->currency,
                     'occurred_at' => $transaction->occurred_at?->toDateString(),
                     'project' => $transaction->project?->only(['id', 'name']),
                 ])
@@ -431,6 +507,7 @@ class ClientController extends Controller
                     'reference' => $invoice->reference,
                     'status' => $invoice->status,
                     'amount' => $invoice->amount,
+                    'currency' => $invoice->currency,
                     'project' => $invoice->project?->only(['id', 'name']),
                 ])
                 ->all(),
@@ -445,6 +522,138 @@ class ClientController extends Controller
                 ! $user->canManageClient($client),
                 fn ($query) => $query->whereHas('memberships', fn ($membershipQuery) => $membershipQuery->where('user_id', $user->id)),
             );
+    }
+
+    private function financeVisibleClientIdsForIndex(User $user, Collection $clientIds): Collection
+    {
+        if ($clientIds->isEmpty()) {
+            return collect();
+        }
+
+        if ($user->isPlatformOwner()) {
+            return $clientIds;
+        }
+
+        return $user->clientMemberships()
+            ->whereIn('client_id', $clientIds->all())
+            ->with('permissions')
+            ->get()
+            ->filter(function (ClientMembership $membership): bool {
+                if (in_array($membership->normalizedRole(), ['owner', 'admin'], true)) {
+                    return true;
+                }
+
+                return count(array_intersect(
+                    $membership->permissionNames(),
+                    [ClientPermissionCatalog::FINANCE_READ, ClientPermissionCatalog::FINANCE_WRITE],
+                )) > 0;
+            })
+            ->pluck('client_id')
+            ->unique()
+            ->values();
+    }
+
+    private function financeSummariesForClientIndex(User $user, Collection $clientIds): array
+    {
+        if ($clientIds->isEmpty()) {
+            return [];
+        }
+
+        $projects = $user->workspaceAccess()
+            ->scopeAccessibleFinanceProjects(
+                Project::query()
+                    ->whereIn('client_id', $clientIds->all()),
+            )
+            ->get(['id', 'client_id', 'budget', 'currency']);
+
+        if ($projects->isEmpty()) {
+            return [];
+        }
+
+        $projectClientMap = $projects->pluck('client_id', 'id');
+        $transactions = Transaction::query()
+            ->whereIn('project_id', $projectClientMap->keys())
+            ->get(['project_id', 'amount', 'currency']);
+
+        $runningAccountByClient = $transactions
+            ->groupBy(fn (Transaction $transaction) => $projectClientMap->get($transaction->project_id))
+            ->map(fn (Collection $clientTransactions) => $this->summarizeMoneyCollection(
+                $clientTransactions,
+                'amount',
+                'currency',
+            ));
+
+        $invoices = Invoice::query()
+            ->whereIn('project_id', $projectClientMap->keys())
+            ->get(['project_id', 'amount', 'currency']);
+
+        $relationshipVolumeByClient = $invoices
+            ->groupBy(fn (Invoice $invoice) => $projectClientMap->get($invoice->project_id))
+            ->map(fn (Collection $clientInvoices) => $this->summarizeMoneyCollection(
+                $clientInvoices,
+                'amount',
+                'currency',
+            ));
+
+        return $clientIds
+            ->mapWithKeys(fn (int $clientId) => [
+                $clientId => [
+                    'running_account' => $runningAccountByClient->get($clientId, [
+                        'amount' => 0,
+                        'currency' => null,
+                        'mixed_currencies' => false,
+                    ]),
+                    'relationship_volume' => $relationshipVolumeByClient->get($clientId, [
+                        'amount' => 0,
+                        'currency' => null,
+                        'mixed_currencies' => false,
+                    ]),
+                ],
+            ])
+            ->all();
+    }
+
+    private function summarizeMoneyCollection(Collection $rows, string $amountKey, string $currencyKey): array
+    {
+        $currencies = $rows
+            ->pluck($currencyKey)
+            ->filter()
+            ->unique()
+            ->values();
+
+        return [
+            'amount' => round($rows->sum(fn ($row) => (float) ($row->{$amountKey} ?? 0)), 2),
+            'currency' => $currencies->count() === 1 ? $currencies->first() : null,
+            'mixed_currencies' => $currencies->count() > 1,
+        ];
+    }
+
+    private function runningAccountSortSubquery(User $user): QueryBuilder
+    {
+        $accessibleProjects = $user->workspaceAccess()->scopeAccessibleFinanceProjects(
+            Project::query()
+                ->select('projects.id')
+                ->whereColumn('projects.client_id', 'clients.id'),
+        );
+
+        return Transaction::query()
+            ->selectRaw('COALESCE(SUM(transactions.amount), 0)')
+            ->whereIn('project_id', $accessibleProjects)
+            ->toBase();
+    }
+
+    private function relationshipVolumeSortSubquery(User $user): QueryBuilder
+    {
+        $accessibleProjects = $user->workspaceAccess()->scopeAccessibleFinanceProjects(
+            Project::query()
+                ->select('projects.id')
+                ->whereColumn('projects.client_id', 'clients.id'),
+        );
+
+        return Invoice::query()
+            ->selectRaw('COALESCE(SUM(invoices.amount), 0)')
+            ->whereIn('project_id', $accessibleProjects)
+            ->toBase();
     }
 
     private function serializeClientForWorkspace(Client $client): array

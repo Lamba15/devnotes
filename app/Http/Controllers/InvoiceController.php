@@ -18,7 +18,7 @@ class InvoiceController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canManageClient($invoice->project->client), 403);
+        abort_unless($user->canManageProjectFinance($invoice->project), 403);
 
         $invoice->load('project.client:id,name');
 
@@ -28,6 +28,7 @@ class InvoiceController extends Controller
                 'reference' => $invoice->reference,
                 'status' => $invoice->status,
                 'amount' => (string) $invoice->amount,
+                'currency' => $invoice->currency,
                 'issued_at' => $invoice->issued_at?->toDateString(),
                 'due_at' => $invoice->due_at?->toDateString(),
                 'paid_at' => $invoice->paid_at?->toDateString(),
@@ -45,13 +46,14 @@ class InvoiceController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canManageClient($invoice->project->client), 403);
+        abort_unless($user->canManageProjectFinance($invoice->project), 403);
 
         return Inertia::render('finance/invoices-edit', [
             'invoice' => $invoice->only(['id', 'project_id', 'reference', 'status', 'amount', 'currency', 'issued_at', 'due_at', 'paid_at', 'notes']),
-            'projects' => Project::query()
-                ->with('client:id,name')
-                ->whereHas('client.memberships', fn ($query) => $query->where('user_id', $user->id)->whereIn('role', ['owner', 'admin']))
+            'projects' => $user->workspaceAccess()
+                ->scopeAccessibleFinanceProjects(
+                    Project::query()->with('client:id,name'),
+                )
                 ->orderBy('name')
                 ->get(),
         ]);

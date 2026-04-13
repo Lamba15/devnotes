@@ -4,6 +4,14 @@
 
 Finance is a top-level domain connecting to projects. All financial records (transactions and invoices) are linked to projects, which in turn belong to clients. Client-level finance views aggregate data across all of a client's projects.
 
+## Access Direction
+
+- Platform owners have global finance access.
+- Client `owner` and `admin` memberships always include finance access for that client.
+- Client `member` users need explicit `finance.read` or `finance.write` permission on their `ClientMembership`.
+- `finance.write` is the mutation permission. `finance.read` alone does not allow create, update, or delete.
+- For client members, finance access is still limited to assigned projects.
+
 ## Transaction
 
 ### Database Fields
@@ -77,6 +85,8 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 The AI assistant has full CRUD tools for both transactions and invoices:
 - `create_transaction`, `update_transaction`, `delete_transaction`, `list_accessible_transactions`
 - `create_invoice`, `update_invoice`, `delete_invoice`, `list_accessible_invoices`
+
+Those tools must follow the same finance read/write rules as the web app.
 
 ## Audit Coverage
 

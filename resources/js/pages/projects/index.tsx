@@ -6,6 +6,7 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,7 @@ type Project = {
     id: number;
     name: string;
     description: string | null;
+    image_path: string | null;
     status: Status;
 };
 
@@ -92,8 +94,24 @@ export default function ProjectsIndex({
             render: (project) => (
                 <Link
                     href={`/clients/${client.id}/projects/${project.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
+                    className="flex items-center gap-2.5 font-medium underline-offset-4 hover:underline"
                 >
+                    <Avatar className="size-7">
+                        {project.image_path ? (
+                            <AvatarImage
+                                src={`/storage/${project.image_path}`}
+                                alt={project.name}
+                            />
+                        ) : null}
+                        <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                            {project.name
+                                .split(' ')
+                                .map((part) => part[0])
+                                .slice(0, 2)
+                                .join('')
+                                .toUpperCase()}
+                        </AvatarFallback>
+                    </Avatar>
                     {project.name}
                 </Link>
             ),

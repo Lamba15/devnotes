@@ -22,7 +22,7 @@ class FinanceController extends Controller
 
     public function transactions(Request $request): Response
     {
-        ['projects' => $projects, 'manageableClientIds' => $manageableClientIds] = $this->financeScope($request);
+        ['projects' => $projects] = $this->financeScope($request);
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'sort_by' => ['nullable', 'in:description,amount,occurred_at,created_at'],
@@ -37,7 +37,10 @@ class FinanceController extends Controller
             ->with('project.client')
             ->when(
                 ! $request->user()->isPlatformOwner(),
-                fn ($query) => $query->whereHas('project', fn ($projectQuery) => $projectQuery->whereIn('client_id', $manageableClientIds))
+                fn ($query) => $query->whereHas(
+                    'project',
+                    fn ($projectQuery) => $request->user()->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
+                )
             )
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($transactionQuery) use ($search): void {
@@ -68,7 +71,7 @@ class FinanceController extends Controller
 
     public function invoices(Request $request): Response
     {
-        ['projects' => $projects, 'manageableClientIds' => $manageableClientIds] = $this->financeScope($request);
+        ['projects' => $projects] = $this->financeScope($request);
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'sort_by' => ['nullable', 'in:reference,status,amount,issued_at,due_at,created_at'],
@@ -83,7 +86,10 @@ class FinanceController extends Controller
             ->with('project.client')
             ->when(
                 ! $request->user()->isPlatformOwner(),
-                fn ($query) => $query->whereHas('project', fn ($projectQuery) => $projectQuery->whereIn('client_id', $manageableClientIds))
+                fn ($query) => $query->whereHas(
+                    'project',
+                    fn ($projectQuery) => $request->user()->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
+                )
             )
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($invoiceQuery) use ($search): void {
@@ -125,21 +131,18 @@ class FinanceController extends Controller
     private function financeScope(Request $request): array
     {
         $user = $request->user();
-        $manageableClientIds = $user->clientMemberships()
-            ->whereIn('role', ['owner', 'admin'])
-            ->pluck('client_id');
+        $accessibleProjectsQuery = $user->workspaceAccess()->scopeAccessibleFinanceProjects(
+            Project::query()->with('client:id,name'),
+        );
 
-        abort_if(! $user->isPlatformOwner() && $manageableClientIds->isEmpty(), 403);
+        abort_if(! $user->isPlatformOwner() && ! (clone $accessibleProjectsQuery)->exists(), 403);
 
-        $projects = Project::query()
-            ->with('client:id,name')
-            ->when(! $user->isPlatformOwner(), fn ($query) => $query->whereIn('client_id', $manageableClientIds))
+        $projects = $accessibleProjectsQuery
             ->orderBy('name')
             ->get();
 
         return [
             'projects' => $projects,
-            'manageableClientIds' => $manageableClientIds,
         ];
     }
 }

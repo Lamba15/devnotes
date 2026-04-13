@@ -10,11 +10,13 @@ This directory captures the current agreed shape of the system.
 - [Domain](./domain/core-model.md): current top-level product entities and relationship rules
 - [Client](./domain/client.md): client record direction and known fields
 - [Project](./domain/project.md): project fields, statuses, finance integration, and access rules
+- [Secrets](./domain/secrets.md): platform-only secrets for clients and projects
 - [User](./domain/user.md): user identity, permissions, AI credits, and mini-profile system
 - [Finance](./domain/finance.md): transaction and invoice models, status lifecycle, and UI behavior
 - [Permissions](./permissions/scopes.md): platform and organization access rules
 - [AI](./ai/central-ai.md): central AI model, permissions, and chat UI behavior
 - [UI Architecture](./ui/architecture.md): central form, table, and filter direction
+- [Audit Logs](./ui/audit-logs.md): audit log model, coverage, drill-down filters, and UI standards
 - [Tracking: Issues](./tracking/issues.md): issue role, capabilities, and naming
 - [Tracking: Boards](./tracking/boards.md): board behavior, backlog, columns, and status rules
 
@@ -36,6 +38,7 @@ This directory captures the current agreed shape of the system.
 - Backlog is computed per board as issues not placed on that board.
 - Columns may or may not update issue status.
 - Permissions are scoped and explicit.
+- Client members now use explicit client membership permissions and dedicated member profile pages.
 - Scope and capability checks should be centralized and reused by routes, controllers, UI, and AI.
 - AI uses the same permissions as the active user and operates through tools and skills.
 - AI credit system controls non-owner access: -1 unlimited, 0 none, positive integer is a quota.
@@ -47,6 +50,9 @@ This directory captures the current agreed shape of the system.
 - All navigation and UI pages use Lucide icons consistently.
 - Issues support due dates, estimated hours, and labels.
 - Projects support budget and currency fields.
+- Platform owners have a cross-client projects page under the `Clients` section for browsing all projects in one list.
+- Clients and projects now support platform-only secrets stored separately from notes.
+- Projects now support logos stored on the public disk.
 - Transactions support category and currency fields.
 - Invoices support currency field and use a select for status (draft, pending, paid, overdue).
 - All date fields in forms use native date pickers via the DynamicForm date field type.

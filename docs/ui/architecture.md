@@ -57,6 +57,42 @@ Filtering should be handled through a central reusable filtering system.
 
 The project prefers a dedicated reusable filter layer rather than rebuilding ad hoc filter UIs per page.
 
+### SearchableSelect as Standard
+
+The standard select input across the application is `SearchableSelect` — a custom component that replaces basic HTML selects and Radix Select dropdowns in all filter and form contexts where search is useful.
+
+Standard features:
+
+- Built-in search input that auto-focuses when the dropdown opens
+- Optional leading icon (LucideIcon) for visual context
+- Inline clear button (X) when a value is selected
+- Focus ring styling consistent with the design system
+- Keyboard support (Escape to close, click-outside to dismiss)
+- A "no results" empty state when search matches nothing
+- The unselected/reset option (e.g. "All users") appears at the top when no search query is active
+
+### Drill-Down Filter Behavior
+
+Filters should behave in a drill-down style by default where it makes sense.
+
+Drill-down means:
+
+- Selecting a value in one filter narrows the available options in all other filters.
+- Each filter's options are computed by applying all other active filters except itself.
+- This gives the user a progressive narrowing experience instead of showing stale or irrelevant options.
+
+Backend implementation pattern:
+
+- A shared `applyFilters()` method accepts an `$exclude` parameter.
+- When computing options for a specific filter, all other filters are applied but the current filter is excluded.
+- A `scopedQuery()` helper creates a fresh query with the appropriate exclusion.
+
+### Clear Filters
+
+- A "Clear filters" button should appear when any filter is active.
+- It resets all filter values at once.
+- Each individual SearchableSelect also supports clearing its own value via the inline X button.
+
 ## Extensibility
 
 The system should prefer extending the parent dynamic form and related central components so features can be reused later.

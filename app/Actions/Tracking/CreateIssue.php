@@ -16,7 +16,7 @@ class CreateIssue
         array $attributes,
         string $source = 'manual_ui',
     ): Issue {
-        if (! $actor->canManageProject($project)) {
+        if (! $actor->canManageIssues($project)) {
             throw new AuthorizationException('You are not allowed to create issues for this project.');
         }
 

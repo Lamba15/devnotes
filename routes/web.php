@@ -9,22 +9,21 @@ use App\Http\Controllers\BoardIssueMovementController;
 use App\Http\Controllers\BoardMembershipController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientMembershipController;
+use App\Http\Controllers\ClientSecretController;
 use App\Http\Controllers\ClientStatusController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\IssueCommentController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserCreditsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Laravel\Fortify\Features;
 
-Route::inertia('/', 'welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('overview', function (Request $request) {
@@ -65,6 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
     Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
+    Route::get('clients/projects', [ProjectController::class, 'all'])->middleware('platform.owner')->name('clients.projects.all');
     Route::inertia('clients/tags', 'placeholder/section', [
         'title' => 'Client Tags',
         'description' => 'This section will manage reusable client tags and classifications.',
@@ -77,10 +77,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('clients/{client}/image', [ClientController::class, 'removeImage'])->name('clients.image.remove');
     Route::delete('clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
     Route::get('clients/{client}/members/create', [ClientMembershipController::class, 'create'])->name('clients.members.create');
+    Route::get('clients/{client}/members/{membership}', [ClientMembershipController::class, 'show'])->name('clients.members.show');
     Route::get('clients/{client}/members/{membership}/edit', [ClientMembershipController::class, 'edit'])->name('clients.members.edit');
     Route::get('clients/{client}/members', [ClientMembershipController::class, 'index'])->name('clients.members.index');
     Route::post('clients/{client}/members', [ClientMembershipController::class, 'store'])->name('clients.members.store');
     Route::put('clients/{client}/members/{membership}', [ClientMembershipController::class, 'update'])->name('clients.members.update');
+    Route::put('clients/{client}/members/{membership}/permissions', [ClientMembershipController::class, 'syncPermissions'])->name('clients.members.permissions.update');
+    Route::put('clients/{client}/members/{membership}/projects', [ClientMembershipController::class, 'syncProjects'])->name('clients.members.projects.update');
+    Route::put('clients/{client}/members/{membership}/boards', [ClientMembershipController::class, 'syncBoards'])->name('clients.members.boards.update');
     Route::delete('clients/{client}/members/{membership}', [ClientMembershipController::class, 'destroy'])->name('clients.members.destroy');
     Route::get('clients/{client}/issues', [ClientController::class, 'issues'])->name('clients.issues.index');
     Route::get('clients/{client}/boards/create', [BoardController::class, 'create'])->name('clients.boards.create');
@@ -108,6 +112,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('clients/{client}/projects/{project}', [ProjectController::class, 'show'])->name('clients.projects.show');
     Route::get('clients/{client}/projects/{project}/edit', [ProjectController::class, 'edit'])->name('clients.projects.edit');
     Route::put('clients/{client}/projects/{project}', [ProjectController::class, 'update'])->name('clients.projects.update');
+    Route::post('clients/{client}/projects/{project}/image', [ProjectController::class, 'uploadImage'])->name('clients.projects.image.upload');
+    Route::delete('clients/{client}/projects/{project}/image', [ProjectController::class, 'removeImage'])->name('clients.projects.image.remove');
     Route::delete('clients/{client}/projects/{project}', [ProjectController::class, 'destroy'])->name('clients.projects.destroy');
     Route::get('clients/{client}/projects/{project}/issues/create', [IssueController::class, 'create'])
         ->name('clients.projects.issues.create');
@@ -138,32 +144,46 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('attachments', [AttachmentController::class, 'store'])->name('attachments.store');
     Route::delete('attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 
+    Route::redirect('finance', '/finance/transactions')->name('finance.index');
+    Route::get('finance/transactions/create', [FinanceController::class, 'transactionsCreate'])->name('finance.transactions.create');
+    Route::get('finance/transactions', [FinanceController::class, 'transactions'])->name('finance.transactions.index');
+    Route::get('finance/transactions/{transaction}', [TransactionController::class, 'show'])->name('finance.transactions.show');
+    Route::get('finance/transactions/{transaction}/edit', [TransactionController::class, 'edit'])->name('finance.transactions.edit');
+    Route::get('finance/invoices/create', [FinanceController::class, 'invoicesCreate'])->name('finance.invoices.create');
+    Route::get('finance/invoices', [FinanceController::class, 'invoices'])->name('finance.invoices.index');
+    Route::get('finance/invoices/{invoice}', [InvoiceController::class, 'show'])->name('finance.invoices.show');
+    Route::get('finance/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('finance.invoices.edit');
+    Route::post('finance/transactions', [TransactionController::class, 'store'])->name('finance.transactions.store');
+    Route::put('finance/transactions/{transaction}', [TransactionController::class, 'update'])->name('finance.transactions.update');
+    Route::delete('finance/transactions/{transaction}', [TransactionController::class, 'destroy'])->name('finance.transactions.destroy');
+    Route::post('finance/invoices', [InvoiceController::class, 'store'])->name('finance.invoices.store');
+    Route::put('finance/invoices/{invoice}', [InvoiceController::class, 'update'])->name('finance.invoices.update');
+    Route::delete('finance/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('finance.invoices.destroy');
+
     Route::middleware('platform.owner')->group(function () {
+        Route::get('clients/{client}/secrets/create', [ClientSecretController::class, 'create'])->name('clients.secrets.create');
+        Route::post('clients/{client}/secrets', [ClientSecretController::class, 'store'])->name('clients.secrets.store');
+        Route::get('clients/{client}/secrets/{secret}/edit', [ClientSecretController::class, 'edit'])->name('clients.secrets.edit');
+        Route::put('clients/{client}/secrets/{secret}', [ClientSecretController::class, 'update'])->name('clients.secrets.update');
+        Route::delete('clients/{client}/secrets/{secret}', [ClientSecretController::class, 'destroy'])->name('clients.secrets.destroy');
+        Route::get('clients/{client}/secrets/{secret}/reveal', [ClientSecretController::class, 'reveal'])->name('clients.secrets.reveal');
+
+        Route::get('clients/{client}/projects/{project}/secrets/create', [ProjectSecretController::class, 'create'])->name('clients.projects.secrets.create');
+        Route::post('clients/{client}/projects/{project}/secrets', [ProjectSecretController::class, 'store'])->name('clients.projects.secrets.store');
+        Route::get('clients/{client}/projects/{project}/secrets/{secret}/edit', [ProjectSecretController::class, 'edit'])->name('clients.projects.secrets.edit');
+        Route::put('clients/{client}/projects/{project}/secrets/{secret}', [ProjectSecretController::class, 'update'])->name('clients.projects.secrets.update');
+        Route::delete('clients/{client}/projects/{project}/secrets/{secret}', [ProjectSecretController::class, 'destroy'])->name('clients.projects.secrets.destroy');
+        Route::get('clients/{client}/projects/{project}/secrets/{secret}/reveal', [ProjectSecretController::class, 'reveal'])->name('clients.projects.secrets.reveal');
+
         // Audit logs
         Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
         // User credit management
         Route::put('users/{user}/credits', [UserCreditsController::class, 'update'])->name('users.credits.update');
-
-        Route::redirect('finance', '/finance/transactions')->name('finance.index');
-        Route::get('finance/transactions/create', [FinanceController::class, 'transactionsCreate'])->name('finance.transactions.create');
-        Route::get('finance/transactions', [FinanceController::class, 'transactions'])->name('finance.transactions.index');
-        Route::get('finance/transactions/{transaction}', [TransactionController::class, 'show'])->name('finance.transactions.show');
-        Route::get('finance/transactions/{transaction}/edit', [TransactionController::class, 'edit'])->name('finance.transactions.edit');
-        Route::get('finance/invoices/create', [FinanceController::class, 'invoicesCreate'])->name('finance.invoices.create');
-        Route::get('finance/invoices', [FinanceController::class, 'invoices'])->name('finance.invoices.index');
-        Route::get('finance/invoices/{invoice}', [InvoiceController::class, 'show'])->name('finance.invoices.show');
-        Route::get('finance/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('finance.invoices.edit');
         Route::inertia('finance/categories', 'placeholder/section', [
             'title' => 'Finance Categories',
             'description' => 'This section will manage reusable financial categories and classifications.',
         ])->name('finance.categories.index');
-        Route::post('finance/transactions', [TransactionController::class, 'store'])->name('finance.transactions.store');
-        Route::put('finance/transactions/{transaction}', [TransactionController::class, 'update'])->name('finance.transactions.update');
-        Route::delete('finance/transactions/{transaction}', [TransactionController::class, 'destroy'])->name('finance.transactions.destroy');
-        Route::post('finance/invoices', [InvoiceController::class, 'store'])->name('finance.invoices.store');
-        Route::put('finance/invoices/{invoice}', [InvoiceController::class, 'update'])->name('finance.invoices.update');
-        Route::delete('finance/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('finance.invoices.destroy');
     });
 
     Route::middleware('platform.owner')->group(function () {

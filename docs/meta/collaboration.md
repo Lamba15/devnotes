@@ -36,10 +36,11 @@ It is not product truth. It is working-context for future sessions.
 - When code exposes an unresolved rule, clarify it or document it instead of guessing.
 - The whole project should follow strict TDD.
 - Preferred workflow is:
-  - write a failing test first
-  - implement the minimum code to make it pass
-  - refactor safely
-  - rerun the relevant tests
+    - write a failing test first
+    - implement the minimum code to make it pass
+    - refactor safely
+    - rerun the relevant tests
 - Normal automated application tests should use Pest.
 - Browser automation should use Laravel Dusk.
+- Laravel Dusk must never point at the primary local app database. Use a dedicated Dusk-only database and fail fast if the browser-test env targets `devnotes`.
 - Test coverage should include domain rules, permissions, routing, important application actions, and critical browser flows.

@@ -11,6 +11,7 @@ export type User = {
     capabilities?: {
         platform?: boolean;
         assistant_debug?: boolean;
+        use_assistant?: boolean;
         create_clients?: boolean;
         manage_client_tags?: boolean;
         manage_finance?: boolean;
@@ -20,6 +21,11 @@ export type User = {
     portal_context?: {
         client_id?: number | null;
         client_name?: string | null;
+        role?: 'owner' | 'admin' | 'member' | null;
+        permissions?: string[];
+        can_access_finance?: boolean;
+        can_view_members?: boolean;
+        can_manage_members?: boolean;
     } | null;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;

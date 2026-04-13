@@ -138,9 +138,7 @@ function Comment({
             {/* Avatar + collapse line */}
             <div className="flex shrink-0 flex-col items-center">
                 <Avatar className="size-8">
-                    {avatarSrc && (
-                        <AvatarImage src={avatarSrc} alt={name} />
-                    )}
+                    {avatarSrc && <AvatarImage src={avatarSrc} alt={name} />}
                     <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                         {getInitials(name)}
                     </AvatarFallback>
@@ -150,7 +148,9 @@ function Comment({
                         type="button"
                         onClick={() => setCollapsed((c) => !c)}
                         className="group/line mt-1 flex w-5 flex-1 cursor-pointer justify-center"
-                        title={collapsed ? 'Expand replies' : 'Collapse replies'}
+                        title={
+                            collapsed ? 'Expand replies' : 'Collapse replies'
+                        }
                     >
                         <div className="w-px bg-border transition-colors group-hover/line:bg-primary" />
                     </button>
@@ -165,11 +165,16 @@ function Comment({
                     <div className="mt-1 flex gap-2">
                         <Textarea
                             value={editBody}
-                            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditBody(e.target.value)}
+                            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                                setEditBody(e.target.value)
+                            }
                             className="min-h-16 flex-1 resize-none text-sm"
                             autoFocus
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                if (
+                                    e.key === 'Enter' &&
+                                    (e.metaKey || e.ctrlKey)
+                                ) {
                                     e.preventDefault();
                                     submitEdit();
                                 }
@@ -180,7 +185,11 @@ function Comment({
                             }}
                         />
                         <div className="flex flex-col gap-1">
-                            <Button size="sm" onClick={submitEdit} disabled={!editBody.trim()}>
+                            <Button
+                                size="sm"
+                                onClick={submitEdit}
+                                disabled={!editBody.trim()}
+                            >
                                 <Check className="size-3.5" />
                             </Button>
                             <Button
@@ -196,7 +205,7 @@ function Comment({
                         </div>
                     </div>
                 ) : (
-                    <p className="mt-1 text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                    <p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
                         {comment.body}
                     </p>
                 )}
@@ -225,7 +234,9 @@ function Comment({
                             </button>
                             {confirmDelete ? (
                                 <span className="inline-flex items-center gap-1 text-xs">
-                                    <span className="text-destructive">Delete?</span>
+                                    <span className="text-destructive">
+                                        Delete?
+                                    </span>
                                     <button
                                         type="button"
                                         onClick={submitDelete}
@@ -261,7 +272,8 @@ function Comment({
                             className="inline-flex items-center gap-1 text-xs font-medium text-primary transition hover:text-primary/80"
                         >
                             <ChevronRight className="size-3" />
-                            {totalReplies} {totalReplies === 1 ? 'reply' : 'replies'}
+                            {totalReplies}{' '}
+                            {totalReplies === 1 ? 'reply' : 'replies'}
                         </button>
                     ) : null}
                 </div>
@@ -271,9 +283,9 @@ function Comment({
                     <div className="mt-3 flex gap-2">
                         <Textarea
                             value={replyBody}
-                            onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                onReplyChange(comment.id, event.target.value)
-                            }
+                            onChange={(
+                                event: ChangeEvent<HTMLTextAreaElement>,
+                            ) => onReplyChange(comment.id, event.target.value)}
                             placeholder="Write a reply..."
                             className="min-h-16 flex-1 resize-none text-sm"
                             autoFocus
@@ -378,12 +390,26 @@ export default function IssueShow({
     const [commentFiles, setCommentFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { auth } = usePage<{ auth: { user: { id: number; name: string; avatar_path?: string | null } } }>().props;
+    const { auth } = usePage<{
+        auth: {
+            user: { id: number; name: string; avatar_path?: string | null };
+        };
+    }>().props;
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
 
     const fields: DynamicFormField[] = [
-        { name: 'title', label: 'Title', type: 'text', placeholder: 'Issue title' },
-        { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional description' },
+        {
+            name: 'title',
+            label: 'Title',
+            type: 'text',
+            placeholder: 'Issue title',
+        },
+        {
+            name: 'description',
+            label: 'Description',
+            type: 'textarea',
+            placeholder: 'Optional description',
+        },
         {
             name: 'assignee_id',
             label: 'Assignee',
@@ -394,13 +420,19 @@ export default function IssueShow({
             name: 'status',
             label: 'Status',
             type: 'select',
-            options: status_options.map((status) => ({ label: status, value: status })),
+            options: status_options.map((status) => ({
+                label: status,
+                value: status,
+            })),
         },
         {
             name: 'priority',
             label: 'Priority',
             type: 'select',
-            options: priority_options.map((priority) => ({ label: priority, value: priority })),
+            options: priority_options.map((priority) => ({
+                label: priority,
+                value: priority,
+            })),
         },
         {
             name: 'type',
@@ -409,8 +441,18 @@ export default function IssueShow({
             options: type_options.map((type) => ({ label: type, value: type })),
         },
         { name: 'due_date', label: 'Due date', type: 'date' as const },
-        { name: 'estimated_hours', label: 'Estimated hours', type: 'text' as const, placeholder: 'e.g. 4' },
-        { name: 'label', label: 'Label', type: 'text' as const, placeholder: 'e.g. frontend, backend' },
+        {
+            name: 'estimated_hours',
+            label: 'Estimated hours',
+            type: 'text' as const,
+            placeholder: 'e.g. 4',
+        },
+        {
+            name: 'label',
+            label: 'Label',
+            type: 'text' as const,
+            placeholder: 'e.g. frontend, backend',
+        },
     ];
 
     const toggleReply = (commentId: number) => {
@@ -465,24 +507,36 @@ export default function IssueShow({
                         cancelLabel="Back"
                         onCancel={() => window.history.back()}
                         onChange={(name, value) =>
-                            form.setData(
-                                name as keyof typeof form.data,
-                                value,
+                            form.setData(name as keyof typeof form.data, value)
+                        }
+                        onSubmit={() =>
+                            form.put(
+                                `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
                             )
                         }
-                        onSubmit={() => form.put(`/clients/${client.id}/projects/${project.id}/issues/${issue.id}`)}
                     />
                 ) : (
                     <section className="rounded-xl bg-card p-4 shadow-sm">
-                        <p className="text-sm text-muted-foreground">{issue.description ?? 'No description.'}</p>
+                        <p className="text-sm text-muted-foreground">
+                            {issue.description ?? 'No description.'}
+                        </p>
                         <div className="mt-4 flex flex-wrap gap-2">
-                            <Badge variant="outline" className="gap-1 capitalize">
+                            <Badge
+                                variant="outline"
+                                className="gap-1 capitalize"
+                            >
                                 Status: {issue.status.replace('_', ' ')}
                             </Badge>
-                            <Badge variant="outline" className="gap-1 capitalize">
+                            <Badge
+                                variant="outline"
+                                className="gap-1 capitalize"
+                            >
                                 Priority: {issue.priority}
                             </Badge>
-                            <Badge variant="outline" className="gap-1 capitalize">
+                            <Badge
+                                variant="outline"
+                                className="gap-1 capitalize"
+                            >
                                 Type: {issue.type}
                             </Badge>
                             <Badge variant="outline">
@@ -522,15 +576,21 @@ export default function IssueShow({
                         </h2>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {attachments.map((att) => {
-                                const isImage = att.mime_type.startsWith('image/');
+                                const isImage =
+                                    att.mime_type.startsWith('image/');
                                 return (
-                                    <div key={att.id} className="flex items-center gap-3 rounded-lg border px-3 py-2">
+                                    <div
+                                        key={att.id}
+                                        className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                                    >
                                         {isImage ? (
                                             <ImageIcon className="size-4 shrink-0 text-blue-500" />
                                         ) : (
                                             <Paperclip className="size-4 shrink-0 text-muted-foreground" />
                                         )}
-                                        <span className="min-w-0 flex-1 truncate text-sm">{att.file_name}</span>
+                                        <span className="min-w-0 flex-1 truncate text-sm">
+                                            {att.file_name}
+                                        </span>
                                         <a
                                             href={`/storage/${att.file_path}`}
                                             target="_blank"
@@ -592,7 +652,9 @@ export default function IssueShow({
                                 event.preventDefault();
                                 const formData = new FormData();
                                 formData.append('body', commentForm.data.body);
-                                commentFiles.forEach((file) => formData.append('attachments[]', file));
+                                commentFiles.forEach((file) =>
+                                    formData.append('attachments[]', file),
+                                );
                                 router.post(commentUrl, formData as any, {
                                     preserveScroll: true,
                                     forceFormData: true,
@@ -620,8 +682,13 @@ export default function IssueShow({
                                     value={commentForm.data.body}
                                     placeholder="Add a comment..."
                                     className="min-h-20 resize-none text-sm"
-                                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                                        commentForm.setData('body', event.target.value)
+                                    onChange={(
+                                        event: ChangeEvent<HTMLTextAreaElement>,
+                                    ) =>
+                                        commentForm.setData(
+                                            'body',
+                                            event.target.value,
+                                        )
                                     }
                                     onKeyDown={(event) => {
                                         if (
@@ -630,28 +697,54 @@ export default function IssueShow({
                                         ) {
                                             event.preventDefault();
                                             const formData = new FormData();
-                                            formData.append('body', commentForm.data.body);
-                                            commentFiles.forEach((file) => formData.append('attachments[]', file));
-                                            router.post(commentUrl, formData as any, {
-                                                preserveScroll: true,
-                                                forceFormData: true,
-                                                onSuccess: () => {
-                                                    commentForm.reset('body');
-                                                    setCommentFiles([]);
+                                            formData.append(
+                                                'body',
+                                                commentForm.data.body,
+                                            );
+                                            commentFiles.forEach((file) =>
+                                                formData.append(
+                                                    'attachments[]',
+                                                    file,
+                                                ),
+                                            );
+                                            router.post(
+                                                commentUrl,
+                                                formData as any,
+                                                {
+                                                    preserveScroll: true,
+                                                    forceFormData: true,
+                                                    onSuccess: () => {
+                                                        commentForm.reset(
+                                                            'body',
+                                                        );
+                                                        setCommentFiles([]);
+                                                    },
                                                 },
-                                            });
+                                            );
                                         }
                                     }}
                                 />
                                 {commentFiles.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
                                         {commentFiles.map((file, idx) => (
-                                            <span key={idx} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
+                                            <span
+                                                key={idx}
+                                                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
+                                            >
                                                 <Paperclip className="size-3 text-muted-foreground" />
-                                                <span className="max-w-[150px] truncate">{file.name}</span>
+                                                <span className="max-w-[150px] truncate">
+                                                    {file.name}
+                                                </span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setCommentFiles((f) => f.filter((_, i) => i !== idx))}
+                                                    onClick={() =>
+                                                        setCommentFiles((f) =>
+                                                            f.filter(
+                                                                (_, i) =>
+                                                                    i !== idx,
+                                                            ),
+                                                        )
+                                                    }
                                                     className="ml-0.5 text-muted-foreground hover:text-foreground"
                                                 >
                                                     <X className="size-3" />
@@ -677,7 +770,12 @@ export default function IssueShow({
                                             className="hidden"
                                             onChange={(event) => {
                                                 if (event.target.files) {
-                                                    setCommentFiles((prev) => [...prev, ...Array.from(event.target.files!)]);
+                                                    setCommentFiles((prev) => [
+                                                        ...prev,
+                                                        ...Array.from(
+                                                            event.target.files!,
+                                                        ),
+                                                    ]);
                                                     event.target.value = '';
                                                 }
                                             }}
@@ -686,7 +784,9 @@ export default function IssueShow({
                                             type="button"
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => fileInputRef.current?.click()}
+                                            onClick={() =>
+                                                fileInputRef.current?.click()
+                                            }
                                         >
                                             <Paperclip className="size-3.5" />
                                         </Button>
@@ -696,7 +796,9 @@ export default function IssueShow({
                                         size="sm"
                                         disabled={
                                             commentForm.processing ||
-                                            (commentForm.data.body.trim() === '' && commentFiles.length === 0)
+                                            (commentForm.data.body.trim() ===
+                                                '' &&
+                                                commentFiles.length === 0)
                                         }
                                     >
                                         <Send className="size-3.5" />

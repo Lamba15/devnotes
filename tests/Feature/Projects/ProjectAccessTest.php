@@ -178,6 +178,23 @@ test('viewers cannot create projects', function () {
     ]);
 });
 
+test('client scoped users cannot access the cross client projects index', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.all'))
+        ->assertForbidden();
+});
+
 test('members cannot create projects', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

@@ -11,7 +11,7 @@ class DeleteClientMembership
 {
     public function handle(User $actor, ClientMembership $membership, string $source = 'manual_ui'): void
     {
-        if (! $actor->canManageClient($membership->client)) {
+        if (! $actor->canManageMembers($membership->client)) {
             throw new AuthorizationException('You are not allowed to remove this client user.');
         }
 

@@ -11,7 +11,7 @@ class DeleteIssue
 {
     public function handle(User $actor, Issue $issue, string $source = 'manual_ui'): void
     {
-        if (! $actor->canManageProject($issue->project)) {
+        if (! $actor->canManageIssues($issue->project)) {
             throw new AuthorizationException('You are not allowed to delete this issue.');
         }
 

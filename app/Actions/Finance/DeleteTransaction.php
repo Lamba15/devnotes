@@ -11,7 +11,7 @@ class DeleteTransaction
 {
     public function handle(User $actor, Transaction $transaction, string $source = 'manual_ui'): void
     {
-        if (! $actor->canManageClient($transaction->project->client)) {
+        if (! $actor->canManageProjectFinance($transaction->project)) {
             throw new AuthorizationException('You are not allowed to delete this transaction.');
         }
 

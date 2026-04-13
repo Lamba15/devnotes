@@ -12,6 +12,7 @@ use App\Models\BoardIssuePlacement;
 use App\Models\BoardMembership;
 use App\Models\Client;
 use App\Models\ClientMembership;
+use App\Models\ClientMembershipPermission;
 use App\Models\Invoice;
 use App\Models\Issue;
 use App\Models\IssueComment;
@@ -20,12 +21,23 @@ use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class AssistantFlowTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function grantPermissions(ClientMembership $membership, array $permissions): void
+    {
+        foreach (ClientPermissionCatalog::normalize($permissions) as $permission) {
+            ClientMembershipPermission::query()->create([
+                'client_membership_id' => $membership->id,
+                'permission_name' => $permission,
+            ]);
+        }
+    }
 
     public function test_read_only_assistant_responses_are_returned_immediately(): void
     {
@@ -299,10 +311,14 @@ class AssistantFlowTest extends TestCase
             'name' => 'Hidden Project',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
 
         ProjectMembership::query()->create([
@@ -360,10 +376,14 @@ class AssistantFlowTest extends TestCase
             'name' => 'Alpha Other Client Project',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
         ProjectMembership::query()->create([
             'project_id' => $alpha->id,
@@ -860,10 +880,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
 
         ProjectMembership::query()->create([
@@ -930,10 +954,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => User::factory()->create()->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -984,10 +1012,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1060,10 +1092,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => User::factory()->create()->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1135,10 +1171,14 @@ class AssistantFlowTest extends TestCase
             'position' => 1,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1190,10 +1230,14 @@ class AssistantFlowTest extends TestCase
             'name' => 'Restricted Assistant Board',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1241,10 +1285,14 @@ class AssistantFlowTest extends TestCase
             'name' => 'Blocked board',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
 
         ProjectMembership::query()->create([
@@ -1278,12 +1326,12 @@ class AssistantFlowTest extends TestCase
         $this->assertCount(1, $response->json('data.messages.1.tool_results.0.items'));
     }
 
-    public function test_board_list_read_tool_returns_viewer_accessible_boards(): void
+    public function test_board_list_read_tool_returns_member_accessible_boards(): void
     {
         $client = Client::factory()->create([
             'behavior_id' => Behavior::query()->firstOrFail()->id,
         ]);
-        $viewer = User::factory()->create();
+        $member = User::factory()->create();
         $project = Project::factory()->create([
             'client_id' => $client->id,
             'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
@@ -1294,34 +1342,95 @@ class AssistantFlowTest extends TestCase
             'name' => 'Viewer visible board',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
-            'user_id' => $viewer->id,
-            'role' => 'viewer',
+            'user_id' => $member->id,
+            'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
 
         ProjectMembership::query()->create([
             'project_id' => $project->id,
-            'user_id' => $viewer->id,
+            'user_id' => $member->id,
+        ]);
+
+        BoardMembership::query()->create([
+            'board_id' => $board->id,
+            'user_id' => $member->id,
         ]);
 
         $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
-            'content' => 'Here are the viewer boards.',
+            'content' => 'Here are the member boards.',
             'tool_calls' => [[
-                'id' => 'call_board_list_viewer',
+                    'id' => 'call_board_list_member',
                 'name' => 'list_accessible_boards',
                 'arguments' => [],
             ]],
         ]));
 
-        $response = $this->actingAs($viewer)->postJson(route('assistant.messages.store'), [
-            'message' => 'List viewer boards',
+        $response = $this->actingAs($member)->postJson(route('assistant.messages.store'), [
+            'message' => 'List member boards',
         ]);
 
         $response->assertOk()
             ->assertJsonPath('data.pending_confirmation', null)
             ->assertJsonPath('data.messages.1.tool_results.0.type', 'board_list')
             ->assertJsonPath('data.messages.1.tool_results.0.items.0.name', 'Viewer visible board');
+    }
+
+    public function test_finance_mutation_tools_allow_members_with_finance_access_in_project_scope(): void
+    {
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $member = User::factory()->create();
+
+        $membership = ClientMembership::query()->create([
+            'client_id' => $client->id,
+            'user_id' => $member->id,
+            'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::FINANCE_WRITE,
+        ]);
+
+        ProjectMembership::query()->create([
+            'project_id' => $project->id,
+            'user_id' => $member->id,
+        ]);
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'I will create a transaction.',
+            'tool_calls' => [[
+                'id' => 'call_transaction_create_allowed',
+                'name' => 'create_transaction',
+                'arguments' => [
+                    'project_id' => $project->id,
+                    'description' => 'Member Allowed Transaction',
+                    'amount' => '500.00',
+                    'occurred_at' => '2026-04-05',
+                ],
+            ]],
+        ]));
+
+        $response = $this->actingAs($member)->postJson(route('assistant.messages.store'), [
+            'message' => 'Create a transaction',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pending_confirmation.tool_name', 'create_transaction')
+            ->assertJsonPath('data.pending_confirmation.status', 'pending');
+
+        $this->assertDatabaseMissing('transactions', [
+            'description' => 'Member Allowed Transaction',
+        ]);
     }
 
     public function test_board_list_tool_supports_project_filter_search_and_sorting(): void
@@ -1343,10 +1452,14 @@ class AssistantFlowTest extends TestCase
             'name' => 'Zulu Board',
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_READ,
         ]);
         ProjectMembership::query()->create([
             'project_id' => $project->id,
@@ -1494,10 +1607,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1582,10 +1699,14 @@ class AssistantFlowTest extends TestCase
             'position' => 1,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1688,10 +1809,14 @@ class AssistantFlowTest extends TestCase
             ]);
         }
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1776,10 +1901,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1862,10 +1991,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -1931,10 +2064,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2007,10 +2144,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::BOARDS_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2088,10 +2229,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2347,10 +2492,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2404,10 +2553,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2466,10 +2619,14 @@ class AssistantFlowTest extends TestCase
             'creator_id' => $member->id,
         ]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
         ]);
 
         ProjectMembership::query()->create([
@@ -2531,10 +2688,14 @@ class AssistantFlowTest extends TestCase
         ]);
         $thread = AssistantThread::query()->create(['user_id' => $member->id]);
 
-        ClientMembership::query()->create([
+        $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
             'user_id' => $member->id,
             'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
         ]);
 
         ProjectMembership::query()->create([

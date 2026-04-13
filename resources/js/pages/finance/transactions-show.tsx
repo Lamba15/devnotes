@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 export default function FinanceTransactionShow({
     transaction,
@@ -20,6 +21,7 @@ export default function FinanceTransactionShow({
         id: number;
         description: string;
         amount: string;
+        currency: string | null;
         occurred_at: string | null;
         project: {
             id: number;
@@ -65,7 +67,7 @@ export default function FinanceTransactionShow({
                                     return (
                                         <p className={`mt-1 flex items-center gap-1 text-lg font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                                             {isPositive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
-                                            ${Math.abs(num).toLocaleString()}
+                                            {formatCurrencyAmount(num, transaction.currency, { absolute: true })}
                                         </p>
                                     );
                                 })()}

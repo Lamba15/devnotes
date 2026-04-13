@@ -10,6 +10,7 @@ import {
     Users,
     Wallet,
 } from 'lucide-react';
+import { CrudPage } from '@/components/crud/crud-page';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 
@@ -69,103 +70,97 @@ export default function Overview({
         <>
             <Head title="Overview" />
 
-            <div className="space-y-6 p-1">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">
-                        Overview
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Platform-wide summary and recent activity
-                    </p>
-                </div>
+            <CrudPage
+                title="Overview"
+                description="Platform-wide summary and recent activity"
+            >
+                <div className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {statCards.map((card) => {
+                            const Icon = card.icon;
+                            const value = stats[card.key as keyof Stats];
+                            return (
+                                <Link key={card.key} href={card.href}>
+                                    <Card className="shadow-none transition-colors hover:bg-muted/30">
+                                        <CardContent className="flex items-center gap-4 p-4">
+                                            <div
+                                                className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted ${card.color}`}
+                                            >
+                                                <Icon className="size-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {card.label}
+                                                </p>
+                                                <p className="text-2xl font-bold">
+                                                    {value}
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            );
+                        })}
+                    </div>
 
-                {/* Stats grid */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {statCards.map((card) => {
-                        const Icon = card.icon;
-                        const value = stats[card.key as keyof Stats];
-                        return (
-                            <Link key={card.key} href={card.href}>
-                                <Card className="shadow-none transition-colors hover:bg-muted/30">
-                                    <CardContent className="flex items-center gap-4 p-4">
-                                        <div
-                                            className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted ${card.color}`}
-                                        >
-                                            <Icon className="size-5" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">
-                                                {card.label}
-                                            </p>
-                                            <p className="text-2xl font-bold">
-                                                {value}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                    <Card className="shadow-none">
+                        <CardHeader className="flex-row items-center justify-between space-y-0">
+                            <CardTitle className="flex items-center gap-2">
+                                <Activity className="size-5" />
+                                Recent Activity
+                            </CardTitle>
+                            <Link
+                                href="/audit-logs"
+                                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                                View all
                             </Link>
-                        );
-                    })}
-                </div>
-
-                {/* Recent Activity */}
-                <Card className="shadow-none">
-                    <CardHeader className="flex-row items-center justify-between space-y-0">
-                        <CardTitle className="flex items-center gap-2">
-                            <Activity className="size-5" />
-                            Recent Activity
-                        </CardTitle>
-                        <Link
-                            href="/audit-logs"
-                            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                        >
-                            View all
-                        </Link>
-                    </CardHeader>
-                    <CardContent>
-                        {recent_activity.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-muted-foreground">
-                                No recent activity yet.
-                            </p>
-                        ) : (
-                            <div className="space-y-3">
-                                {recent_activity.map((entry) => (
-                                    <div
-                                        key={entry.id}
-                                        className="flex items-center gap-3 rounded-lg border px-3 py-2"
-                                    >
-                                        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                                            <Activity className="size-3.5 text-muted-foreground" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm">
-                                                <span className="font-medium">
-                                                    {entry.user_name}
-                                                </span>{' '}
-                                                <span className="text-muted-foreground">
-                                                    {entry.event}
-                                                </span>{' '}
-                                                {entry.subject_type && (
+                        </CardHeader>
+                        <CardContent>
+                            {recent_activity.length === 0 ? (
+                                <p className="py-8 text-center text-sm text-muted-foreground">
+                                    No recent activity yet.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {recent_activity.map((entry) => (
+                                        <div
+                                            key={entry.id}
+                                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                                        >
+                                            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                                                <Activity className="size-3.5 text-muted-foreground" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm">
                                                     <span className="font-medium">
-                                                        {entry.subject_type}
-                                                        {entry.subject_id
-                                                            ? ` #${entry.subject_id}`
-                                                            : ''}
-                                                    </span>
-                                                )}
-                                            </p>
+                                                        {entry.user_name}
+                                                    </span>{' '}
+                                                    <span className="text-muted-foreground">
+                                                        {entry.event}
+                                                    </span>{' '}
+                                                    {entry.subject_type && (
+                                                        <span className="font-medium">
+                                                            {entry.subject_type}
+                                                            {entry.subject_id
+                                                                ? ` #${entry.subject_id}`
+                                                                : ''}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                                                <Clock className="size-3" />
+                                                {formatTimeAgo(entry.created_at)}
+                                            </span>
                                         </div>
-                                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                                            <Clock className="size-3" />
-                                            {formatTimeAgo(entry.created_at)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </CrudPage>
         </>
     );
 }

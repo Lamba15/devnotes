@@ -11,9 +11,9 @@ use App\Models\IssueComment;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,7 +23,7 @@ class IssueController extends Controller
     public function create(Request $request, Client $client, Project $project): Response
     {
         abort_unless($project->client_id === $client->id, 404);
-        abort_unless($request->user()->canManageProject($project), 403);
+        abort_unless($request->user()->canManageIssues($project), 403);
 
         return Inertia::render('issues/create', [
             'client' => $client->only(['id', 'name']),
@@ -78,7 +78,7 @@ class IssueController extends Controller
                 'per_page' => $issues->perPage(),
                 'total' => $issues->total(),
             ],
-            'can_manage_issues' => $request->user()->canManageProject($project),
+            'can_manage_issues' => $request->user()->canManageIssues($project),
             'assignee_options' => $this->serializeAssigneeOptions($project),
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
@@ -122,7 +122,7 @@ class IssueController extends Controller
             $project->client_id === $client->id && $issue->project_id === $project->id,
             404,
         );
-        abort_unless($request->user()->canManageProject($project), 403);
+        abort_unless($request->user()->canManageIssues($project), 403);
 
         return Inertia::render('issues/edit', [
             'client' => $client->only(['id', 'name']),
@@ -147,7 +147,7 @@ class IssueController extends Controller
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issue' => $this->serializeIssue($issue),
-            'can_manage_issue' => $request->user()->canManageProject($project),
+            'can_manage_issue' => $request->user()->canManageIssues($project),
             'can_comment' => $request->user()->canCommentOnIssue($issue),
             'comments' => $this->serializeComments($issue),
             'attachments' => $issue->attachments()

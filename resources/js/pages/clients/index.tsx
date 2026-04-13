@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Behavior = {
     id: number;
@@ -34,12 +35,24 @@ type Client = {
     image_path: string | null;
     behavior: Behavior;
     created_at: string;
+    running_account: {
+        amount: number | null;
+        currency: string | null;
+        mixed_currencies: boolean;
+    };
+    relationship_volume: {
+        amount: number | null;
+        currency: string | null;
+        mixed_currencies: boolean;
+    };
+    can_view_finance_summary: boolean;
 };
 
 export default function ClientsIndex({
     clients,
     filters,
     pagination,
+    can_create_clients,
 }: {
     clients: Client[];
     filters: { search: string; sort_by: string; sort_direction: string };
@@ -49,6 +62,7 @@ export default function ClientsIndex({
         per_page: number;
         total: number;
     };
+    can_create_clients: boolean;
 }) {
     const [query, setQuery] = useState(filters.search ?? '');
     const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
@@ -61,6 +75,28 @@ export default function ClientsIndex({
     const [selectedClientIds, setSelectedClientIds] = useState<
         Array<string | number>
     >([]);
+
+    const renderMoneySummary = (summary: Client['running_account']) => {
+        if (!summary) {
+            return '—';
+        }
+
+        if (summary.amount === null) {
+            return '—';
+        }
+
+        if (summary.mixed_currencies) {
+            return 'Mixed';
+        }
+
+        if (summary.currency) {
+            return formatCurrencyAmount(summary.amount, summary.currency);
+        }
+
+        return Number(summary.amount) === 0
+            ? '0'
+            : Number(summary.amount).toLocaleString();
+    };
 
     useEffect(() => {
         const timeout = window.setTimeout(() => {
@@ -128,6 +164,28 @@ export default function ClientsIndex({
             sortable: true,
             sortKey: 'email',
             render: (client) => client.email ?? '—',
+        },
+        {
+            key: 'running_account',
+            header: 'Running account',
+            sortable: true,
+            sortKey: 'running_account',
+            render: (client) => (
+                <span className="font-medium">
+                    {renderMoneySummary(client.running_account)}
+                </span>
+            ),
+        },
+        {
+            key: 'relationship_volume',
+            header: 'Relationship volume',
+            sortable: true,
+            sortKey: 'relationship_volume',
+            render: (client) => (
+                <span className="font-medium">
+                    {renderMoneySummary(client.relationship_volume)}
+                </span>
+            ),
         },
         {
             key: 'actions',
@@ -200,14 +258,14 @@ export default function ClientsIndex({
             <CrudPage
                 title="Clients"
                 description="Manage clients as a real domain and enter each client workspace for their own members, projects, tracking, and finance."
-                actions={
+                actions={can_create_clients ? (
                     <Link href="/clients/create">
                         <Button>
                             <Plus className="mr-1.5 size-4" />
                             Create client
                         </Button>
                     </Link>
-                }
+                ) : null}
             >
                 <FilterBar>
                     <div className="relative md:max-w-sm flex-1">

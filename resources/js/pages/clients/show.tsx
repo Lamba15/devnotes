@@ -7,6 +7,7 @@ import {
     Ticket,
     Users,
 } from 'lucide-react';
+import SecretsCard from '@/components/secrets/secrets-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,9 @@ export default function ClientShow({
     summary,
     recent_projects,
     recent_members,
+    secrets,
+    can_manage_members,
+    can_manage_secrets,
     can_edit_internal_client_profile,
     can_view_internal_client_profile,
 }: {
@@ -57,6 +61,14 @@ export default function ClientShow({
         role: string;
         user: { id: number; name: string; email: string; avatar_path?: string | null };
     }>;
+    secrets: Array<{
+        id: number;
+        label: string;
+        description: string | null;
+        updated_at: string | null;
+    }>;
+    can_manage_members: boolean;
+    can_manage_secrets: boolean;
     can_edit_internal_client_profile: boolean;
     can_view_internal_client_profile: boolean;
 }) {
@@ -243,9 +255,18 @@ export default function ClientShow({
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="font-medium">
-                                                        {membership.user.name}
-                                                    </p>
+                                                    {can_manage_members ? (
+                                                        <Link
+                                                            href={`/clients/${client.id}/members/${membership.id}`}
+                                                            className="font-medium underline-offset-4 hover:underline"
+                                                        >
+                                                            {membership.user.name}
+                                                        </Link>
+                                                    ) : (
+                                                        <p className="font-medium">
+                                                            {membership.user.name}
+                                                        </p>
+                                                    )}
                                                     <p className="text-sm text-muted-foreground">
                                                         {membership.user.email} ·{' '}
                                                         <Badge variant="outline" className="text-[10px] capitalize">
@@ -304,6 +325,17 @@ export default function ClientShow({
                         </Card>
                     </div>
                 </div>
+                {can_manage_secrets ? (
+                    <SecretsCard
+                        title="Secrets"
+                        description="Platform-only credentials and private values for this client."
+                        secrets={secrets}
+                        createHref={`/clients/${client.id}/secrets/create`}
+                        editHref={(secretId) => `/clients/${client.id}/secrets/${secretId}/edit`}
+                        deleteHref={(secretId) => `/clients/${client.id}/secrets/${secretId}`}
+                        revealHref={(secretId) => `/clients/${client.id}/secrets/${secretId}/reveal`}
+                    />
+                ) : null}
             </div>
         </>
     );

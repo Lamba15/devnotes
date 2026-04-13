@@ -16,7 +16,7 @@ class CreateTransaction
         array $attributes,
         string $source = 'manual_ui',
     ): Transaction {
-        if (! $actor->canManageProject($project)) {
+        if (! $actor->canManageProjectFinance($project)) {
             throw new AuthorizationException('You are not allowed to create transactions for this project.');
         }
 
@@ -25,6 +25,8 @@ class CreateTransaction
             'description' => $attributes['description'],
             'amount' => $attributes['amount'],
             'occurred_at' => $attributes['occurred_at'],
+            'category' => $attributes['category'] ?? null,
+            'currency' => $attributes['currency'] ?? 'USD',
         ]);
 
         AuditLog::query()->create([
@@ -36,6 +38,8 @@ class CreateTransaction
             'metadata_json' => [
                 'project_id' => $project->id,
                 'amount' => $transaction->amount,
+                'category' => $transaction->category,
+                'currency' => $transaction->currency,
             ],
             'after_json' => [
                 'id' => $transaction->id,
@@ -43,6 +47,8 @@ class CreateTransaction
                 'description' => $transaction->description,
                 'amount' => $transaction->amount,
                 'occurred_at' => $transaction->occurred_at?->toDateString(),
+                'category' => $transaction->category,
+                'currency' => $transaction->currency,
             ],
         ]);
 

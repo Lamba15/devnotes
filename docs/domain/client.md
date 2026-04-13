@@ -68,6 +68,7 @@ The intent is not a narrow CRM card. A client record should be able to hold a ri
 | phoneNumbers | hasMany | PhoneNumber | Multiple contact numbers |
 | tags | morphToMany | Tag | Freeform labels |
 | attachments | morphMany | Attachment | Polymorphic file attachments |
+| secrets | morphMany | SecretEntry | Platform-only secrets linked to the client |
 
 ## Workspace Summary Counts
 
@@ -91,8 +92,15 @@ When viewing a client workspace, the system provides these aggregate counts:
 ## Visibility Rules
 
 - **Platform owner** sees the full client profile including behavior, notes, origin, tags, phone numbers, social links, and all internal fields.
+- **Platform-side users** can manage a separate secrets area for sensitive credentials tied to the client.
 - **Client-scoped users** (members) see a workspace view with name, email, and collaborative surfaces (projects, issues, boards). Internal relationship data is hidden.
 - The `canViewInternalClientProfile` and `canEditInternalClientProfile` permission methods control field visibility.
+
+## Notes Vs Secrets
+
+- `notes` are relationship context and owner-side commentary.
+- `secrets` are credentials or sensitive values that require encrypted storage and explicit reveal.
+- Secrets should not be stored inside `notes`.
 
 ## Modeling Direction
 

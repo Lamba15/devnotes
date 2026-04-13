@@ -18,7 +18,7 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canManageClient($transaction->project->client), 403);
+        abort_unless($user->canManageProjectFinance($transaction->project), 403);
 
         $transaction->load('project.client:id,name');
 
@@ -27,6 +27,7 @@ class TransactionController extends Controller
                 'id' => $transaction->id,
                 'description' => $transaction->description,
                 'amount' => (string) $transaction->amount,
+                'currency' => $transaction->currency,
                 'occurred_at' => $transaction->occurred_at?->toDateString() ?? $transaction->occurred_at,
                 'project' => [
                     'id' => $transaction->project->id,
@@ -41,7 +42,7 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canManageClient($transaction->project->client), 403);
+        abort_unless($user->canManageProjectFinance($transaction->project), 403);
 
         return Inertia::render('finance/transactions-edit', [
             'transaction' => [
@@ -49,9 +50,10 @@ class TransactionController extends Controller
                 'category' => $transaction->category,
                 'currency' => $transaction->currency,
             ],
-            'projects' => Project::query()
-                ->with('client:id,name')
-                ->whereHas('client.memberships', fn ($query) => $query->where('user_id', $user->id)->whereIn('role', ['owner', 'admin']))
+            'projects' => $user->workspaceAccess()
+                ->scopeAccessibleFinanceProjects(
+                    Project::query()->with('client:id,name'),
+                )
                 ->orderBy('name')
                 ->get(),
         ]);

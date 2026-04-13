@@ -175,7 +175,8 @@ class BoardController extends Controller
                     ->all(),
             ])->values()->all(),
             'can_move_issues' => $user->canMoveIssueOnBoard($board),
-            'can_manage_board' => $user->canManageProject($project),
+            'can_create_issues' => $user->canManageIssues($project),
+            'can_manage_board' => $user->canManageBoard($board),
             'status_options' => ['todo', 'in_progress', 'done'],
         ]);
     }

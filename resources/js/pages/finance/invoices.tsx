@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = { id: number; name: string };
 type Project = { id: number; name: string; client: Client };
@@ -27,6 +28,7 @@ type Invoice = {
     reference: string;
     status: string;
     amount: string;
+    currency: string | null;
     issued_at: string | null;
     due_at: string | null;
     paid_at: string | null;
@@ -125,7 +127,7 @@ export default function FinanceInvoices({
             sortable: true,
             sortKey: 'amount',
             render: (invoice) => (
-                <span className="font-medium">${Number(invoice.amount).toLocaleString()}</span>
+                <span className="font-medium">{formatCurrencyAmount(invoice.amount, invoice.currency)}</span>
             ),
         },
         {

@@ -1,12 +1,8 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
-import { login, register } from '@/routes';
+import { login } from '@/routes';
 
-export default function Welcome({
-    canRegister = true,
-}: {
-    canRegister?: boolean;
-}) {
+export default function Welcome() {
     const { auth } = usePage().props;
 
     return (
@@ -40,14 +36,6 @@ export default function Welcome({
                                     >
                                         Log in
                                     </Link>
-                                    {canRegister ? (
-                                        <Link
-                                            href={register()}
-                                            className="rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/10"
-                                        >
-                                            Sign up
-                                        </Link>
-                                    ) : null}
                                 </>
                             )}
                         </nav>
@@ -91,14 +79,6 @@ export default function Welcome({
                                                 Log in
                                                 <ArrowRight className="size-4" />
                                             </Link>
-                                            {canRegister ? (
-                                                <Link
-                                                    href={register()}
-                                                    className="inline-flex items-center justify-center rounded-md border border-white/15 px-5 py-3 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/5"
-                                                >
-                                                    Create account
-                                                </Link>
-                                            ) : null}
                                         </>
                                     )}
                                 </div>

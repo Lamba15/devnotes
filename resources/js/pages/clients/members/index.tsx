@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Bot, Coins, Search, UserPlus } from 'lucide-react';
+import { Coins, Search, Shield, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -19,12 +19,13 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type Membership = {
     id: number;
-    role: string;
+    role: 'owner' | 'admin' | 'member';
+    permissions: string[];
+    created_at: string | null;
     user: {
         id: number;
         name: string;
@@ -39,16 +40,10 @@ type Membership = {
 function getInitials(name: string): string {
     return name
         .split(' ')
-        .map((p) => p[0])
+        .map((part) => part[0])
         .slice(0, 2)
         .join('')
         .toUpperCase();
-}
-
-function creditLabel(credits: number): string {
-    if (credits === -1) return 'Unlimited';
-    if (credits === 0) return 'None';
-    return String(credits);
 }
 
 export default function ClientMembersIndex({
@@ -57,6 +52,7 @@ export default function ClientMembersIndex({
     filters,
     pagination,
     can_manage_members,
+    can_open_member_profiles,
 }: {
     client: { id: number; name: string };
     memberships: Membership[];
@@ -68,6 +64,7 @@ export default function ClientMembersIndex({
         total: number;
     };
     can_manage_members: boolean;
+    can_open_member_profiles: boolean;
 }) {
     const [query, setQuery] = useState(filters.search ?? '');
     const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
@@ -101,14 +98,6 @@ export default function ClientMembersIndex({
         return () => window.clearTimeout(timeout);
     }, [client.id, query, sortBy, sortDirection]);
 
-    const [creditMembership, setCreditMembership] =
-        useState<Membership | null>(null);
-    const [creditValue, setCreditValue] = useState('0');
-
-    const isPlatformOwner = Boolean(
-        (window as any).__page?.props?.auth?.user?.capabilities?.platform,
-    );
-
     const columns: DataTableColumn<Membership>[] = [
         {
             key: 'name',
@@ -119,22 +108,32 @@ export default function ClientMembersIndex({
                 const avatarSrc = membership.user.avatar_path
                     ? `/storage/${membership.user.avatar_path}`
                     : null;
+
                 return (
                     <div className="flex items-center gap-2.5">
                         <Avatar className="size-7">
-                            {avatarSrc && (
+                            {avatarSrc ? (
                                 <AvatarImage
                                     src={avatarSrc}
                                     alt={membership.user.name}
                                 />
-                            )}
+                            ) : null}
                             <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
                                 {getInitials(membership.user.name)}
                             </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">
-                            {membership.user.name}
-                        </span>
+                        {can_open_member_profiles ? (
+                            <Link
+                                href={`/clients/${client.id}/members/${membership.id}`}
+                                className="font-medium underline-offset-4 hover:underline"
+                            >
+                                {membership.user.name}
+                            </Link>
+                        ) : (
+                            <span className="font-medium">
+                                {membership.user.name}
+                            </span>
+                        )}
                     </div>
                 );
             },
@@ -162,18 +161,46 @@ export default function ClientMembersIndex({
             ),
         },
         {
+            key: 'permissions',
+            header: 'Access',
+            render: (membership) =>
+                membership.role === 'owner' || membership.role === 'admin' ? (
+                    <Badge variant="outline">Unrestricted</Badge>
+                ) : membership.permissions.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                        {membership.permissions.slice(0, 3).map((permission) => (
+                            <Badge
+                                key={permission}
+                                variant="outline"
+                                className="text-[10px]"
+                            >
+                                {permission}
+                            </Badge>
+                        ))}
+                        {membership.permissions.length > 3 ? (
+                            <Badge variant="secondary" className="text-[10px]">
+                                +{membership.permissions.length - 3}
+                            </Badge>
+                        ) : null}
+                    </div>
+                ) : (
+                    <span className="text-sm text-muted-foreground">
+                        No explicit permissions
+                    </span>
+                ),
+        },
+        {
             key: 'ai_credits',
             header: 'AI Credits',
             render: (membership) => {
                 const credits = membership.user.ai_credits ?? 0;
                 const used = membership.user.ai_credits_used ?? 0;
+
                 return (
                     <div className="flex items-center gap-1.5 text-sm">
                         <Coins className="size-3.5 text-muted-foreground" />
                         <span>
-                            {credits === -1
-                                ? 'Unlimited'
-                                : `${used}/${credits}`}
+                            {credits === -1 ? 'Unlimited' : `${used}/${credits}`}
                         </span>
                     </div>
                 );
@@ -186,28 +213,12 @@ export default function ClientMembersIndex({
                 <ActionDropdown
                     items={[
                         {
-                            label: 'Edit',
+                            label: 'Open profile',
                             onClick: () =>
                                 router.visit(
-                                    `/clients/${client.id}/members/${membership.id}/edit`,
+                                    `/clients/${client.id}/members/${membership.id}`,
                                 ),
                         },
-                        ...(isPlatformOwner
-                            ? [
-                                  {
-                                      label: 'Manage AI credits',
-                                      onClick: () => {
-                                          setCreditMembership(membership);
-                                          setCreditValue(
-                                              String(
-                                                  membership.user.ai_credits ??
-                                                      0,
-                                              ),
-                                          );
-                                      },
-                                  },
-                              ]
-                            : []),
                         {
                             label: 'Remove',
                             destructive: true,
@@ -221,11 +232,11 @@ export default function ClientMembersIndex({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Open selected',
             onClick: () => {
                 if (selectedMembershipIds.length === 1) {
                     router.visit(
-                        `/clients/${client.id}/members/${selectedMembershipIds[0]}/edit`,
+                        `/clients/${client.id}/members/${selectedMembershipIds[0]}`,
                     );
                 }
             },
@@ -264,7 +275,7 @@ export default function ClientMembersIndex({
             <Head title={`${client.name} Members`} />
             <CrudPage
                 title={`${client.name} Members`}
-                description="Create portal users directly and attach them to this client."
+                description="Roster view for member profiles, permissions, assignments, activity, and AI credits."
                 actions={
                     can_manage_members ? (
                         <Link href={`/clients/${client.id}/members/create`}>
@@ -288,13 +299,28 @@ export default function ClientMembersIndex({
                     </div>
                 </FilterBar>
 
+                <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/70 px-4 py-3 text-sm text-muted-foreground">
+                    <Shield className="size-4" />
+                    Finance is now managed as a normal member permission. Owners and admins still have unrestricted client access.
+                </div>
+
                 <DataTable
                     columns={columns}
                     rows={memberships}
                     emptyText="No client users yet."
-                    getRowId={(membership) => membership.id}
-                    selectedRowIds={selectedMembershipIds}
-                    onSelectedRowIdsChange={setSelectedMembershipIds}
+                    getRowId={
+                        can_manage_members
+                            ? (membership) => membership.id
+                            : undefined
+                    }
+                    selectedRowIds={
+                        can_manage_members ? selectedMembershipIds : undefined
+                    }
+                    onSelectedRowIdsChange={
+                        can_manage_members
+                            ? setSelectedMembershipIds
+                            : undefined
+                    }
                     bulkActions={can_manage_members ? bulkActions : []}
                     currentSort={{
                         sortBy,
@@ -354,102 +380,6 @@ export default function ClientMembersIndex({
                                 onClick={() => void confirmDelete()}
                             >
                                 Remove
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                {/* Credit management dialog */}
-                <Dialog
-                    open={creditMembership !== null}
-                    onOpenChange={(open) =>
-                        !open && setCreditMembership(null)
-                    }
-                >
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Bot className="size-5" />
-                                Manage AI Credits
-                            </DialogTitle>
-                            <DialogDescription>
-                                Set AI credits for{' '}
-                                {creditMembership?.user.name ?? 'this user'}. Use
-                                -1 for unlimited, 0 for none.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-2">
-                            <div className="grid gap-2">
-                                <Label>Credits allocation</Label>
-                                <Input
-                                    type="number"
-                                    value={creditValue}
-                                    onChange={(e) =>
-                                        setCreditValue(e.target.value)
-                                    }
-                                    min={-1}
-                                    placeholder="Enter credit amount (-1 = unlimited)"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Currently used:{' '}
-                                    {creditMembership?.user.ai_credits_used ??
-                                        0}{' '}
-                                    credits
-                                </p>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setCreditValue('-1')}
-                                >
-                                    Unlimited
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setCreditValue('0')}
-                                >
-                                    None
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setCreditValue('50')}
-                                >
-                                    50
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setCreditValue('100')}
-                                >
-                                    100
-                                </Button>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                            </DialogClose>
-                            <Button
-                                onClick={() => {
-                                    if (creditMembership) {
-                                        router.put(
-                                            `/users/${creditMembership.user.id}/credits`,
-                                            {
-                                                ai_credits:
-                                                    parseInt(creditValue) || 0,
-                                            },
-                                            {
-                                                preserveScroll: true,
-                                                onSuccess: () =>
-                                                    setCreditMembership(null),
-                                            },
-                                        );
-                                    }
-                                }}
-                            >
-                                Save credits
                             </Button>
                         </DialogFooter>
                     </DialogContent>

@@ -15,7 +15,7 @@ class UpdateIssue
         array $attributes,
         string $source = 'manual_ui',
     ): Issue {
-        if (! $actor->canManageProject($issue->project)) {
+        if (! $actor->canManageIssues($issue->project)) {
             throw new AuthorizationException('You are not allowed to update this issue.');
         }
 

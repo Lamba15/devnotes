@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = {
     id: number;
@@ -34,6 +35,7 @@ type Transaction = {
     id: number;
     description: string;
     amount: string;
+    currency: string | null;
     occurred_at: string;
     project: Project;
 };
@@ -116,7 +118,7 @@ export default function FinanceTransactions({
                 return (
                     <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                        ${Math.abs(num).toLocaleString()}
+                        {formatCurrencyAmount(num, transaction.currency, { absolute: true })}
                     </span>
                 );
             },

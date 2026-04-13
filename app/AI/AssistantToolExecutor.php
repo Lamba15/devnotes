@@ -260,10 +260,7 @@ class AssistantToolExecutor
                 ! $user->isPlatformOwner(),
                 fn ($query) => $query->whereHas(
                     'project',
-                    fn ($projectQuery) => $projectQuery->whereIn(
-                        'client_id',
-                        $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->pluck('client_id')
-                    )
+                    fn ($projectQuery) => $user->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
                 )
             )
             ->when(isset($payload['client_id']), function ($query) use ($payload): void {
@@ -681,10 +678,7 @@ class AssistantToolExecutor
                 ! $user->isPlatformOwner(),
                 fn ($query) => $query->whereHas(
                     'project',
-                    fn ($projectQuery) => $projectQuery->whereIn(
-                        'client_id',
-                        $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->pluck('client_id')
-                    )
+                    fn ($projectQuery) => $user->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
                 )
             )
             ->when(isset($payload['client_id']), function ($query) use ($payload): void {
@@ -974,7 +968,7 @@ class AssistantToolExecutor
     {
         $transaction = Transaction::findOrFail($payload['transaction_id']);
 
-        abort_unless($user->canManageClient($transaction->project->client), 403);
+        abort_unless($user->canManageProjectFinance($transaction->project), 403);
 
         $updateData = [];
         if (isset($payload['description'])) {
@@ -1003,7 +997,7 @@ class AssistantToolExecutor
     {
         $invoice = Invoice::findOrFail($payload['invoice_id']);
 
-        abort_unless($user->canManageClient($invoice->project->client), 403);
+        abort_unless($user->canManageProjectFinance($invoice->project), 403);
 
         $updateData = [];
         if (isset($payload['status'])) {
@@ -1095,7 +1089,7 @@ class AssistantToolExecutor
     {
         $transaction = Transaction::findOrFail($payload['transaction_id']);
 
-        abort_unless($user->canManageProject($transaction->project), 403);
+        abort_unless($user->canAccessProjectFinance($transaction->project), 403);
 
         $transactionId = $transaction->id;
         $description = $transaction->description;
@@ -1113,7 +1107,7 @@ class AssistantToolExecutor
     {
         $invoice = Invoice::findOrFail($payload['invoice_id']);
 
-        abort_unless($user->canManageProject($invoice->project), 403);
+        abort_unless($user->canAccessProjectFinance($invoice->project), 403);
 
         $invoiceId = $invoice->id;
         $reference = $invoice->reference;
