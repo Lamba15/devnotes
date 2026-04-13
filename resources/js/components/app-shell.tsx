@@ -5,11 +5,16 @@ import type { AppVariant } from '@/types';
 
 type Props = {
     children: ReactNode;
+    sidebarOpen?: boolean;
     variant?: AppVariant;
 };
 
-export function AppShell({ children, variant = 'sidebar' }: Props) {
-    const isOpen = usePage().props.sidebarOpen;
+export function AppShell({
+    children,
+    sidebarOpen = true,
+    variant = 'sidebar',
+}: Props) {
+    const page = usePage<{ sidebarOpen?: boolean }>();
 
     if (variant === 'header') {
         return (
@@ -17,5 +22,9 @@ export function AppShell({ children, variant = 'sidebar' }: Props) {
         );
     }
 
-    return <SidebarProvider defaultOpen={isOpen}>{children}</SidebarProvider>;
+    return (
+        <SidebarProvider defaultOpen={page.props.sidebarOpen ?? sidebarOpen}>
+            {children}
+        </SidebarProvider>
+    );
 }

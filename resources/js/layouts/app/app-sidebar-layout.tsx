@@ -5,12 +5,17 @@ import { AppSidebarHeader } from '@/components/app-sidebar-header';
 import { AssistantPanel } from '@/components/assistant/assistant-panel';
 import type { AppLayoutProps } from '@/types';
 
+type Props = AppLayoutProps & {
+    sidebarOpen?: boolean;
+};
+
 export default function AppSidebarLayout({
     children,
     breadcrumbs = [],
-}: AppLayoutProps) {
+    sidebarOpen,
+}: Props) {
     return (
-        <AppShell variant="sidebar">
+        <AppShell variant="sidebar" sidebarOpen={sidebarOpen}>
             <AppSidebar />
             <AssistantPanel hideTrigger />
             <AppContent variant="sidebar" className="overflow-x-hidden">

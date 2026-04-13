@@ -2,6 +2,7 @@
 
 use App\Models\Attachment;
 use App\Models\Behavior;
+use App\Models\Board;
 use App\Models\Client;
 use App\Models\ClientMembership;
 use App\Models\Issue;
@@ -579,6 +580,44 @@ test('project viewers can open an issue detail page but cannot update it', funct
             'type' => 'task',
         ])
         ->assertForbidden();
+});
+
+test('issue detail exposes a board return target when opened from a board', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Board-linked issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $admin->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Delivery board',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('clients.projects.issues.show', [$client, $project, $issue], false).'?board_id='.$board->id)
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('issues/show')
+            ->where('return_to.href', route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->where('return_to.label', 'Back to board')
+        );
 });
 
 test('client admins can update issues and issue update is audited', function () {

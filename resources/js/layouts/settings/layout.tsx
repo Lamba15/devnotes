@@ -1,30 +1,27 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
 import { Bot, Palette, Shield, User } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { getPageProps } from '@/lib/page-props';
 import { cn, toUrl } from '@/lib/utils';
 import { edit as editAISettings } from '@/routes/ai-settings';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
-import type { NavItem } from '@/types';
+import type { Auth, NavItem } from '@/types';
+
+type SettingsPageProps = {
+    auth: Auth;
+};
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
-    const page = usePage<{
-        auth: {
-            user?: {
-                capabilities?: {
-                    platform?: boolean;
-                } | null;
-            } | null;
-        };
-    }>();
+    const pageProps = getPageProps<SettingsPageProps>(children);
     const { isCurrentOrParentUrl } = useCurrentUrl();
     const canAccessPlatform = Boolean(
-        page.props.auth.user?.capabilities?.platform,
+        pageProps.auth?.user?.capabilities?.platform,
     );
     const sidebarNavItems: NavItem[] = [
         {

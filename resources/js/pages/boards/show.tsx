@@ -883,6 +883,7 @@ export default function BoardShow({
                     }}
                     clientId={client.id}
                     projectId={project.id}
+                    boardId={board.id}
                 />
             </CrudPage>
         </>

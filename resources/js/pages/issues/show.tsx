@@ -95,6 +95,7 @@ export default function IssueShow({
     client,
     project,
     issue,
+    return_to,
     can_manage_issue,
     can_comment,
     comments,
@@ -107,6 +108,7 @@ export default function IssueShow({
     client: { id: number; name: string };
     project: { id: number; name: string };
     issue: Issue;
+    return_to?: { href: string; label: string } | null;
     can_manage_issue: boolean;
     can_comment: boolean;
     comments: SharedDiscussionComment[];
@@ -137,11 +139,36 @@ export default function IssueShow({
     const { auth } = usePage<{ auth: Auth }>().props;
 
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
+    const fallbackIssuesUrl = `/clients/${client.id}/projects/${project.id}/issues`;
 
     const mentionOptions = useMemo(
         () => collectMentionOptions(comments, auth.user),
         [comments, auth.user],
     );
+
+    const goBack = () => {
+        if (return_to?.href) {
+            router.visit(return_to.href);
+
+            return;
+        }
+
+        try {
+            if (window.history.length > 1 && document.referrer) {
+                const referrer = new URL(document.referrer);
+
+                if (referrer.origin === window.location.origin) {
+                    window.history.back();
+
+                    return;
+                }
+            }
+        } catch {
+            // Ignore malformed referrers and fall back to the issue index.
+        }
+
+        router.visit(fallbackIssuesUrl);
+    };
 
     const fields: DynamicFormField[] = [
         {
@@ -287,31 +314,22 @@ export default function IssueShow({
             <Head title={issue.title} />
             <CrudPage
                 title={issue.title}
+                titleMeta={
+                    issue.created_at ? (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                            <span>Created</span>
+                            <span>
+                                {formatDetailedTimestamp(issue.created_at, {
+                                    timeZone: auth.user.timezone,
+                                })}
+                            </span>
+                        </Badge>
+                    ) : undefined
+                }
                 description={`${client.name} / ${project.name}`}
-                onBack={() => {
-                    const fallbackUrl = `/clients/${client.id}/projects/${project.id}/issues`;
-
-                    if (window.history.length > 1) {
-                        router.visit(fallbackUrl);
-                    } else {
-                        router.visit(fallbackUrl);
-                    }
-                }}
+                onBack={goBack}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
-                    {issue.created_at ? (
-                        <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline" className="gap-1">
-                                <span>Created</span>
-                                <span>
-                                    {formatDetailedTimestamp(issue.created_at, {
-                                        timeZone: auth.user.timezone,
-                                    })}
-                                </span>
-                            </Badge>
-                        </div>
-                    ) : null}
-
                     {/* Top Section: Form or Static Badges */}
                     {can_manage_issue ? (
                         <DynamicForm
@@ -320,8 +338,8 @@ export default function IssueShow({
                             errors={form.errors}
                             processing={form.processing}
                             submitLabel="Update issue"
-                            cancelLabel="Back"
-                            onCancel={() => window.history.back()}
+                            cancelLabel={return_to?.label ?? 'Back'}
+                            onCancel={goBack}
                             onChange={(name, value) =>
                                 form.setData(
                                     name as keyof typeof form.data,

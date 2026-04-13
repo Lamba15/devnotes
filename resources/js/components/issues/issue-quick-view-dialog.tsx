@@ -136,12 +136,14 @@ export function IssueQuickViewDialog({
     onOpenChange,
     clientId,
     projectId,
+    boardId,
 }: {
     issue: QuickViewIssue | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     clientId: number;
     projectId: number;
+    boardId?: number;
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const [workspaceIssue, setWorkspaceIssue] = useState<QuickViewIssue | null>(
@@ -185,6 +187,8 @@ export function IssueQuickViewDialog({
     if (!workspaceIssue) {
         return null;
     }
+
+    const fullIssueUrl = `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}${boardId ? `?board_id=${boardId}` : ''}`;
 
     const refreshWorkspace = async () => {
         if (!workspaceUrl) {
@@ -318,7 +322,7 @@ export function IssueQuickViewDialog({
                 <DialogHeader className="border-b px-4 pt-4 pr-14 pb-3 sm:px-6 sm:pt-6 sm:pr-14 sm:pb-4">
                     <div className="flex flex-col items-start gap-1 pb-1">
                         <Link
-                            href={`/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}`}
+                            href={fullIssueUrl}
                             className="mb-1 inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
                         >
                             <ExternalLink className="size-3.5" />

@@ -1,23 +1,23 @@
 import { ArrowLeft } from 'lucide-react';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import { useCrudPageHeaderSlot } from '@/components/crud/crud-page-header-slot';
+import { setCrudPageHeaderContent } from '@/components/crud/crud-page-header-slot';
 
 export function CrudPage({
     title,
+    titleMeta,
     description,
     actions,
     onBack,
     children,
 }: {
     title: string;
+    titleMeta?: ReactNode;
     description?: string;
     actions?: ReactNode;
     onBack?: () => void;
     children: ReactNode;
 }) {
-    const headerSlot = useCrudPageHeaderSlot();
-
     const headerContent = (
         <div className="flex min-w-0 items-center justify-between gap-6">
             <div className="flex min-w-0 items-center gap-3">
@@ -33,9 +33,16 @@ export function CrudPage({
                     </button>
                 ) : null}
                 <div className="min-w-0">
-                    <h1 className="truncate text-2xl font-bold tracking-tight">
-                        {title}
-                    </h1>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h1 className="min-w-0 truncate text-2xl font-bold tracking-tight">
+                            {title}
+                        </h1>
+                        {titleMeta ? (
+                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                {titleMeta}
+                            </div>
+                        ) : null}
+                    </div>
                     {description ? (
                         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                             {description}
@@ -47,10 +54,13 @@ export function CrudPage({
         </div>
     );
 
-    return (
-        <div className="flex flex-1 flex-col gap-6 p-6">
-            {headerSlot ? createPortal(headerContent, headerSlot) : null}
-            {children}
-        </div>
-    );
+    useEffect(() => {
+        setCrudPageHeaderContent(headerContent);
+
+        return () => {
+            setCrudPageHeaderContent(null);
+        };
+    }, [headerContent]);
+
+    return <div className="flex flex-1 flex-col gap-6 p-6">{children}</div>;
 }

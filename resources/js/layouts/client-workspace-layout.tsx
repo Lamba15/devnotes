@@ -1,15 +1,21 @@
-import { Link, usePage } from '@inertiajs/react';
-import { DollarSign, FolderKanban, LayoutDashboard, LayoutGrid, ListChecks, Ticket, Users } from 'lucide-react';
+import { Link } from '@inertiajs/react';
+import {
+    DollarSign,
+    FolderKanban,
+    LayoutDashboard,
+    LayoutGrid,
+    ListChecks,
+    Ticket,
+    Users,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { getPageProps } from '@/lib/page-props';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 
-type ClientWorkspaceLayoutProps = PropsWithChildren<{
-    title?: string;
-    description?: string;
-}>;
+type ClientWorkspaceLayoutProps = PropsWithChildren<{}>;
 
 type ClientWorkspacePageProps = {
     auth: {
@@ -47,34 +53,80 @@ const sections = (
         canViewStatuses: boolean;
         canViewFinance: boolean;
     },
-): Array<{ title: string; href: string; exact?: boolean; icon: LucideIcon }> => [
-    { title: 'Overview', href: `/clients/${clientId}`, exact: true, icon: LayoutDashboard },
+): Array<{
+    title: string;
+    href: string;
+    exact?: boolean;
+    icon: LucideIcon;
+}> => [
+    {
+        title: 'Overview',
+        href: `/clients/${clientId}`,
+        exact: true,
+        icon: LayoutDashboard,
+    },
     ...(options.canViewMembers
-        ? [{ title: 'Members', href: `/clients/${clientId}/members`, icon: Users }]
+        ? [
+              {
+                  title: 'Members',
+                  href: `/clients/${clientId}/members`,
+                  icon: Users,
+              },
+          ]
         : []),
     ...(options.canViewProjects
-        ? [{ title: 'Projects', href: `/clients/${clientId}/projects`, icon: FolderKanban }]
+        ? [
+              {
+                  title: 'Projects',
+                  href: `/clients/${clientId}/projects`,
+                  icon: FolderKanban,
+              },
+          ]
         : []),
     ...(options.canViewIssues
-        ? [{ title: 'Issues', href: `/clients/${clientId}/issues`, icon: Ticket }]
+        ? [
+              {
+                  title: 'Issues',
+                  href: `/clients/${clientId}/issues`,
+                  icon: Ticket,
+              },
+          ]
         : []),
     ...(options.canViewBoards
-        ? [{ title: 'Boards', href: `/clients/${clientId}/boards`, icon: LayoutGrid }]
+        ? [
+              {
+                  title: 'Boards',
+                  href: `/clients/${clientId}/boards`,
+                  icon: LayoutGrid,
+              },
+          ]
         : []),
     ...(options.canViewStatuses
-        ? [{ title: 'Statuses', href: `/clients/${clientId}/statuses`, icon: ListChecks }]
+        ? [
+              {
+                  title: 'Statuses',
+                  href: `/clients/${clientId}/statuses`,
+                  icon: ListChecks,
+              },
+          ]
         : []),
     ...(options.canViewFinance
-        ? [{ title: 'Finance', href: `/clients/${clientId}/finance`, icon: DollarSign }]
+        ? [
+              {
+                  title: 'Finance',
+                  href: `/clients/${clientId}/finance`,
+                  icon: DollarSign,
+              },
+          ]
         : []),
 ];
 
 export default function ClientWorkspaceLayout({
-    title,
-    description,
     children,
 }: ClientWorkspaceLayoutProps) {
-    const { auth, client } = usePage<ClientWorkspacePageProps>().props;
+    const { auth, client } = getPageProps<ClientWorkspacePageProps>(
+        children,
+    ) as ClientWorkspacePageProps;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const canAccessPlatform = Boolean(auth.user?.capabilities?.platform);
     const role = auth.user?.portal_context?.role;
@@ -84,36 +136,36 @@ export default function ClientWorkspaceLayout({
         role === 'admin' ||
         permissions.includes(permission);
     const workspaceSections = sections(client.id, {
-        canViewMembers: Boolean(auth.user?.portal_context?.can_view_members) || canAccessPlatform,
-        canViewProjects: hasPermission('projects.read') || hasPermission('projects.write') || canAccessPlatform,
-        canViewIssues: hasPermission('issues.read') || hasPermission('issues.write') || canAccessPlatform,
-        canViewBoards: hasPermission('boards.read') || hasPermission('boards.write') || canAccessPlatform,
-        canViewStatuses: hasPermission('statuses.read') || hasPermission('statuses.write') || canAccessPlatform,
-        canViewFinance: Boolean(auth.user?.portal_context?.can_access_finance) || canAccessPlatform,
+        canViewMembers:
+            Boolean(auth.user?.portal_context?.can_view_members) ||
+            canAccessPlatform,
+        canViewProjects:
+            hasPermission('projects.read') ||
+            hasPermission('projects.write') ||
+            canAccessPlatform,
+        canViewIssues:
+            hasPermission('issues.read') ||
+            hasPermission('issues.write') ||
+            canAccessPlatform,
+        canViewBoards:
+            hasPermission('boards.read') ||
+            hasPermission('boards.write') ||
+            canAccessPlatform,
+        canViewStatuses:
+            hasPermission('statuses.read') ||
+            hasPermission('statuses.write') ||
+            canAccessPlatform,
+        canViewFinance:
+            Boolean(auth.user?.portal_context?.can_access_finance) ||
+            canAccessPlatform,
     });
 
     return (
         <AppLayout>
             <div className="flex flex-1 flex-col gap-0">
-                <div className="border-b border-border bg-card px-6 py-5">
-                    <h1 className="text-lg font-bold">
-                        {title ?? 'Workspace'}
-                    </h1>
-                    <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
-                        <p>{description ?? 'Workspace with Nour'}</p>
-                        <p>
-                            {client.name}
-                            {client.email ? ` · ${client.email}` : ''}
-                            {client.behavior
-                                ? ` · ${client.behavior.name}`
-                                : ''}
-                        </p>
-                    </div>
-                </div>
-
                 {canAccessPlatform ? (
                     <div className="grid flex-1 lg:grid-cols-[220px_minmax(0,1fr)]">
-                        <aside className="border-b border-border bg-card p-4 lg:border-b-0 lg:border-r">
+                        <aside className="border-b border-border bg-card p-4 lg:border-r lg:border-b-0">
                             <nav className="space-y-1">
                                 {workspaceSections.map((section) => {
                                     const active = section.exact

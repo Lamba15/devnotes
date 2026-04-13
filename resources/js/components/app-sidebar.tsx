@@ -42,16 +42,13 @@ export function AppSidebar() {
             } | null;
         };
     }>();
-    const canAccessPlatform = Boolean(
-        page.props.auth.user?.capabilities?.platform,
-    );
-    const canUseAssistant = Boolean(
-        page.props.auth.user?.capabilities?.use_assistant,
-    );
-    const portalClientId = page.props.auth.user?.portal_context?.client_id;
-    const portalClientName = page.props.auth.user?.portal_context?.client_name;
+    const auth = page.props.auth;
+    const canAccessPlatform = Boolean(auth.user?.capabilities?.platform);
+    const canUseAssistant = Boolean(auth.user?.capabilities?.use_assistant);
+    const portalClientId = auth.user?.portal_context?.client_id;
+    const portalClientName = auth.user?.portal_context?.client_name;
     const portalCanAccessFinance = Boolean(
-        page.props.auth.user?.portal_context?.can_access_finance,
+        auth.user?.portal_context?.can_access_finance,
     );
     const homeHref = canAccessPlatform
         ? '/overview'

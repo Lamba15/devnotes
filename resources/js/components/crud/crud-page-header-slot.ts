@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
+import type { ReactNode } from 'react';
 
-let currentHeaderSlot: HTMLElement | null = null;
+let currentHeaderContent: ReactNode = null;
 
 const listeners = new Set<() => void>();
 
@@ -10,16 +11,16 @@ function emitChange() {
     }
 }
 
-export function setCrudPageHeaderSlot(nextHeaderSlot: HTMLElement | null) {
-    if (currentHeaderSlot === nextHeaderSlot) {
+export function setCrudPageHeaderContent(nextHeaderContent: ReactNode) {
+    if (currentHeaderContent === nextHeaderContent) {
         return;
     }
 
-    currentHeaderSlot = nextHeaderSlot;
+    currentHeaderContent = nextHeaderContent;
     emitChange();
 }
 
-export function useCrudPageHeaderSlot() {
+export function useCrudPageHeaderContent() {
     return useSyncExternalStore(
         (listener) => {
             listeners.add(listener);
@@ -28,7 +29,7 @@ export function useCrudPageHeaderSlot() {
                 listeners.delete(listener);
             };
         },
-        () => currentHeaderSlot,
+        () => currentHeaderContent,
         () => null,
     );
 }

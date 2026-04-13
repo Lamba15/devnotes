@@ -7,6 +7,7 @@ use App\Actions\Tracking\DeleteIssue;
 use App\Actions\Tracking\UpdateIssue;
 use App\Models\Attachment;
 use App\Models\AuditLog;
+use App\Models\Board;
 use App\Models\Client;
 use App\Models\Issue;
 use App\Models\IssueComment;
@@ -157,6 +158,7 @@ class IssueController extends Controller
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
+            'return_to' => $this->resolveShowReturnTarget($request, $client, $project),
             'can_manage_issue' => $request->user()->canManageIssues($project),
             'can_comment' => $request->user()->canCommentOnIssue($issue),
             'comments' => $this->serializeComments($issue),
@@ -274,6 +276,33 @@ class IssueController extends Controller
             'comments' => $this->buildCommentTree($issue->comments, null),
             'comments_count' => $issue->comments->count(),
             'can_comment' => $canComment,
+        ];
+    }
+
+    private function resolveShowReturnTarget(
+        Request $request,
+        Client $client,
+        Project $project,
+    ): ?array {
+        $boardId = $request->query('board_id');
+
+        if (! is_scalar($boardId) || ! ctype_digit((string) $boardId)) {
+            return null;
+        }
+
+        $board = Board::query()->find((int) $boardId);
+
+        if (! $board || $board->project_id !== $project->id || ! $request->user()->canAccessBoard($board)) {
+            return null;
+        }
+
+        return [
+            'href' => route('clients.projects.boards.show', [
+                'client' => $client,
+                'project' => $project,
+                'board' => $board,
+            ], false),
+            'label' => 'Back to board',
         ];
     }
 
