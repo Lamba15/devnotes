@@ -24,9 +24,18 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { GripVertical, Pencil, Plus, Users, X } from 'lucide-react';
+import {
+    Archive,
+    ChevronDown,
+    ChevronUp,
+    GripVertical,
+    Pencil,
+    Plus,
+    Users,
+    X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -61,7 +70,7 @@ type Column = {
 };
 
 type Lane = {
-    id: number | null;
+    id: number;
     name: string;
     issues: Issue[];
     issues_count: number;
@@ -135,25 +144,15 @@ function getIssueId(issueId: number) {
     return `issue-${issueId}`;
 }
 
-function buildLanes(backlogIssues: Issue[], boardColumns: Column[]): Lane[] {
-    return [
-        {
-            id: null,
-            name: 'Backlog',
-            issues: backlogIssues,
-            issues_count: backlogIssues.length,
-            mapped_status: null,
-            updates_status: false,
-        },
-        ...boardColumns.map((column) => ({
-            id: column.id,
-            name: column.name,
-            issues: column.issues,
-            issues_count: column.issues_count,
-            mapped_status: column.mapped_status,
-            updates_status: column.updates_status,
-        })),
-    ];
+function buildLanes(boardColumns: Column[]): Lane[] {
+    return boardColumns.map((column) => ({
+        id: column.id,
+        name: column.name,
+        issues: column.issues,
+        issues_count: column.issues_count,
+        mapped_status: column.mapped_status,
+        updates_status: column.updates_status,
+    }));
 }
 
 function findIssueLocation(
@@ -283,8 +282,10 @@ export default function BoardShow({
     const [boardDataOverride, setBoardDataOverride] =
         useState<BoardData | null>(null);
     const [dragState, setDragState] = useState<DragState | null>(null);
+    const [isBacklogOpen, setIsBacklogOpen] = useState(false);
     const [showAddColumn, setShowAddColumn] = useState(false);
     const issueElementRefs = useRef(new Map<number, HTMLDivElement>());
+    const backlogToggleRef = useRef<HTMLButtonElement>(null);
     const lastOverIdRef = useRef<string | null>(null);
     const pendingBoardDataRef = useRef<BoardData | null>(null);
     const columnForm = useForm({
@@ -304,12 +305,24 @@ export default function BoardShow({
     );
     const boardColumns = boardDataOverride?.boardColumns ?? columns;
     const backlogIssues = boardDataOverride?.backlogIssues ?? backlog;
-    const allLanes = buildLanes(backlogIssues, boardColumns);
+    const allLanes = buildLanes(boardColumns);
     const activeIssue = dragState
-        ? (allLanes
-              .flatMap((lane) => lane.issues)
-              .find((issue) => issue.id === dragState.activeIssueId) ?? null)
+        ? ([...backlogIssues, ...allLanes.flatMap((lane) => lane.issues)].find(
+              (issue) => issue.id === dragState.activeIssueId,
+          ) ?? null)
         : null;
+
+    const closeBacklogDrawer = (restoreFocus = false) => {
+        setIsBacklogOpen(false);
+
+        if (!restoreFocus) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            backlogToggleRef.current?.focus();
+        });
+    };
 
     const setIssueElementRef = (
         issueId: number,
@@ -756,11 +769,18 @@ export default function BoardShow({
                     onDragEnd={handleDragEnd}
                     onDragCancel={handleDragCancel}
                 >
-                    <div className="-mx-6 flex overflow-x-auto px-6 pb-4">
+                    <div
+                        className={cn(
+                            '-mx-6 flex overflow-x-auto px-6 transition-[padding] duration-200',
+                            isBacklogOpen
+                                ? 'pb-[min(65vh,29rem)] sm:pb-[min(60vh,24rem)]'
+                                : 'pb-24 sm:pb-20',
+                        )}
+                    >
                         <div className="flex">
                             {allLanes.map((lane) => (
                                 <BoardLane
-                                    key={lane.id ?? 'backlog'}
+                                    key={lane.id}
                                     lane={lane}
                                     clientId={client.id}
                                     projectId={project.id}
@@ -772,6 +792,20 @@ export default function BoardShow({
                             ))}
                         </div>
                     </div>
+
+                    <BacklogDrawer
+                        issues={backlogIssues}
+                        clientId={client.id}
+                        projectId={project.id}
+                        canMoveIssues={can_move_issues}
+                        movingIssueId={movingIssueId}
+                        dragState={dragState}
+                        isOpen={isBacklogOpen}
+                        onOpenChange={setIsBacklogOpen}
+                        onCloseWithFocus={() => closeBacklogDrawer(true)}
+                        onIssueNodeChange={setIssueElementRef}
+                        toggleButtonRef={backlogToggleRef}
+                    />
 
                     <DragOverlay adjustScale={false}>
                         {activeIssue ? (
@@ -841,9 +875,10 @@ function BoardLane({
 
     return (
         <div
+            data-testid={`board-lane-${lane.id}`}
             className={cn(
                 'flex w-64 min-w-[256px] shrink-0 flex-col',
-                lane.id !== null && 'border-l border-border',
+                'border-l border-border',
             )}
         >
             <div className="sticky top-0 z-10 flex items-center gap-2 bg-background px-3 py-2.5">
@@ -857,6 +892,7 @@ function BoardLane({
 
             <div
                 ref={setNodeRef}
+                data-testid={`board-dropzone-${lane.id}`}
                 className={cn(
                     'flex min-h-[200px] flex-1 flex-col gap-1.5 p-2 transition-colors',
                     isOver && 'bg-primary/5',
@@ -870,16 +906,14 @@ function BoardLane({
                         {lane.issues.length === 0 &&
                         adjustedInsertionIndex === null ? (
                             <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-                                {lane.id === null
-                                    ? 'No backlog issues'
-                                    : 'Drop issues here'}
+                                Drop issues here
                             </div>
                         ) : null}
 
                         {lane.issues.map((issue, index) => (
                             <div key={issue.id}>
                                 {adjustedInsertionIndex === index ? (
-                                    <InsertionMarker lane={lane} />
+                                    <InsertionMarker label={lane.name} />
                                 ) : null}
                                 <IssueCard
                                     issue={issue}
@@ -896,7 +930,7 @@ function BoardLane({
                         ))}
 
                         {adjustedInsertionIndex === lane.issues.length ? (
-                            <InsertionMarker lane={lane} />
+                            <InsertionMarker label={lane.name} />
                         ) : null}
                     </div>
                 </SortableContext>
@@ -905,11 +939,200 @@ function BoardLane({
     );
 }
 
-function InsertionMarker({ lane }: { lane: Lane }) {
+function BacklogDrawer({
+    issues,
+    clientId,
+    projectId,
+    canMoveIssues,
+    movingIssueId,
+    dragState,
+    isOpen,
+    onOpenChange,
+    onCloseWithFocus,
+    onIssueNodeChange,
+    toggleButtonRef,
+}: {
+    issues: Issue[];
+    clientId: number;
+    projectId: number;
+    canMoveIssues: boolean;
+    movingIssueId: number | null;
+    dragState: DragState | null;
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    onCloseWithFocus: () => void;
+    onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
+    toggleButtonRef: RefObject<HTMLButtonElement | null>;
+}) {
+    const { isOver, setNodeRef } = useDroppable({
+        id: BACKLOG_LANE_ID,
+        data: {
+            type: 'lane',
+            columnId: null,
+        },
+    });
+    const drawerId = 'board-backlog-drawer';
+    const insertionIndex =
+        dragState?.over.columnId === null
+            ? Math.max(0, Math.min(dragState.over.index, issues.length))
+            : null;
+    const adjustedInsertionIndex =
+        dragState &&
+        insertionIndex !== null &&
+        dragState.source.columnId === null
+            ? insertionIndex >= dragState.source.index
+                ? insertionIndex + 1
+                : insertionIndex
+            : insertionIndex;
+
+    return (
+        <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-3 sm:px-6">
+            <div className="mx-auto flex max-w-5xl flex-col items-center gap-2">
+                <button
+                    ref={toggleButtonRef}
+                    type="button"
+                    data-testid="backlog-toggle"
+                    aria-controls={drawerId}
+                    aria-expanded={isOpen}
+                    onClick={() => {
+                        if (isOpen) {
+                            onCloseWithFocus();
+
+                            return;
+                        }
+
+                        onOpenChange(true);
+                    }}
+                    className={cn(
+                        'pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/95 px-4 py-2 text-sm font-medium text-foreground shadow-lg backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-background',
+                        isOpen && 'bg-background shadow-xl',
+                    )}
+                >
+                    <Archive className="size-4 text-muted-foreground" />
+                    <span>Backlog</span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {issues.length}
+                    </span>
+                    {isOpen ? (
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                        <ChevronUp className="size-4 text-muted-foreground" />
+                    )}
+                </button>
+
+                {isOpen ? (
+                    <div
+                        id={drawerId}
+                        data-testid="backlog-drawer"
+                        role="region"
+                        aria-label="Backlog"
+                        tabIndex={-1}
+                        onKeyDown={(event) => {
+                            if (event.key !== 'Escape') {
+                                return;
+                            }
+
+                            event.preventDefault();
+                            onCloseWithFocus();
+                        }}
+                        className="pointer-events-auto w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/95 shadow-2xl backdrop-blur-sm"
+                    >
+                        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 sm:px-5">
+                            <div className="flex items-center gap-2">
+                                <div className="rounded-full bg-muted p-2 text-muted-foreground">
+                                    <Archive className="size-4" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-foreground">
+                                        Backlog
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Hidden board stash for unplaced issues.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                                    {issues.length} issue
+                                    {issues.length === 1 ? '' : 's'}
+                                </span>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={onCloseWithFocus}
+                                >
+                                    <X className="size-4" />
+                                    Close
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div
+                            ref={setNodeRef}
+                            data-testid="backlog-dropzone"
+                            className={cn(
+                                'h-[min(65vh,28rem)] overflow-y-auto p-3 sm:h-[min(60vh,22rem)] sm:p-4',
+                                isOver && 'bg-primary/5',
+                            )}
+                        >
+                            <SortableContext
+                                items={issues.map((issue) =>
+                                    getIssueId(issue.id),
+                                )}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                <div className="flex flex-col gap-2">
+                                    {issues.length === 0 &&
+                                    adjustedInsertionIndex === null ? (
+                                        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+                                            No backlog issues
+                                        </div>
+                                    ) : null}
+
+                                    {issues.map((issue, index) => (
+                                        <div key={issue.id}>
+                                            {adjustedInsertionIndex ===
+                                            index ? (
+                                                <InsertionMarker label="Backlog" />
+                                            ) : null}
+                                            <IssueCard
+                                                issue={issue}
+                                                href={`/clients/${clientId}/projects/${projectId}/issues/${issue.id}`}
+                                                columnId={null}
+                                                canMove={canMoveIssues}
+                                                isMoving={
+                                                    movingIssueId === issue.id
+                                                }
+                                                isGhosted={
+                                                    dragState?.activeIssueId ===
+                                                    issue.id
+                                                }
+                                                onNodeChange={onIssueNodeChange}
+                                            />
+                                        </div>
+                                    ))}
+
+                                    {adjustedInsertionIndex ===
+                                    issues.length ? (
+                                        <InsertionMarker label="Backlog" />
+                                    ) : null}
+                                </div>
+                            </SortableContext>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+function InsertionMarker({ label }: { label: string }) {
     return (
         <div className="overflow-hidden">
             <div className="mx-1 flex h-full items-center rounded-md border border-dashed border-primary/35 bg-primary/6 px-3 text-[11px] font-medium text-primary">
-                {lane.name}
+                {label}
             </div>
         </div>
     );
@@ -961,6 +1184,7 @@ function IssueCard({
                 setNodeRef(node);
                 onNodeChange?.(issue.id, node);
             }}
+            data-testid={`board-issue-${issue.id}`}
             style={{
                 transform: CSS.Translate.toString(transform),
                 transition,
@@ -977,6 +1201,9 @@ function IssueCard({
                 href={href}
                 interactive
                 showHandle={canMove}
+                handleTestId={
+                    canMove ? `issue-drag-handle-${issue.id}` : undefined
+                }
                 className="w-full"
                 handleProps={
                     canMove
@@ -999,6 +1226,7 @@ function IssueCardBody({
     interactive = false,
     showHandle = false,
     handleProps,
+    handleTestId,
     className,
     style,
 }: {
@@ -1007,6 +1235,7 @@ function IssueCardBody({
     interactive?: boolean;
     showHandle?: boolean;
     handleProps?: Record<string, unknown>;
+    handleTestId?: string;
     className?: string;
     style?: CSSProperties;
 }) {
@@ -1016,6 +1245,7 @@ function IssueCardBody({
                 {showHandle ? (
                     <button
                         type="button"
+                        data-testid={handleTestId}
                         className="mt-0.5 shrink-0 cursor-grab rounded-sm p-0.5 text-muted-foreground/50 opacity-100 transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-muted hover:text-foreground active:scale-95 active:cursor-grabbing"
                         {...handleProps}
                     >

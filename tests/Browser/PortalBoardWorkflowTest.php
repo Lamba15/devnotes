@@ -7,15 +7,27 @@ use App\Models\BoardIssuePlacement;
 use App\Models\BoardMembership;
 use App\Models\Client;
 use App\Models\ClientMembership;
+use App\Models\ClientMembershipPermission;
 use App\Models\Issue;
 use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
 
 uses(DatabaseMigrations::class);
+
+function grantClientPermissions(ClientMembership $membership, array $permissions): void
+{
+    foreach (ClientPermissionCatalog::normalize($permissions) as $permission) {
+        ClientMembershipPermission::query()->create([
+            'client_membership_id' => $membership->id,
+            'permission_name' => $permission,
+        ]);
+    }
+}
 
 test('member with board access can move an issue through the board UI', function () {
     $client = Client::factory()->create([
@@ -50,10 +62,14 @@ test('member with board access can move an issue through the board UI', function
         'creator_id' => $member->id,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
     ]);
 
     ProjectMembership::query()->create([
@@ -66,17 +82,28 @@ test('member with board access can move an issue through the board UI', function
         'user_id' => $member->id,
     ]);
 
-    $this->browse(function (Browser $browser) use ($member, $client, $project, $board) {
+    $this->browse(function (Browser $browser) use ($member, $client, $project, $board, $column, $issue) {
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($member)
             ->visit('/overview')
             ->waitForText($client->name, 20)
             ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->waitFor('[data-testid="backlog-toggle"]', 20)
+            ->assertMissing('[data-testid="backlog-drawer"]')
+            ->assertDontSee('Portal issue')
+            ->assertSeeIn('[data-testid="backlog-toggle"]', 'Backlog')
+            ->assertSeeIn('[data-testid="backlog-toggle"]', '1')
+            ->click('[data-testid="backlog-toggle"]')
+            ->waitFor('[data-testid="backlog-drawer"]', 20)
             ->waitForText('Portal issue', 20)
-            ->press('Move to Doing')
-            ->waitForText('No backlog issues.', 20)
-            ->assertSee('in_progress / medium / task');
+            ->drag(
+                '[data-testid="issue-drag-handle-'.$issue->id.'"]',
+                '[data-testid="board-dropzone-'.$column->id.'"]',
+            )
+            ->waitForTextIn('[data-testid="backlog-toggle"]', '0', 20)
+            ->waitForText('No backlog issues', 20)
+            ->assertPresent('[data-testid="board-issue-'.$issue->id.'"]');
     });
 
     $this->assertDatabaseHas('board_issue_placements', [
@@ -88,7 +115,91 @@ test('member with board access can move an issue through the board UI', function
     expect($issue->fresh()->status)->toBe('in_progress');
 });
 
-test('viewer can see a board but cannot move issues', function () {
+test('member can move an issue back into backlog through the drawer', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+        'name' => 'Return Client',
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Return Project',
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Return Board',
+    ]);
+    $column = BoardColumn::query()->create([
+        'board_id' => $board->id,
+        'name' => 'Doing',
+        'position' => 1,
+        'updates_status' => false,
+    ]);
+    $member = User::factory()->create([
+        'password' => 'password',
+    ]);
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Return issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    BoardIssuePlacement::query()->create([
+        'board_id' => $board->id,
+        'issue_id' => $issue->id,
+        'column_id' => $column->id,
+        'position' => 1,
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->browse(function (Browser $browser) use ($member, $client, $project, $board, $issue) {
+        $browser->driver->manage()->deleteAllCookies();
+
+        $browser->loginAs($member)
+            ->visit('/overview')
+            ->waitForText($client->name, 20)
+            ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->waitForText('Return issue', 20)
+            ->assertSeeIn('[data-testid="backlog-toggle"]', '0')
+            ->click('[data-testid="backlog-toggle"]')
+            ->waitFor('[data-testid="backlog-drawer"]', 20)
+            ->drag(
+                '[data-testid="issue-drag-handle-'.$issue->id.'"]',
+                '[data-testid="backlog-dropzone"]',
+            )
+            ->waitForTextIn('[data-testid="backlog-toggle"]', '1', 20)
+            ->waitForText('Return issue', 20);
+    });
+
+    $this->assertDatabaseMissing('board_issue_placements', [
+        'board_id' => $board->id,
+        'issue_id' => $issue->id,
+    ]);
+});
+
+test('viewer can open backlog but cannot move issues', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
         'name' => 'Viewer Client',
@@ -121,14 +232,23 @@ test('viewer can see a board but cannot move issues', function () {
         'creator_id' => $viewer->id,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $viewer->id,
         'role' => 'viewer',
     ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
+    ]);
 
     ProjectMembership::query()->create([
         'project_id' => $project->id,
+        'user_id' => $viewer->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
         'user_id' => $viewer->id,
     ]);
 
@@ -139,9 +259,13 @@ test('viewer can see a board but cannot move issues', function () {
             ->visit('/overview')
             ->waitForText($client->name, 20)
             ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->waitFor('[data-testid="backlog-toggle"]', 20)
+            ->assertMissing('[data-testid="backlog-drawer"]')
+            ->assertDontSee('Viewer issue')
+            ->click('[data-testid="backlog-toggle"]')
+            ->waitFor('[data-testid="backlog-drawer"]', 20)
             ->waitForText('Viewer issue', 20)
-            ->assertDontSee('Move to Doing')
-            ->assertSee('todo / low / task');
+            ->assertMissing('[aria-label="Move Viewer issue"]');
     });
 });
 
@@ -194,10 +318,14 @@ test('member can discover boards and read board context through the assistant', 
         'position' => 1,
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
     ]);
 
     ProjectMembership::query()->create([

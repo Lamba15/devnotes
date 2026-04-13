@@ -13,6 +13,8 @@
 
 - Backlog is not a separate entity.
 - For a given board, backlog is the set of project issues that are not currently placed on that board.
+- In the board UI, backlog is presented as a hidden drawer/dock rather than a permanent visible lane.
+- That hidden backlog presentation is a UI choice only and does not change the domain rule that backlog is computed per board.
 
 ## Columns And Status
 
