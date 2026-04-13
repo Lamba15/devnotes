@@ -458,18 +458,12 @@ export function AssistantPanel({
         const syncHash = () => {
             setOpen(window.location.hash === '#assistant');
         };
-        const openAssistant = () => {
-            setOpen(true);
-            void loadThreads();
-        };
 
         syncHash();
         window.addEventListener('hashchange', syncHash);
-        window.addEventListener('assistant:open', openAssistant);
 
         return () => {
             window.removeEventListener('hashchange', syncHash);
-            window.removeEventListener('assistant:open', openAssistant);
         };
     }, []);
 

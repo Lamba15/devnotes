@@ -15,6 +15,19 @@ const TIME_ZONE_SYNC_KEY = 'devnotes.timezone-sync';
 
 type AppAuthPayload = Auth | { user?: null } | null | undefined;
 
+function resolveDefaultLayout(name: string) {
+    switch (true) {
+        case name === 'welcome':
+            return undefined;
+        case name.startsWith('auth/'):
+            return AuthLayout;
+        case name.startsWith('settings/'):
+            return [AppLayout, SettingsLayout];
+        default:
+            return AppLayout;
+    }
+}
+
 function TimeZoneBootstrap({
     auth,
     children,
@@ -70,19 +83,19 @@ createInertiaApp({
         resolvePageComponent(
             `./pages/${name}.tsx`,
             import.meta.glob('./pages/**/*.tsx'),
-        ).then((module) => (module as { default: ComponentType }).default),
-    layout: (name) => {
-        switch (true) {
-            case name === 'welcome':
-                return null;
-            case name.startsWith('auth/'):
-                return AuthLayout;
-            case name.startsWith('settings/'):
-                return [AppLayout, SettingsLayout];
-            default:
-                return AppLayout;
-        }
-    },
+        ).then((module) => {
+            const page = (module as { default: ComponentType }).default as {
+                layout?: unknown;
+            } & ComponentType;
+
+            if (page.layout === undefined) {
+                (
+                    page as { layout?: ReturnType<typeof resolveDefaultLayout> }
+                ).layout = resolveDefaultLayout(name);
+            }
+
+            return page as ComponentType;
+        }),
     strictMode: true,
     withApp(app) {
         const auth = (
