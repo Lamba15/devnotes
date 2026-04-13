@@ -35,6 +35,9 @@ export type DynamicFormField =
     | (BaseField & {
           type: 'select';
           options?: DynamicFormOption[];
+          clearable?: boolean;
+          creatable?: boolean;
+          searchable?: boolean;
       })
     | (BaseField & {
           type: 'custom';
@@ -150,7 +153,11 @@ export function DynamicForm({
                         {cancelLabel}
                     </Button>
                 ) : null}
-                <Button disabled={processing} type="submit">
+                <Button
+                    data-testid="dynamic-form-submit"
+                    disabled={processing}
+                    type="submit"
+                >
                     {submitLabel.toLowerCase().startsWith('create') ? (
                         <Plus className="mr-1.5 size-4" />
                     ) : (
@@ -239,8 +246,12 @@ function FormField({
                 <SearchableSelect
                     id={field.name}
                     name={field.name}
+                    data-testid={`${field.name}-select`}
                     value={value}
                     placeholder={field.placeholder ?? `Select ${field.label}`}
+                    isClearable={field.clearable}
+                    isCreatable={field.creatable}
+                    isSearchable={field.searchable}
                     onValueChange={(nextValue) =>
                         onChange(field.name, nextValue)
                     }

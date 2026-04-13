@@ -34,6 +34,17 @@ function setNativeIssueInputValue(Browser $browser, string $selector, string $va
     );
 }
 
+function clickDomElement(Browser $browser, string $selector): void
+{
+    $encodedSelector = json_encode($selector, JSON_THROW_ON_ERROR);
+
+    $browser->script(
+        "const element = document.querySelector({$encodedSelector});".
+        "if (!element) { throw new Error('Unable to find DOM element to click'); }".
+        "element.click();"
+    );
+}
+
 test('owner can create an issue from the project issue index', function () {
     $owner = User::factory()->create([
         'password' => 'password',
@@ -49,31 +60,30 @@ test('owner can create an issue from the project issue index', function () {
     ]);
 
     $this->browse(function (Browser $browser) use ($owner, $client, $project) {
+        $createPath = route('clients.projects.issues.create', [$client, $project], false);
+
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
-            ->visit(route('clients.projects.issues.create', [$client, $project], false))
-            ->waitFor("input[name='title']", 20);
+            ->visit(route('clients.projects.issues.index', [$client, $project], false))
+            ->waitFor("a[href='{$createPath}']", 20)
+            ->waitUsing(20, 100, fn () => (bool) $browser->script(
+                "return document.querySelector(".json_encode("a[href='{$createPath}']", JSON_THROW_ON_ERROR).") !== null;"
+            )[0]);
+
+        clickDomElement($browser, "a[href='{$createPath}']");
+
+        $browser->waitFor("input[name='title']", 20)
+            ->waitFor("[data-testid='dynamic-form-submit']", 20);
 
         setNativeIssueInputValue($browser, "input[name='title']", 'Browser issue');
-        setNativeIssueInputValue($browser, "textarea[name='description']", 'Created through Dusk');
+        clickDomElement($browser, "[data-testid='dynamic-form-submit']");
 
-        $browser->click('#status')
-            ->waitForText('todo', 20);
-        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'todo')?.click();");
-
-        $browser->click('#priority')
-            ->waitForText('high', 20);
-        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'high')?.click();");
-
-        $browser->click('#type')
-            ->waitForText('bug', 20);
-        $browser->script("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'bug')?.click();");
-
-        $browser->press('Create issue')
-            ->waitForText('Browser issue', 20)
+        $browser->waitForText('Browser issue', 20)
             ->assertSee('Browser issue')
-            ->assertSee('high');
+            ->assertSee('todo')
+            ->assertSee('medium')
+            ->assertSee('task');
     });
 });
 

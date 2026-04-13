@@ -204,12 +204,12 @@ export default function ProjectsIndex({
                 description="Projects are owned by exactly one client in v1."
                 actions={
                     can_create_projects ? (
-                        <Link href={`/clients/${client.id}/projects/create`}>
-                            <Button>
+                        <Button asChild>
+                            <Link href={`/clients/${client.id}/projects/create`}>
                                 <Plus className="mr-1.5 size-4" />
                                 Create project
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >

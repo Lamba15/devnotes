@@ -41,18 +41,6 @@ export default function IssuesCreate({
             return return_to.href;
         }
 
-        try {
-            if (window.history.length > 1 && document.referrer) {
-                const referrer = new URL(document.referrer);
-
-                if (referrer.origin === window.location.origin) {
-                    return `${referrer.pathname}${referrer.search}${referrer.hash}`;
-                }
-            }
-        } catch {
-            // Ignore malformed referrers and fall back to the issue index.
-        }
-
         return null;
     };
 

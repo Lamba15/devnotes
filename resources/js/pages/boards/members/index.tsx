@@ -207,12 +207,12 @@ export default function BoardMembersIndex({
                 description={`${client.name} / ${project.name}`}
                 actions={
                     can_manage_members ? (
-                        <Link href={`${basePath}/create`}>
-                            <Button>
+                        <Button asChild>
+                            <Link href={`${basePath}/create`}>
                                 <UserPlus className="mr-1.5 size-4" />
                                 Add member
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >

@@ -81,34 +81,34 @@ export default function ProjectShow({
                         </div>
                         <div className="flex items-center gap-2">
                             {can_manage_project ? (
-                                <Link
-                                    href={`/clients/${client.id}/projects/${project.id}/edit`}
-                                >
-                                    <Button variant="outline">
+                                <Button asChild variant="outline">
+                                    <Link
+                                        href={`/clients/${client.id}/projects/${project.id}/edit`}
+                                    >
                                         <Camera className="mr-1.5 size-3.5" />
                                         {project.image_path ? 'Update logo' : 'Add logo'}
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : null}
                             {can_manage_project ? (
-                                <Link
-                                    href={`/clients/${client.id}/projects/${project.id}/issues/create`}
-                                >
-                                    <Button>
+                                <Button asChild>
+                                    <Link
+                                        href={`/clients/${client.id}/projects/${project.id}/issues/create?return_to=${encodeURIComponent(`/clients/${client.id}/projects/${project.id}`)}`}
+                                    >
                                         <Plus className="mr-1.5 size-4" />
                                         Create issue
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : null}
                             {can_manage_project ? (
-                                <Link
-                                    href={`/clients/${client.id}/projects/${project.id}/edit`}
-                                >
-                                    <Button variant="outline">
+                                <Button asChild variant="outline">
+                                    <Link
+                                        href={`/clients/${client.id}/projects/${project.id}/edit`}
+                                    >
                                         <Pencil className="mr-1.5 size-3.5" />
                                         Edit project
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : null}
                         </div>
                     </CardHeader>

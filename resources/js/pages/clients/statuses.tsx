@@ -18,6 +18,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type StatusRow = {
@@ -103,7 +104,11 @@ export default function ClientStatusesPage({
             header: 'Scope',
             render: (status) => (
                 <Badge variant="outline" className="gap-1">
-                    {status.client_id ? <User className="size-3" /> : <Globe className="size-3" />}
+                    {status.client_id ? (
+                        <User className="size-3" />
+                    ) : (
+                        <Globe className="size-3" />
+                    )}
                     {status.client_id ? 'Client' : 'System'}
                 </Badge>
             ),
@@ -188,45 +193,55 @@ export default function ClientStatusesPage({
                 description="Manage the status definitions available in this client workspace."
                 actions={
                     can_manage_statuses ? (
-                        <Link href={`/clients/${client.id}/statuses/create`}>
-                            <Button>
+                        <Button asChild>
+                            <Link href={`/clients/${client.id}/statuses/create`}>
                                 <Plus className="mr-1.5 size-4" />
                                 Create status
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >
                 <FilterBar>
                     <div className="flex flex-col gap-3 md:flex-row md:items-center">
                         <div className="relative md:max-w-sm">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 value={query}
-                                onChange={(event) => setQuery(event.target.value)}
+                                onChange={(event) =>
+                                    setQuery(event.target.value)
+                                }
                                 placeholder="Search statuses..."
                                 className="pl-9"
                             />
                         </div>
-                        <select
+                        <SearchableSelect
+                            className="md:w-40"
+                            size="lg"
                             value={sortBy}
-                            onChange={(event) => setSortBy(event.target.value)}
-                            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option value="created_at">Newest</option>
-                            <option value="name">Name</option>
-                            <option value="slug">Slug</option>
-                        </select>
-                        <select
+                            isClearable={false}
+                            isSearchable={false}
+                            onValueChange={setSortBy}
+                            placeholder="Sort by"
+                            options={[
+                                { value: 'created_at', label: 'Newest' },
+                                { value: 'name', label: 'Name' },
+                                { value: 'slug', label: 'Slug' },
+                            ]}
+                        />
+                        <SearchableSelect
+                            className="md:w-32"
+                            size="lg"
                             value={sortDirection}
-                            onChange={(event) =>
-                                setSortDirection(event.target.value)
-                            }
-                            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option value="desc">Desc</option>
-                            <option value="asc">Asc</option>
-                        </select>
+                            isClearable={false}
+                            isSearchable={false}
+                            onValueChange={setSortDirection}
+                            placeholder="Direction"
+                            options={[
+                                { value: 'desc', label: 'Desc' },
+                                { value: 'asc', label: 'Asc' },
+                            ]}
+                        />
                     </div>
                 </FilterBar>
 

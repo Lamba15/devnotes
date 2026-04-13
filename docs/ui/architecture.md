@@ -59,7 +59,7 @@ The project prefers a dedicated reusable filter layer rather than rebuilding ad 
 
 ### SearchableSelect as Standard
 
-The standard select input across the application is `SearchableSelect` — a custom component that replaces basic HTML selects and Radix Select dropdowns in all filter and form contexts where search is useful.
+The standard select input across the application is `SearchableSelect` — a centralized wrapper built on `react-select` that replaces basic HTML selects and older Radix Select dropdowns across filter and form contexts.
 
 Standard features:
 
@@ -68,8 +68,9 @@ Standard features:
 - Inline clear button (X) when a value is selected
 - Focus ring styling consistent with the design system
 - Keyboard support (Escape to close, click-outside to dismiss)
+- Menus should not lock page scrolling; scrolling the page should dismiss the open menu instead
 - A "no results" empty state when search matches nothing
-- The unselected/reset option (e.g. "All users") appears at the top when no search query is active
+- Clearable selects should expose reset through the inline clear control rather than a duplicate placeholder option in the menu
 
 ### Drill-Down Filter Behavior
 
@@ -111,9 +112,29 @@ Current direction:
 - CRUD pages should share a common structural shell.
 - Create, edit, and list flows should feel like one coherent system.
 - Central reusable modals should exist for repeated interaction patterns such as:
-  - confirmation modals
-  - form modals
-  - other repeatable modal workflows
+    - confirmation modals
+    - form modals
+    - other repeatable modal workflows
+
+### Navigation Actions
+
+CRUD actions that navigate should render as one interactive element.
+
+Current direction:
+
+- Do not nest a clickable button inside a link.
+- Button-styled navigation should use the button component in `asChild` mode with an anchor or Inertia `Link` as the actual interactive element.
+- This is a behavior rule, not just a markup preference: invalid nested interactive controls can break browser navigation and browser automation.
+
+### Shared Test Hooks
+
+Shared form infrastructure should expose stable selectors for browser-level tests where it materially improves reliability.
+
+Current direction:
+
+- The shared dynamic form submit action should expose a stable test hook.
+- Shared select fields may expose stable test hooks at the form-field level when browser automation needs to target the rendered control.
+- Prefer central test hooks on reusable components over ad hoc per-page selectors.
 
 ## Creatable Selects
 
@@ -124,6 +145,7 @@ Current direction:
 - Some select fields should allow the user to type a new value directly from the form.
 - When a new value is created in that select, it should become a reusable option elsewhere in the system.
 - This is especially relevant for statuses and other owner-defined classifications.
+- Until a field has a real shared taxonomy model behind it, a creatable select may be used as an ad hoc string-entry affordance without implying full global reuse.
 
 ## Constraint
 

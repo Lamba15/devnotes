@@ -263,15 +263,18 @@ export default function ClientIssuesPage({
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {creatable_projects.map((project) => (
-                                    <Link
+                                    <Button
                                         key={project.id}
-                                        href={`/clients/${client.id}/projects/${project.id}/issues/create`}
+                                        asChild
+                                        variant="outline"
                                     >
-                                        <Button variant="outline">
+                                        <Link
+                                            href={`/clients/${client.id}/projects/${project.id}/issues/create?return_to=${encodeURIComponent(`/clients/${client.id}/issues`)}`}
+                                        >
                                             <Plus className="mr-1.5 size-4" />
                                             {project.name}
-                                        </Button>
-                                    </Link>
+                                        </Link>
+                                    </Button>
                                 ))}
                             </div>
                         </CardContent>

@@ -259,12 +259,12 @@ export default function ClientsIndex({
                 title="Clients"
                 description="Manage clients as a real domain and enter each client workspace for their own members, projects, tracking, and finance."
                 actions={can_create_clients ? (
-                    <Link href="/clients/create">
-                        <Button>
+                    <Button asChild>
+                        <Link href="/clients/create">
                             <Plus className="mr-1.5 size-4" />
                             Create client
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                 ) : null}
             >
                 <FilterBar>

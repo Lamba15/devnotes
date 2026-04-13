@@ -209,12 +209,12 @@ export default function FinanceInvoices({
                 title="Invoices"
                 description="Manage project-linked invoices and billing state."
                 actions={
-                    <Link href="/finance/invoices/create">
-                        <Button>
+                    <Button asChild>
+                        <Link href="/finance/invoices/create">
                             <Plus className="mr-1.5 size-4" />
                             Create invoice
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                 }
             >
                 <FilterBar>

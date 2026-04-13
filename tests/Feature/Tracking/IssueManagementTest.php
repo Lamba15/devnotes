@@ -177,6 +177,82 @@ test('project admins can visit dedicated issue create and edit pages', function 
         ->assertInertia(fn (Assert $page) => $page->component('issues/edit'));
 });
 
+test('issue create and update accept custom status priority and type strings', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('clients.projects.issues.store', [$client, $project]), [
+            'title' => 'Custom classified issue',
+            'description' => 'Created with custom classifications',
+            'status' => 'blocked_external',
+            'priority' => 'urgent_now',
+            'type' => 'spike',
+        ])
+        ->assertRedirect(route('clients.projects.issues.index', [$client, $project]));
+
+    $issue = Issue::query()->where('title', 'Custom classified issue')->firstOrFail();
+
+    expect($issue->status)->toBe('blocked_external');
+    expect($issue->priority)->toBe('urgent_now');
+    expect($issue->type)->toBe('spike');
+
+    $this->actingAs($admin)
+        ->put(route('clients.projects.issues.update', [$client, $project, $issue]), [
+            'title' => 'Custom classified issue',
+            'description' => 'Updated with different custom classifications',
+            'status' => 'ready_for_review',
+            'priority' => 'critical_path',
+            'type' => 'investigation',
+        ])
+        ->assertRedirect(route('clients.projects.issues.show', [$client, $project, $issue]));
+
+    expect($issue->fresh()->status)->toBe('ready_for_review');
+    expect($issue->fresh()->priority)->toBe('critical_path');
+    expect($issue->fresh()->type)->toBe('investigation');
+});
+
+test('issue creation redirects back to an explicit return target', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    $returnTo = route('clients.projects.show', [$client, $project], false);
+
+    $this->actingAs($admin)
+        ->post(route('clients.projects.issues.store', [$client, $project]), [
+            'title' => 'Return target issue',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'type' => 'task',
+            'return_to' => $returnTo,
+        ])
+        ->assertRedirect($returnTo);
+});
+
 test('project members with issues write can visit dedicated issue create and edit pages', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

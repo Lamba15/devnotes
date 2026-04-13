@@ -47,18 +47,18 @@ export default function FinanceInvoiceShow({
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Link href="/finance/invoices">
-                                    <Button variant="outline">
+                                <Button asChild variant="outline">
+                                    <Link href="/finance/invoices">
                                         <ArrowLeft className="mr-1.5 size-3.5" />
                                         Back
-                                    </Button>
-                                </Link>
-                                <Link href={`/finance/invoices/${invoice.id}/edit`}>
-                                    <Button>
+                                    </Link>
+                                </Button>
+                                <Button asChild>
+                                    <Link href={`/finance/invoices/${invoice.id}/edit`}>
                                         <Pencil className="mr-1.5 size-3.5" />
                                         Edit
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             </div>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">

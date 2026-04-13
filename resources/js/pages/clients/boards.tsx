@@ -226,12 +226,12 @@ export default function ClientBoardsPage({
                 description="Manage the boards available across this client workspace without leaving the portal context."
                 actions={
                     can_manage_boards ? (
-                        <Link href={`/clients/${client.id}/boards/create`}>
-                            <Button>
+                        <Button asChild>
+                            <Link href={`/clients/${client.id}/boards/create`}>
                                 <Plus className="mr-1.5 size-4" />
                                 Create board
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >

@@ -130,12 +130,12 @@ export default function ClientShow({
                                 </CardTitle>
                             </div>
                             {can_edit_internal_client_profile ? (
-                                <Link href={`/clients/${client.id}/edit`}>
-                                    <Button size="sm">
+                                <Button asChild size="sm">
+                                    <Link href={`/clients/${client.id}/edit`}>
                                         <Pencil className="mr-1.5 size-3.5" />
                                         Edit client
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : null}
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">

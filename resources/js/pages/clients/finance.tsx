@@ -143,16 +143,16 @@ export default function ClientFinancePage({
                                 across the client projects you can access.
                             </p>
                             <div className="flex gap-2">
-                                <Link href="/finance/transactions">
-                                    <Button variant="outline" size="sm">
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href="/finance/transactions">
                                         Transactions
-                                    </Button>
-                                </Link>
-                                <Link href="/finance/invoices">
-                                    <Button variant="outline" size="sm">
+                                    </Link>
+                                </Button>
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href="/finance/invoices">
                                         Invoices
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
                     </CardContent>

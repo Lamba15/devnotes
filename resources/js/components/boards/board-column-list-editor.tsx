@@ -3,13 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 export type BoardColumnDraft = {
     id?: number;
@@ -156,14 +150,18 @@ export function BoardColumnListEditor({
 
                             <div className="space-y-2">
                                 <Label>Mapped status</Label>
-                                <Select
+                                <SearchableSelect
+                                    className="w-full"
+                                    size="default"
                                     value={
                                         column.updates_status
                                             ? column.mapped_status ||
                                               (statusOptions[0] ?? 'todo')
-                                            : 'board-only'
+                                            : ''
                                     }
                                     disabled={!column.updates_status}
+                                    isClearable={false}
+                                    isSearchable={false}
                                     onValueChange={(value) => {
                                         const next = [...values];
                                         next[index] = {
@@ -172,21 +170,12 @@ export function BoardColumnListEditor({
                                         };
                                         onChange(next);
                                     }}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {statusOptions.map((status) => (
-                                            <SelectItem
-                                                key={status}
-                                                value={status}
-                                            >
-                                                {status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    placeholder="Select status"
+                                    options={statusOptions.map((status) => ({
+                                        value: status,
+                                        label: status,
+                                    }))}
+                                />
                                 <p className="text-sm text-muted-foreground">
                                     Board-only columns leave the issue status
                                     untouched.

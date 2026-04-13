@@ -28,6 +28,43 @@ function setNativeInputValue(Browser $browser, string $selector, string $value):
     );
 }
 
+function clickDomElement(Browser $browser, string $selector): void
+{
+    $encodedSelector = json_encode($selector, JSON_THROW_ON_ERROR);
+
+    $browser->script(
+        "const element = document.querySelector({$encodedSelector});".
+        "if (!element) { throw new Error('Unable to find DOM element to click'); }".
+        "element.click();"
+    );
+}
+
+function selectSearchableOption(Browser $browser, string $selector, string $optionLabel): void
+{
+    $encodedLabel = json_encode($optionLabel, JSON_THROW_ON_ERROR);
+    $encodedSelector = json_encode($selector, JSON_THROW_ON_ERROR);
+
+    $browser->waitFor($selector, 20);
+
+    $browser->script(
+        "const element = document.querySelector({$encodedSelector});".
+        "if (!element) { throw new Error('Unable to find searchable select control'); }".
+        "element.click();"
+    );
+
+    $browser->waitUsing(20, 100, function () use ($browser, $encodedLabel) {
+        return (bool) $browser->script(
+            "return [...document.querySelectorAll('[role=\"option\"]')].some((option) => option.textContent?.trim() === {$encodedLabel});"
+        )[0];
+    });
+
+    $browser->script(
+        "const option = [...document.querySelectorAll('[role=\"option\"]')].find((node) => node.textContent?.trim() === {$encodedLabel});".
+        "if (!option) { throw new Error('Unable to find searchable select option'); }".
+        "option.click();"
+    );
+}
+
 test('owner can log in and land on overview', function () {
     $owner = User::factory()->create([
         'password' => 'password',
@@ -61,7 +98,11 @@ test('owner can create a client project and client user through the browser', fu
 
         setNativeInputValue($browser, "input[name='name']", 'Acme Studio');
 
-        $browser->press('Create client')
+        $browser->waitFor("[data-testid='dynamic-form-submit']", 20);
+
+        clickDomElement($browser, "[data-testid='dynamic-form-submit']");
+
+        $browser
             ->waitForText('Acme Studio', 20)
             ->assertSee('Acme Studio');
     });
@@ -79,14 +120,17 @@ test('owner can create a client project and client user through the browser', fu
         setNativeInputValue($browser, "input[name='name']", 'Website Refresh');
         setNativeInputValue($browser, "textarea[name='description']", 'Refresh the public website');
 
-        $browser->click('#status_id')
-            ->waitForText($activeStatus->name, 20);
-
-        $browser->script(
-            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ".json_encode($activeStatus->name, JSON_THROW_ON_ERROR).")?.click();"
+        selectSearchableOption(
+            $browser,
+            "[data-testid='status_id-select']",
+            $activeStatus->name,
         );
 
-        $browser->press('Create project')
+        $browser->waitFor("[data-testid='dynamic-form-submit']", 20);
+
+        clickDomElement($browser, "[data-testid='dynamic-form-submit']");
+
+        $browser
             ->waitForText('Website Refresh', 20)
             ->assertSee('Website Refresh')
             ->visit("/clients/{$client->id}/members/create")
@@ -96,14 +140,13 @@ test('owner can create a client project and client user through the browser', fu
         setNativeInputValue($browser, "input[name='email']", 'portal-viewer@example.com');
         setNativeInputValue($browser, "input[name='password']", 'secret-pass-123');
 
-        $browser->click('#role')
-            ->waitForText('Viewer', 20);
+        selectSearchableOption($browser, "[data-testid='role-select']", 'Viewer');
 
-        $browser->script(
-            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Viewer')?.click();"
-        );
+        $browser->waitFor("[data-testid='dynamic-form-submit']", 20);
 
-        $browser->press('Create client user')
+        clickDomElement($browser, "[data-testid='dynamic-form-submit']");
+
+        $browser
             ->waitForText('portal-viewer@example.com', 20)
             ->assertSee('portal-viewer@example.com')
             ->assertSee('viewer');
@@ -130,20 +173,23 @@ test('owner can create a project linked transaction through the browser', functi
 
         $browser->loginAs($owner)
             ->visit('/finance/transactions/create')
-            ->waitFor('#project_id', 20);
+            ->waitFor("[data-testid='project_id-select']", 20);
 
-        $browser->click('#project_id')
-            ->waitForText('Finance Client / Finance Project', 20);
-
-        $browser->script(
-            "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Finance Client / Finance Project')?.click();"
+        selectSearchableOption(
+            $browser,
+            "[data-testid='project_id-select']",
+            'Finance Client / Finance Project',
         );
 
         setNativeInputValue($browser, "input[name='description']", 'Discovery session');
         setNativeInputValue($browser, "input[name='amount']", '1200.00');
         setNativeInputValue($browser, "input[name='occurred_at']", '2026-04-05');
 
-        $browser->press('Create transaction')
+        $browser->waitFor("[data-testid='dynamic-form-submit']", 20);
+
+        clickDomElement($browser, "[data-testid='dynamic-form-submit']");
+
+        $browser
             ->waitForText('Discovery session', 20)
             ->assertSee('Finance Project')
             ->assertSee('Discovery session')

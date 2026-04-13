@@ -46,13 +46,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
 import { cn, stripHtml } from '@/lib/utils';
@@ -679,14 +673,14 @@ export default function BoardShow({
                 actions={
                     <div className="flex items-center gap-2">
                         {can_create_issues ? (
-                            <Link
-                                href={`/clients/${client.id}/projects/${project.id}/issues/create`}
-                            >
-                                <Button size="sm">
+                            <Button asChild size="sm">
+                                <Link
+                                    href={`/clients/${client.id}/projects/${project.id}/issues/create?board_id=${board.id}`}
+                                >
                                     <Plus className="size-4" />
                                     New issue
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                         ) : null}
                         {can_manage_board ? (
                             <Button
@@ -698,23 +692,23 @@ export default function BoardShow({
                                 Add column
                             </Button>
                         ) : null}
-                        <Link
-                            href={`/clients/${client.id}/boards/${board.id}/members`}
-                        >
-                            <Button size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline">
+                            <Link
+                                href={`/clients/${client.id}/boards/${board.id}/members`}
+                            >
                                 <Users className="mr-1.5 size-3.5" />
                                 Members
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                         {can_manage_board ? (
-                            <Link
-                                href={`/clients/${client.id}/boards/${board.id}/edit`}
-                            >
-                                <Button size="sm" variant="ghost">
+                            <Button asChild size="sm" variant="ghost">
+                                <Link
+                                    href={`/clients/${client.id}/boards/${board.id}/edit`}
+                                >
                                     <Pencil className="mr-1.5 size-3.5" />
                                     Edit board
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                         ) : null}
                     </div>
                 }
@@ -768,29 +762,26 @@ export default function BoardShow({
                                     <Label className="text-xs">
                                         Mapped status
                                     </Label>
-                                    <Select
+                                    <SearchableSelect
+                                        className="w-full"
+                                        size="sm"
                                         value={columnForm.data.mapped_status}
+                                        isClearable={false}
+                                        isSearchable={false}
                                         onValueChange={(value) =>
                                             columnForm.setData(
                                                 'mapped_status',
                                                 value,
                                             )
                                         }
-                                    >
-                                        <SelectTrigger className="h-8 w-full">
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {status_options.map((status) => (
-                                                <SelectItem
-                                                    key={status}
-                                                    value={status}
-                                                >
-                                                    {status}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        placeholder="Select status"
+                                        options={status_options.map(
+                                            (status) => ({
+                                                value: status,
+                                                label: status,
+                                            }),
+                                        )}
+                                    />
                                 </div>
                             ) : null}
 
@@ -1190,8 +1181,12 @@ function BacklogDrawer({
                                             data-testid="backlog-filter"
                                             className="h-8 w-full max-w-60 min-w-40 bg-background sm:w-56"
                                         />
-                                        <Select
+                                        <SearchableSelect
+                                            className="w-full min-w-32 sm:w-40"
+                                            size="sm"
                                             value={sortBy}
+                                            isClearable={false}
+                                            isSearchable={false}
                                             onValueChange={(value) =>
                                                 setSortBy(
                                                     value as
@@ -1201,28 +1196,28 @@ function BacklogDrawer({
                                                         | 'title',
                                                 )
                                             }
-                                        >
-                                            <SelectTrigger
-                                                data-testid="backlog-sort"
-                                                className="h-8 w-full min-w-32 bg-background sm:w-40"
-                                            >
-                                                <SelectValue placeholder="Sort" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="board">
-                                                    Board order
-                                                </SelectItem>
-                                                <SelectItem value="newest">
-                                                    Newest
-                                                </SelectItem>
-                                                <SelectItem value="oldest">
-                                                    Oldest
-                                                </SelectItem>
-                                                <SelectItem value="title">
-                                                    Title
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                            data-testid="backlog-sort"
+                                            id="backlog-sort"
+                                            placeholder="Sort"
+                                            options={[
+                                                {
+                                                    value: 'board',
+                                                    label: 'Board order',
+                                                },
+                                                {
+                                                    value: 'newest',
+                                                    label: 'Newest',
+                                                },
+                                                {
+                                                    value: 'oldest',
+                                                    label: 'Oldest',
+                                                },
+                                                {
+                                                    value: 'title',
+                                                    label: 'Title',
+                                                },
+                                            ]}
+                                        />
                                     </div>
 
                                     <div className="flex items-center gap-2">

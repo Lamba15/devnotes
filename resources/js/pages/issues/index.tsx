@@ -368,14 +368,14 @@ export default function IssuesIndex({
                 description={`${client.name} / ${project.name}`}
                 actions={
                     can_manage_issues ? (
-                        <Link
-                            href={`/clients/${client.id}/projects/${project.id}/issues/create`}
-                        >
-                            <Button>
+                        <Button asChild>
+                            <Link
+                                href={`/clients/${client.id}/projects/${project.id}/issues/create?return_to=${encodeURIComponent(`/clients/${client.id}/projects/${project.id}/issues`)}`}
+                            >
                                 <Plus className="mr-1.5 size-4" />
                                 Create issue
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >

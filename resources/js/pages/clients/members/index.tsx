@@ -278,12 +278,12 @@ export default function ClientMembersIndex({
                 description="Roster view for member profiles, permissions, assignments, activity, and AI credits."
                 actions={
                     can_manage_members ? (
-                        <Link href={`/clients/${client.id}/members/create`}>
-                            <Button>
+                        <Button asChild>
+                            <Link href={`/clients/${client.id}/members/create`}>
                                 <UserPlus className="mr-1.5 size-4" />
                                 Create client user
-                            </Button>
-                        </Link>
+                            </Link>
+                        </Button>
                     ) : undefined
                 }
             >

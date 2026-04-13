@@ -91,6 +91,8 @@ export function IssueDetailsForm({
             name: 'status',
             label: 'Status',
             type: 'select',
+            clearable: false,
+            creatable: true,
             options: statusOptions.map((status) => ({
                 label: status,
                 value: status,
@@ -100,6 +102,8 @@ export function IssueDetailsForm({
             name: 'priority',
             label: 'Priority',
             type: 'select',
+            clearable: false,
+            creatable: true,
             options: priorityOptions.map((priority) => ({
                 label: priority,
                 value: priority,
@@ -109,6 +113,8 @@ export function IssueDetailsForm({
             name: 'type',
             label: 'Type',
             type: 'select',
+            clearable: false,
+            creatable: true,
             options: typeOptions.map((type) => ({ label: type, value: type })),
         },
         {

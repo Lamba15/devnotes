@@ -44,18 +44,18 @@ export default function FinanceTransactionShow({
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Link href="/finance/transactions">
-                                    <Button variant="outline">
+                                <Button asChild variant="outline">
+                                    <Link href="/finance/transactions">
                                         <ArrowLeft className="mr-1.5 size-3.5" />
                                         Back
-                                    </Button>
-                                </Link>
-                                <Link href={`/finance/transactions/${transaction.id}/edit`}>
-                                    <Button>
+                                    </Link>
+                                </Button>
+                                <Button asChild>
+                                    <Link href={`/finance/transactions/${transaction.id}/edit`}>
                                         <Pencil className="mr-1.5 size-3.5" />
                                         Edit
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             </div>
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">

@@ -109,12 +109,12 @@ export default function SecretsCard({
                         </p>
                     ) : null}
                 </div>
-                <Link href={createHref}>
-                    <Button size="sm">
+                <Button asChild size="sm">
+                    <Link href={createHref}>
                         <Plus className="mr-1.5 size-3.5" />
                         Add secret
-                    </Button>
-                </Link>
+                    </Link>
+                </Button>
             </CardHeader>
             <CardContent className="space-y-3">
                 {secrets.length === 0 ? (
@@ -159,12 +159,12 @@ export default function SecretsCard({
                                             ? 'Reveal again'
                                             : 'Reveal'}
                                     </Button>
-                                    <Link href={editHref(secret.id)}>
-                                        <Button size="sm" variant="outline">
+                                    <Button asChild size="sm" variant="outline">
+                                        <Link href={editHref(secret.id)}>
                                             <Pencil className="mr-1.5 size-3.5" />
                                             Edit
-                                        </Button>
-                                    </Link>
+                                        </Link>
+                                    </Button>
                                     <Button
                                         type="button"
                                         size="sm"

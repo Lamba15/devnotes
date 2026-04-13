@@ -20,13 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelect } from '@/components/ui/multi-select';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
@@ -354,20 +348,20 @@ export default function ClientMemberShow({
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                            <Link href={`/clients/${client.id}/members`}>
-                                <Button variant="outline">
+                            <Button asChild variant="outline">
+                                <Link href={`/clients/${client.id}/members`}>
                                     Back to members
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                             {can_manage_members ? (
-                                <Link
-                                    href={`/clients/${client.id}/members/create`}
-                                >
-                                    <Button variant="outline">
+                                <Button asChild variant="outline">
+                                    <Link
+                                        href={`/clients/${client.id}/members/create`}
+                                    >
                                         <Users className="mr-1.5 size-4" />
                                         New member
-                                    </Button>
-                                </Link>
+                                    </Link>
+                                </Button>
                             ) : null}
                         </div>
                     </div>
@@ -461,8 +455,11 @@ export default function ClientMemberShow({
 
                                 <div className="space-y-2">
                                     <Label>Role</Label>
-                                    <Select
+                                    <SearchableSelect
+                                        className="w-full"
                                         value={profileForm.data.role}
+                                        isClearable={false}
+                                        isSearchable={false}
                                         onValueChange={(value) =>
                                             profileForm.setData(
                                                 'role',
@@ -470,21 +467,9 @@ export default function ClientMemberShow({
                                             )
                                         }
                                         disabled={!can_manage_members}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select role" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {roles.map((role) => (
-                                                <SelectItem
-                                                    key={role.value}
-                                                    value={role.value}
-                                                >
-                                                    {role.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        placeholder="Select role"
+                                        options={roles}
+                                    />
                                     {profileForm.errors.role ? (
                                         <p className="text-sm text-destructive">
                                             {profileForm.errors.role}

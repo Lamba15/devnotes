@@ -209,12 +209,12 @@ export default function FinanceTransactions({
                 title="Transactions"
                 description="Manage project-linked financial transactions."
                 actions={
-                    <Link href="/finance/transactions/create">
-                        <Button>
+                    <Button asChild>
+                        <Link href="/finance/transactions/create">
                             <Plus className="mr-1.5 size-4" />
                             Create transaction
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                 }
             >
                 <FilterBar>
