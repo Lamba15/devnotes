@@ -8,6 +8,7 @@ import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 export default function IssuesCreate({
     client,
     project,
+    return_to,
     assignee_options,
     status_options,
     priority_options,
@@ -15,12 +16,14 @@ export default function IssuesCreate({
 }: {
     client: { id: number; name: string };
     project: { id: number; name: string };
+    return_to?: { href: string; label: string } | null;
     assignee_options: Array<{ label: string; value: string }>;
     status_options: string[];
     priority_options: string[];
     type_options: string[];
 }) {
     const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+    const fallbackIssuesUrl = `/clients/${client.id}/projects/${project.id}/issues`;
     const form = useForm<IssueFormValues>({
         title: '',
         description: '<p></p>',
@@ -33,17 +36,45 @@ export default function IssuesCreate({
         label: '',
     });
 
+    const resolveClientReturnHref = () => {
+        if (return_to?.href) {
+            return return_to.href;
+        }
+
+        try {
+            if (window.history.length > 1 && document.referrer) {
+                const referrer = new URL(document.referrer);
+
+                if (referrer.origin === window.location.origin) {
+                    return `${referrer.pathname}${referrer.search}${referrer.hash}`;
+                }
+            }
+        } catch {
+            // Ignore malformed referrers and fall back to the issue index.
+        }
+
+        return null;
+    };
+
+    const goBack = () => {
+        const returnHref = resolveClientReturnHref();
+
+        if (returnHref) {
+            router.visit(returnHref);
+
+            return;
+        }
+
+        router.visit(fallbackIssuesUrl);
+    };
+
     return (
         <>
             <Head title={`Create Issue`} />
             <CrudPage
                 title={`Create Issue`}
                 description={`${client.name} / ${project.name}`}
-                onBack={() =>
-                    router.visit(
-                        `/clients/${client.id}/projects/${project.id}/issues`,
-                    )
-                }
+                onBack={goBack}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
                     <IssueDetailsForm
@@ -51,12 +82,8 @@ export default function IssuesCreate({
                         errors={form.errors}
                         processing={form.processing}
                         submitLabel="Create issue"
-                        cancelLabel="Back to issues"
-                        onCancel={() =>
-                            router.visit(
-                                `/clients/${client.id}/projects/${project.id}/issues`,
-                            )
-                        }
+                        cancelLabel={return_to?.label ?? 'Back'}
+                        onCancel={goBack}
                         onChange={(name, value) => form.setData(name, value)}
                         assigneeOptions={assignee_options}
                         statusOptions={status_options}
@@ -65,9 +92,12 @@ export default function IssuesCreate({
                         descriptionFiles={attachmentFiles}
                         onDescriptionFilesChange={setAttachmentFiles}
                         onSubmit={() => {
+                            const returnHref = resolveClientReturnHref();
+
                             form.transform((data) => ({
                                 ...data,
                                 attachments: attachmentFiles,
+                                return_to: returnHref ?? '',
                             }));
 
                             form.post(

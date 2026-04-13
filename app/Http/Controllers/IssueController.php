@@ -32,6 +32,7 @@ class IssueController extends Controller
         return Inertia::render('issues/create', [
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
+            'return_to' => $this->resolveReturnTarget($request, $client, $project),
             'assignee_options' => $this->serializeAssigneeOptions($project),
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
@@ -117,12 +118,17 @@ class IssueController extends Controller
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'string', 'max:255'],
             'label' => ['nullable', 'string', 'max:255'],
+            'return_to' => ['nullable', 'string', 'max:2048'],
             'attachments' => ['nullable', 'array', 'max:10'],
             'attachments.*' => ['file', 'max:10240'],
         ]);
 
         $issue = $createIssue->handle($request->user(), $project, $validated);
         $this->storeAttachments($request, $issue);
+
+        if ($returnTarget = $this->resolveReturnTarget($request, $client, $project)) {
+            return redirect()->to($returnTarget['href']);
+        }
 
         return to_route('clients.projects.issues.index', [$client, $project]);
     }
@@ -158,7 +164,7 @@ class IssueController extends Controller
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
-            'return_to' => $this->resolveShowReturnTarget($request, $client, $project),
+            'return_to' => $this->resolveReturnTarget($request, $client, $project),
             'can_manage_issue' => $request->user()->canManageIssues($project),
             'can_comment' => $request->user()->canCommentOnIssue($issue),
             'comments' => $this->serializeComments($issue),
@@ -279,11 +285,24 @@ class IssueController extends Controller
         ];
     }
 
-    private function resolveShowReturnTarget(
+    private function resolveReturnTarget(
         Request $request,
         Client $client,
         Project $project,
     ): ?array {
+        $returnTo = $request->input('return_to', $request->query('return_to'));
+
+        if (is_string($returnTo)) {
+            $returnTo = trim($returnTo);
+
+            if ($returnTo !== '' && str_starts_with($returnTo, '/') && ! str_starts_with($returnTo, '//')) {
+                return [
+                    'href' => $returnTo,
+                    'label' => 'Back',
+                ];
+            }
+        }
+
         $boardId = $request->query('board_id');
 
         if (! is_scalar($boardId) || ! ctype_digit((string) $boardId)) {
