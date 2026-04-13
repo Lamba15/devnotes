@@ -28,6 +28,9 @@ class CreateIssue
             'priority' => $attributes['priority'],
             'type' => $attributes['type'],
             'assignee_id' => $attributes['assignee_id'] ?? null,
+            'due_date' => $attributes['due_date'] ?? null,
+            'estimated_hours' => $attributes['estimated_hours'] ?? null,
+            'label' => $attributes['label'] ?? null,
             'creator_id' => $actor->id,
         ]);
 
@@ -52,6 +55,9 @@ class CreateIssue
                 'priority' => $issue->priority,
                 'type' => $issue->type,
                 'assignee_id' => $issue->assignee_id,
+                'due_date' => $issue->due_date?->toDateString(),
+                'estimated_hours' => $issue->estimated_hours,
+                'label' => $issue->label,
             ],
         ]);
 
