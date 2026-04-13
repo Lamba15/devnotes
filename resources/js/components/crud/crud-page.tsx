@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useCrudPageHeaderSlot } from '@/components/crud/crud-page-header-slot';
 
 export function CrudPage({
     title,
@@ -15,10 +16,7 @@ export function CrudPage({
     onBack?: () => void;
     children: ReactNode;
 }) {
-    const headerSlot =
-        typeof document !== 'undefined'
-            ? document.getElementById('app-page-header-slot')
-            : null;
+    const headerSlot = useCrudPageHeaderSlot();
 
     const headerContent = (
         <div className="flex min-w-0 items-center justify-between gap-6">
@@ -27,7 +25,9 @@ export function CrudPage({
                     <button
                         type="button"
                         onClick={onBack}
-                        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        style={{ cursor: 'pointer' }}
+                        aria-label="Go back"
                     >
                         <ArrowLeft className="size-4" />
                     </button>
@@ -49,9 +49,7 @@ export function CrudPage({
 
     return (
         <div className="flex flex-1 flex-col gap-6 p-6">
-            {headerSlot
-                ? createPortal(headerContent, headerSlot)
-                : headerContent}
+            {headerSlot ? createPortal(headerContent, headerSlot) : null}
             {children}
         </div>
     );

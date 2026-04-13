@@ -1,4 +1,5 @@
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { setCrudPageHeaderSlot } from '@/components/crud/crud-page-header-slot';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
@@ -15,7 +16,11 @@ export function AppSidebarHeader({
                     <Breadcrumbs breadcrumbs={breadcrumbs} />
                 ) : null}
             </div>
-            <div id="app-page-header-slot" className="min-w-0 flex-1" />
+            <div
+                ref={setCrudPageHeaderSlot}
+                id="app-page-header-slot"
+                className="min-w-0 flex-1"
+            />
         </header>
     );
 }
