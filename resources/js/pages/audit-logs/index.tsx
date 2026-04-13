@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bot,
@@ -20,6 +20,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import AppLayout from '@/layouts/app-layout';
+import { formatDetailedTimestamp } from '@/lib/datetime';
+import type { Auth } from '@/types';
 
 type AuditLog = {
     id: number;
@@ -107,6 +109,7 @@ export default function AuditLogsIndex({
     subject_type_options: SubjectTypeOption[];
     client_options: FilterOption[];
 }) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const [query, setQuery] = useState(filters.search ?? '');
     const [event, setEvent] = useState(filters.event ?? '');
     const [source, setSource] = useState(filters.source ?? '');
@@ -114,7 +117,13 @@ export default function AuditLogsIndex({
     const [subjectType, setSubjectType] = useState(filters.subject_type ?? '');
     const [clientId, setClientId] = useState(filters.client_id ?? '');
 
-    const activeFilterCount = [event, source, userId, subjectType, clientId].filter(Boolean).length;
+    const activeFilterCount = [
+        event,
+        source,
+        userId,
+        subjectType,
+        clientId,
+    ].filter(Boolean).length;
 
     useEffect(() => {
         const timeout = window.setTimeout(() => {
@@ -135,11 +144,24 @@ export default function AuditLogsIndex({
         return () => window.clearTimeout(timeout);
     }, [query, event, source, userId, subjectType, clientId]);
 
-    const eventOpts = event_options.filter(Boolean).map((e) => ({ value: e, label: e }));
-    const sourceOpts = source_options.filter(Boolean).map((s) => ({ value: s, label: s }));
-    const userOpts = user_options.map((u) => ({ value: String(u.id), label: u.name }));
-    const subjectTypeOpts = subject_type_options.map((t) => ({ value: t.value, label: t.label }));
-    const clientOpts = client_options.map((c) => ({ value: String(c.id), label: c.name }));
+    const eventOpts = event_options
+        .filter(Boolean)
+        .map((e) => ({ value: e, label: e }));
+    const sourceOpts = source_options
+        .filter(Boolean)
+        .map((s) => ({ value: s, label: s }));
+    const userOpts = user_options.map((u) => ({
+        value: String(u.id),
+        label: u.name,
+    }));
+    const subjectTypeOpts = subject_type_options.map((t) => ({
+        value: t.value,
+        label: t.label,
+    }));
+    const clientOpts = client_options.map((c) => ({
+        value: String(c.id),
+        label: c.name,
+    }));
 
     return (
         <>
@@ -162,52 +184,56 @@ export default function AuditLogsIndex({
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         {activeFilterCount > 0 && (
                             <Badge variant="secondary" className="tabular-nums">
-                                {activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}
+                                {activeFilterCount} filter
+                                {activeFilterCount !== 1 ? 's' : ''}
                             </Badge>
                         )}
-                        <span className="tabular-nums">{pagination.total} result{pagination.total !== 1 ? 's' : ''}</span>
+                        <span className="tabular-nums">
+                            {pagination.total} result
+                            {pagination.total !== 1 ? 's' : ''}
+                        </span>
                     </div>
                 </div>
 
                 {/* Drill-down filters */}
                 <div className="flex items-center gap-3">
-                <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <SearchableSelect
-                        value={userId}
-                        onValueChange={setUserId}
-                        options={userOpts}
-                        placeholder="All users"
-                        icon={Users}
-                    />
-                    <SearchableSelect
-                        value={clientId}
-                        onValueChange={setClientId}
-                        options={clientOpts}
-                        placeholder="All clients"
-                        icon={Boxes}
-                    />
-                    <SearchableSelect
-                        value={event}
-                        onValueChange={setEvent}
-                        options={eventOpts}
-                        placeholder="All actions"
-                        icon={Zap}
-                    />
-                    <SearchableSelect
-                        value={source}
-                        onValueChange={setSource}
-                        options={sourceOpts}
-                        placeholder="All sources"
-                        icon={Globe}
-                    />
-                    <SearchableSelect
-                        value={subjectType}
-                        onValueChange={setSubjectType}
-                        options={subjectTypeOpts}
-                        placeholder="All entity types"
-                        icon={Layers}
-                    />
-                </div>
+                    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        <SearchableSelect
+                            value={userId}
+                            onValueChange={setUserId}
+                            options={userOpts}
+                            placeholder="All users"
+                            icon={Users}
+                        />
+                        <SearchableSelect
+                            value={clientId}
+                            onValueChange={setClientId}
+                            options={clientOpts}
+                            placeholder="All clients"
+                            icon={Boxes}
+                        />
+                        <SearchableSelect
+                            value={event}
+                            onValueChange={setEvent}
+                            options={eventOpts}
+                            placeholder="All actions"
+                            icon={Zap}
+                        />
+                        <SearchableSelect
+                            value={source}
+                            onValueChange={setSource}
+                            options={sourceOpts}
+                            placeholder="All sources"
+                            icon={Globe}
+                        />
+                        <SearchableSelect
+                            value={subjectType}
+                            onValueChange={setSubjectType}
+                            options={subjectTypeOpts}
+                            placeholder="All entity types"
+                            icon={Layers}
+                        />
+                    </div>
                     {activeFilterCount > 0 && (
                         <Button
                             variant="ghost"
@@ -274,14 +300,18 @@ export default function AuditLogsIndex({
                                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                                                 <User className="size-3" />
                                                 <span>
-                                                    {log.user?.name ??
-                                                        'System'}
+                                                    {log.user?.name ?? 'System'}
                                                 </span>
                                                 <Clock className="ml-2 size-3" />
                                                 <span>
-                                                    {new Date(
+                                                    {formatDetailedTimestamp(
                                                         log.created_at,
-                                                    ).toLocaleString()}
+                                                        {
+                                                            timeZone:
+                                                                auth.user
+                                                                    .timezone,
+                                                        },
+                                                    )}
                                                 </span>
                                             </div>
                                         </div>
@@ -312,7 +342,8 @@ export default function AuditLogsIndex({
                                             event: event || undefined,
                                             source: source || undefined,
                                             user_id: userId || undefined,
-                                            subject_type: subjectType || undefined,
+                                            subject_type:
+                                                subjectType || undefined,
                                             client_id: clientId || undefined,
                                         },
                                         {
@@ -340,7 +371,8 @@ export default function AuditLogsIndex({
                                             event: event || undefined,
                                             source: source || undefined,
                                             user_id: userId || undefined,
-                                            subject_type: subjectType || undefined,
+                                            subject_type:
+                                                subjectType || undefined,
                                             client_id: clientId || undefined,
                                         },
                                         {

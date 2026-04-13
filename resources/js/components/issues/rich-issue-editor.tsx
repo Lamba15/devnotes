@@ -1,10 +1,10 @@
-import { EditorContent, ReactRenderer, useEditor } from '@tiptap/react';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Mention from '@tiptap/extension-mention';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskItem from '@tiptap/extension-task-item';
 import TaskList from '@tiptap/extension-task-list';
+import { EditorContent, ReactRenderer, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
     Bold,
@@ -25,7 +25,8 @@ import {
     useRef,
     useState,
 } from 'react';
-import tippy, { type Instance as TippyInstance } from 'tippy.js';
+import type { Instance as TippyInstance } from 'tippy.js';
+import tippy from 'tippy.js';
 import { cn } from '@/lib/utils';
 
 type MentionOption = { id: string; label: string };
@@ -42,10 +43,8 @@ const MentionList = forwardRef<
     }
 >(({ items, command }, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
-
-    useEffect(() => {
-        setSelectedIndex(0);
-    }, [items]);
+    const activeIndex =
+        items.length === 0 ? 0 : Math.min(selectedIndex, items.length - 1);
 
     const selectItem = (index: number) => {
         const item = items[index];
@@ -63,19 +62,22 @@ const MentionList = forwardRef<
 
             if (event.key === 'ArrowUp') {
                 setSelectedIndex(
-                    (selectedIndex + items.length - 1) % items.length,
+                    (activeIndex + items.length - 1) % items.length,
                 );
+
                 return true;
             }
 
             if (event.key === 'ArrowDown') {
-                setSelectedIndex((selectedIndex + 1) % items.length);
+                setSelectedIndex((activeIndex + 1) % items.length);
+
                 return true;
             }
 
             if (event.key === 'Enter' || event.key === 'Tab') {
                 event.preventDefault();
-                selectItem(selectedIndex);
+                selectItem(activeIndex);
+
                 return true;
             }
 
@@ -95,7 +97,7 @@ const MentionList = forwardRef<
                     type="button"
                     className={cn(
                         'flex w-full cursor-pointer items-center rounded-lg px-3 py-2 text-left text-sm hover:bg-muted',
-                        index === selectedIndex && 'bg-muted',
+                        index === activeIndex && 'bg-muted',
                     )}
                     onMouseDown={(event) => {
                         event.preventDefault();
@@ -181,7 +183,8 @@ export function RichIssueEditor({
                                 }
 
                                 popup = tippy('body', {
-                                    getReferenceClientRect: props.clientRect,
+                                    getReferenceClientRect: () =>
+                                        props.clientRect?.() ?? new DOMRect(),
                                     appendTo: () => document.body,
                                     content: component.element,
                                     showOnCreate: true,
@@ -201,7 +204,8 @@ export function RichIssueEditor({
                                 }
 
                                 popup?.[0]?.setProps({
-                                    getReferenceClientRect: props.clientRect,
+                                    getReferenceClientRect: () =>
+                                        props.clientRect?.() ?? new DOMRect(),
                                 });
                             },
                             onKeyDown(props) {
@@ -424,6 +428,7 @@ export function RichIssueEditor({
 
                         if (url === '') {
                             editor.chain().focus().unsetLink().run();
+
                             return;
                         }
 

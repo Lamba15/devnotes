@@ -34,7 +34,7 @@ class ProfileController extends Controller
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
         $user = $request->user();
-        $before = $user->only(['name', 'email']);
+        $before = $user->only(['name', 'email', 'timezone']);
 
         $user->fill($request->validated());
 
@@ -51,8 +51,47 @@ class ProfileController extends Controller
             'subject_type' => User::class,
             'subject_id' => $user->id,
             'before_json' => $before,
-            'after_json' => $user->only(['name', 'email']),
+            'after_json' => $user->only(['name', 'email', 'timezone']),
         ]);
+
+        return to_route('profile.edit');
+    }
+
+    public function updateTimezone(Request $request): RedirectResponse|\Illuminate\Http\Response
+    {
+        $validated = $request->validate([
+            'timezone' => ['required', 'string', 'timezone:all'],
+        ]);
+
+        $user = $request->user();
+
+        if ($user->timezone === $validated['timezone']) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->noContent();
+            }
+
+            return to_route('profile.edit');
+        }
+
+        $before = $user->only(['timezone']);
+
+        $user->forceFill([
+            'timezone' => $validated['timezone'],
+        ])->save();
+
+        AuditLog::query()->create([
+            'user_id' => $user->id,
+            'event' => 'user.timezone_updated',
+            'source' => 'web',
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'before_json' => $before,
+            'after_json' => $user->only(['timezone']),
+        ]);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->noContent();
+        }
 
         return to_route('profile.edit');
     }

@@ -13,6 +13,7 @@ import {
 import { CrudPage } from '@/components/crud/crud-page';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { formatRelativeInstant } from '@/lib/datetime';
 
 type Stats = {
     clients: number;
@@ -36,28 +37,63 @@ type ActivityEntry = {
 };
 
 const statCards = [
-    { key: 'clients', label: 'Clients', icon: BriefcaseBusiness, href: '/clients', color: 'text-violet-600 dark:text-violet-400' },
-    { key: 'projects', label: 'Projects', icon: FolderKanban, href: '/clients', color: 'text-blue-600 dark:text-blue-400' },
-    { key: 'issues', label: 'Total Issues', icon: Ticket, href: '/tracking/issues', color: 'text-amber-600 dark:text-amber-400' },
-    { key: 'open_issues', label: 'Open Issues', icon: Activity, href: '/tracking/issues', color: 'text-red-600 dark:text-red-400' },
-    { key: 'users', label: 'Users', icon: Users, href: '/clients', color: 'text-emerald-600 dark:text-emerald-400' },
-    { key: 'boards', label: 'Boards', icon: LayoutGrid, href: '/tracking/boards', color: 'text-indigo-600 dark:text-indigo-400' },
-    { key: 'invoices', label: 'Invoices', icon: Receipt, href: '/finance/invoices', color: 'text-pink-600 dark:text-pink-400' },
-    { key: 'transactions', label: 'Transactions', icon: Wallet, href: '/finance/transactions', color: 'text-teal-600 dark:text-teal-400' },
+    {
+        key: 'clients',
+        label: 'Clients',
+        icon: BriefcaseBusiness,
+        href: '/clients',
+        color: 'text-violet-600 dark:text-violet-400',
+    },
+    {
+        key: 'projects',
+        label: 'Projects',
+        icon: FolderKanban,
+        href: '/clients',
+        color: 'text-blue-600 dark:text-blue-400',
+    },
+    {
+        key: 'issues',
+        label: 'Total Issues',
+        icon: Ticket,
+        href: '/tracking/issues',
+        color: 'text-amber-600 dark:text-amber-400',
+    },
+    {
+        key: 'open_issues',
+        label: 'Open Issues',
+        icon: Activity,
+        href: '/tracking/issues',
+        color: 'text-red-600 dark:text-red-400',
+    },
+    {
+        key: 'users',
+        label: 'Users',
+        icon: Users,
+        href: '/clients',
+        color: 'text-emerald-600 dark:text-emerald-400',
+    },
+    {
+        key: 'boards',
+        label: 'Boards',
+        icon: LayoutGrid,
+        href: '/tracking/boards',
+        color: 'text-indigo-600 dark:text-indigo-400',
+    },
+    {
+        key: 'invoices',
+        label: 'Invoices',
+        icon: Receipt,
+        href: '/finance/invoices',
+        color: 'text-pink-600 dark:text-pink-400',
+    },
+    {
+        key: 'transactions',
+        label: 'Transactions',
+        icon: Wallet,
+        href: '/finance/transactions',
+        color: 'text-teal-600 dark:text-teal-400',
+    },
 ] as const;
-
-function formatTimeAgo(dateStr: string): string {
-    const seconds = Math.floor(
-        (Date.now() - new Date(dateStr).getTime()) / 1000,
-    );
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-}
 
 export default function Overview({
     stats,
@@ -79,6 +115,7 @@ export default function Overview({
                         {statCards.map((card) => {
                             const Icon = card.icon;
                             const value = stats[card.key as keyof Stats];
+
                             return (
                                 <Link key={card.key} href={card.href}>
                                     <Card className="shadow-none transition-colors hover:bg-muted/30">
@@ -151,7 +188,12 @@ export default function Overview({
                                             </div>
                                             <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                                                 <Clock className="size-3" />
-                                                {formatTimeAgo(entry.created_at)}
+                                                {formatRelativeInstant(
+                                                    entry.created_at,
+                                                    {
+                                                        fallback: 'unknown',
+                                                    },
+                                                )}
                                             </span>
                                         </div>
                                     ))}

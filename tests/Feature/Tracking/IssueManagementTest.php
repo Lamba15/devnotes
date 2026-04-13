@@ -566,6 +566,7 @@ test('project viewers can open an issue detail page but cannot update it', funct
         ->assertInertia(fn (Assert $page) => $page
             ->component('issues/show')
             ->where('issue.title', 'Read only issue')
+            ->where('issue.created_at', $issue->created_at?->toISOString())
             ->where('can_manage_issue', false)
         );
 
@@ -844,9 +845,59 @@ test('issue detail exposes nested comments in thread order', function () {
             ->has('comments', 1)
             ->where('comments.0.id', $comment->id)
             ->where('comments.0.body', 'Parent comment')
+            ->where('comments.0.created_at', $comment->created_at?->toISOString())
             ->where('comments.0.replies.0.id', $reply->id)
             ->where('comments.0.replies.0.body', 'Reply comment')
+            ->where('comments.0.replies.0.created_at', $reply->created_at?->toISOString())
         );
+});
+
+test('issue workspace json exposes created timestamps for issues and comments', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Workspace issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => User::factory()->create()->id,
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantIssueManagementPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::ISSUES_READ,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $comment = IssueComment::query()->create([
+        'issue_id' => $issue->id,
+        'user_id' => $member->id,
+        'body' => 'Workspace comment',
+    ]);
+
+    $this->actingAs($member)
+        ->getJson(route('clients.projects.issues.workspace', [$client, $project, $issue]))
+        ->assertOk()
+        ->assertJsonPath('issue.id', $issue->id)
+        ->assertJsonPath('issue.created_at', $issue->created_at?->toISOString())
+        ->assertJsonPath('issue.comments.0.id', $comment->id)
+        ->assertJsonPath('issue.comments.0.created_at', $comment->created_at?->toISOString());
 });
 
 test('issue index supports server backed search and sorting', function () {

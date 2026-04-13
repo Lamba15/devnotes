@@ -101,10 +101,12 @@ test('member with project access, board membership, and board read permission ca
             ->where('board.id', $board->id)
             ->has('backlog', 1)
             ->where('backlog.0.title', 'Backlog issue')
+            ->where('backlog.0.created_at', $backlogIssue->created_at?->toISOString())
             ->has('columns', 1)
             ->where('columns.0.name', 'Doing')
             ->has('columns.0.issues', 1)
             ->where('columns.0.issues.0.title', 'Placed issue')
+            ->where('columns.0.issues.0.created_at', $placedIssue->created_at?->toISOString())
             ->where('can_move_issues', false)
         );
 

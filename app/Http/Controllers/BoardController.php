@@ -140,7 +140,7 @@ class BoardController extends Controller
                 ->with([
                     'placements' => fn ($placementQuery) => $placementQuery
                         ->orderBy('position')
-                        ->with('issue.attachments', 'issue.comments.user:id,name,avatar_path', 'issue.comments.attachments'),
+                        ->with('issue.assignee:id,name,avatar_path', 'issue.attachments', 'issue.comments.user:id,name,avatar_path', 'issue.comments.attachments'),
                 ]),
         ]);
 
@@ -159,7 +159,7 @@ class BoardController extends Controller
             'backlog' => Issue::query()
                 ->where('project_id', $project->id)
                 ->whereNotIn('id', $placedIssueIds)
-                ->with('attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
+                ->with('assignee:id,name,avatar_path', 'attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
                 ->orderBy('id')
                 ->get()
                 ->map(fn (Issue $issue) => $this->serializeIssue($issue))
@@ -226,19 +226,16 @@ class BoardController extends Controller
 
     private function serializeIssue(Issue $issue): array
     {
-        $issue->loadMissing('attachments');
+        $issue->loadMissing([
+            'assignee:id,name,avatar_path',
+            'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+            'comments.user:id,name,avatar_path',
+            'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+        ]);
 
         $attachments = $issue->attachments
             ->sortBy('id')
-            ->map(fn (Attachment $attachment) => [
-                'id' => $attachment->id,
-                'file_name' => $attachment->file_name,
-                'file_path' => $attachment->file_path,
-                'mime_type' => $attachment->mime_type,
-                'file_size' => $attachment->file_size,
-                'url' => asset('storage/'.$attachment->file_path),
-                'is_image' => $attachment->isImage(),
-            ])
+            ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
             ->values();
         $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
 
@@ -249,6 +246,13 @@ class BoardController extends Controller
             'status' => $issue->status,
             'priority' => $issue->priority,
             'type' => $issue->type,
+            'assignee_id' => $issue->assignee_id,
+            'assignee' => $issue->assignee?->only(['id', 'name', 'avatar_path']),
+            'due_date' => $issue->due_date?->toDateString(),
+            'estimated_hours' => $issue->estimated_hours,
+            'label' => $issue->label,
+            'created_at' => $issue->created_at?->toISOString(),
+            'updated_at' => $issue->updated_at?->toISOString(),
             'attachments' => $attachments->all(),
             'attachment_count' => $attachments->count(),
             'image_count' => $images->count(),
@@ -257,6 +261,19 @@ class BoardController extends Controller
             'comments' => $this->buildCommentTree($issue->comments, null),
             'comments_count' => $issue->comments->count(),
             'can_comment' => request()->user()?->canCommentOnIssue($issue) ?? false,
+        ];
+    }
+
+    private function serializeAttachment(Attachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'file_name' => $attachment->file_name,
+            'file_path' => $attachment->file_path,
+            'mime_type' => $attachment->mime_type,
+            'file_size' => $attachment->file_size,
+            'url' => asset('storage/'.$attachment->file_path),
+            'is_image' => $attachment->isImage(),
         ];
     }
 
@@ -271,15 +288,7 @@ class BoardController extends Controller
                 'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
                 'created_at' => $comment->created_at?->toISOString(),
                 'attachments' => $comment->attachments
-                    ->map(fn (Attachment $attachment) => [
-                        'id' => $attachment->id,
-                        'file_name' => $attachment->file_name,
-                        'file_path' => $attachment->file_path,
-                        'mime_type' => $attachment->mime_type,
-                        'file_size' => $attachment->file_size,
-                        'url' => asset('storage/'.$attachment->file_path),
-                        'is_image' => $attachment->isImage(),
-                    ])
+                    ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
                     ->values()
                     ->all(),
                 'replies' => $this->buildCommentTree($comments, $comment->id),

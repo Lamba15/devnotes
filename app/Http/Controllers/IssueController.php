@@ -265,6 +265,7 @@ class IssueController extends Controller
             'estimated_hours' => $issue->estimated_hours,
             'label' => $issue->label,
             'created_at' => $issue->created_at?->toISOString(),
+            'updated_at' => $issue->updated_at?->toISOString(),
             'attachments' => $attachments->all(),
             'attachment_count' => $attachments->count(),
             'image_count' => $images->count(),

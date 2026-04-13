@@ -54,6 +54,7 @@
 - File attachments can be added to comments in the discussion
 - Issues support due dates, time estimates, and labels
 - Status, priority, and type are rendered with color-coded icons in the UI
+- Issue created timestamps are visible in quick view and issue detail, rendered in the active user's timezone
 
 ## Attachment Presentation
 
@@ -67,6 +68,7 @@
 - Replies can also have replies.
 - Threading should behave more like Reddit-style nested discussion than a flat one-reply layer.
 - Comments show user avatars and support file attachment uploads.
+- Comment timestamps use the shared instant formatting rules from the dates-and-times contract.
 
 ## Naming
 

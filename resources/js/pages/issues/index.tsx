@@ -81,6 +81,8 @@ type Issue = {
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
     attachments: Array<{
         id: number;
         file_name: string;
@@ -220,6 +222,7 @@ export default function IssuesIndex({
             render: (issue) => {
                 const cfg = statusConfig[issue.status] ?? statusConfig.todo;
                 const Icon = cfg.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${cfg.color}`} />
@@ -237,6 +240,7 @@ export default function IssuesIndex({
                 const cfg =
                     priorityConfig[issue.priority] ?? priorityConfig.medium;
                 const Icon = cfg.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${cfg.color}`} />
@@ -253,6 +257,7 @@ export default function IssuesIndex({
             render: (issue) => {
                 const cfg = typeConfig[issue.type] ?? typeConfig.task;
                 const Icon = cfg.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${cfg.color}`} />
@@ -472,7 +477,6 @@ export default function IssuesIndex({
                 }}
                 clientId={client.id}
                 projectId={project.id}
-                canManage={can_manage_issues}
             />
         </>
     );

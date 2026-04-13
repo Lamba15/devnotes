@@ -29,6 +29,7 @@ Rules:
 - Moving an issue into a status-updating column is equivalent to editing the issue and changing its status.
 - If the issue status changes somewhere else and the current board placement becomes invalid, the issue should fall back out of the board placement and return to that board's backlog.
 - If a column is non-status-updating, moving an issue there does not change the issue status.
+- Board cards stay compact; exact issue timestamps live in quick view and issue detail rather than on every card.
 
 ## AI Tooling
 

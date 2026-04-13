@@ -20,6 +20,8 @@ import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
+import type { Auth } from '@/types';
 
 type IssueAttachment = {
     id?: number;
@@ -46,6 +48,7 @@ type Issue = {
     due_date: string | null;
     estimated_hours: string | null;
     label: string | null;
+    created_at?: string | null;
 };
 
 type MentionOption = { id: string; label: string };
@@ -126,16 +129,12 @@ export default function IssueShow({
     });
 
     const [descriptionFiles, setDescriptionFiles] = useState<File[]>([]);
-    
+
     const [commentDraft, setCommentDraft] = useState('<p></p>');
     const [commentFiles, setCommentFiles] = useState<File[]>([]);
     const [savingComment, setSavingComment] = useState(false);
 
-    const { auth } = usePage<{
-        auth: {
-            user: { id: number; name: string; avatar_path?: string | null };
-        };
-    }>().props;
+    const { auth } = usePage<{ auth: Auth }>().props;
 
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
 
@@ -175,7 +174,7 @@ export default function IssueShow({
                         <p className="text-sm text-destructive">{error}</p>
                     ) : null}
                 </div>
-            )
+            ),
         },
         {
             name: 'assignee_id',
@@ -300,6 +299,19 @@ export default function IssueShow({
                 }}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
+                    {issue.created_at ? (
+                        <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className="gap-1">
+                                <span>Created</span>
+                                <span>
+                                    {formatDetailedTimestamp(issue.created_at, {
+                                        timeZone: auth.user.timezone,
+                                    })}
+                                </span>
+                            </Badge>
+                        </div>
+                    ) : null}
+
                     {/* Top Section: Form or Static Badges */}
                     {can_manage_issue ? (
                         <DynamicForm
@@ -311,7 +323,10 @@ export default function IssueShow({
                             cancelLabel="Back"
                             onCancel={() => window.history.back()}
                             onChange={(name, value) =>
-                                form.setData(name as keyof typeof form.data, value)
+                                form.setData(
+                                    name as keyof typeof form.data,
+                                    value,
+                                )
                             }
                             onSubmit={() => {
                                 form.transform((data) => ({
@@ -323,8 +338,9 @@ export default function IssueShow({
                                     `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
                                     {
                                         forceFormData: true,
-                                        onSuccess: () => setDescriptionFiles([]),
-                                    }
+                                        onSuccess: () =>
+                                            setDescriptionFiles([]),
+                                    },
                                 );
                             }}
                         />
@@ -350,12 +366,13 @@ export default function IssueShow({
                                     Type: {issue.type}
                                 </Badge>
                                 <Badge variant="outline">
-                                    Assignee: {issue.assignee?.name ?? 'Unassigned'}
+                                    Assignee:{' '}
+                                    {issue.assignee?.name ?? 'Unassigned'}
                                 </Badge>
                                 {issue.due_date ? (
                                     <Badge variant="outline" className="gap-1">
                                         <Calendar className="size-3" />
-                                        {issue.due_date}
+                                        {formatDateOnly(issue.due_date)}
                                     </Badge>
                                 ) : null}
                                 {issue.estimated_hours ? (
@@ -419,7 +436,7 @@ export default function IssueShow({
                                                     href={`/storage/${att.file_path}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="min-w-0 flex-1 truncate text-sm font-medium hover:underline hover:text-primary transition-colors"
+                                                    className="min-w-0 flex-1 truncate text-sm font-medium transition-colors hover:text-primary hover:underline"
                                                 >
                                                     {att.file_name}
                                                 </a>
@@ -448,7 +465,9 @@ export default function IssueShow({
                     {/* Discussion Section */}
                     <section className="space-y-6">
                         <div className="flex items-center gap-3 border-b pb-4">
-                            <h2 className="text-xl font-semibold">Discussion</h2>
+                            <h2 className="text-xl font-semibold">
+                                Discussion
+                            </h2>
                             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                                 {comments.length}
                             </span>
@@ -498,12 +517,15 @@ export default function IssueShow({
                                     <Button
                                         type="button"
                                         disabled={
-                                            savingComment || isRichTextEmpty(commentDraft)
+                                            savingComment ||
+                                            isRichTextEmpty(commentDraft)
                                         }
                                         onClick={saveComment}
                                     >
                                         <Send className="mr-2 size-4" />
-                                        {savingComment ? 'Posting...' : 'Comment'}
+                                        {savingComment
+                                            ? 'Posting...'
+                                            : 'Comment'}
                                     </Button>
                                 </div>
                             </div>

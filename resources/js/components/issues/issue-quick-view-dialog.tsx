@@ -2,25 +2,18 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Calendar,
     Clock,
-    CornerDownRight,
     ExternalLink,
     FileText,
     Images,
     MessageSquare,
-    Pencil,
     Tag,
-    Trash2,
-    X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { IssueAttachmentsSection } from '@/components/issues/issue-attachments';
+import { IssueDiscussionComment } from '@/components/issues/issue-discussion-comment';
+import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
 import { RichIssueContent } from '@/components/issues/rich-issue-content';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
-import {
-    IssueDiscussionComment,
-    type SharedDiscussionComment,
-} from '@/components/issues/issue-discussion-comment';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +23,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
+import type { Auth } from '@/types';
 
 type IssueAttachment = {
     id?: number;
@@ -54,6 +49,7 @@ type QuickViewIssue = {
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;
+    created_at?: string | null;
     attachment_count?: number;
     image_count?: number;
     file_count?: number;
@@ -64,15 +60,6 @@ type QuickViewIssue = {
 };
 
 type MentionOption = { id: string; label: string };
-
-function getInitials(name: string): string {
-    return name
-        .split(' ')
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
-}
 
 function csrfToken(): string {
     return (
@@ -149,20 +136,14 @@ export function IssueQuickViewDialog({
     onOpenChange,
     clientId,
     projectId,
-    canManage = false,
 }: {
     issue: QuickViewIssue | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     clientId: number;
     projectId: number;
-    canManage?: boolean;
 }) {
-    const { auth } = usePage<{
-        auth: {
-            user: { id: number; name: string; avatar_path?: string | null };
-        };
-    }>().props;
+    const { auth } = usePage<{ auth: Auth }>().props;
     const [workspaceIssue, setWorkspaceIssue] = useState<QuickViewIssue | null>(
         issue,
     );
@@ -334,11 +315,11 @@ export function IssueQuickViewDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[92vh] overflow-hidden p-0 sm:max-w-6xl">
-                <DialogHeader className="border-b px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-6 pr-14 sm:pr-14">
+                <DialogHeader className="border-b px-4 pt-4 pr-14 pb-3 sm:px-6 sm:pt-6 sm:pr-14 sm:pb-4">
                     <div className="flex flex-col items-start gap-1 pb-1">
                         <Link
                             href={`/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}`}
-                            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline mb-1"
+                            className="mb-1 inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
                         >
                             <ExternalLink className="size-3.5" />
                             Open full issue
@@ -350,7 +331,7 @@ export function IssueQuickViewDialog({
                     <DialogDescription className="hidden" />
                 </DialogHeader>
 
-                <div className="flex h-[calc(92vh-100px)] flex-col overflow-y-auto xl:grid xl:h-[calc(92vh-115px)] xl:overflow-hidden xl:grid-cols-[minmax(0,0.92fr)_430px]">
+                <div className="flex h-[calc(92vh-100px)] flex-col overflow-y-auto xl:grid xl:h-[calc(92vh-115px)] xl:grid-cols-[minmax(0,0.92fr)_430px] xl:overflow-hidden">
                     <div className="px-4 py-5 sm:px-6 xl:overflow-y-auto">
                         <div className="space-y-5">
                             <div className="flex flex-wrap gap-2">
@@ -372,7 +353,23 @@ export function IssueQuickViewDialog({
                                 {workspaceIssue.due_date ? (
                                     <Badge variant="outline" className="gap-1">
                                         <Calendar className="size-3" />
-                                        {workspaceIssue.due_date}
+                                        {formatDateOnly(
+                                            workspaceIssue.due_date,
+                                        )}
+                                    </Badge>
+                                ) : null}
+                                {workspaceIssue.created_at ? (
+                                    <Badge variant="outline" className="gap-1">
+                                        <span>Created</span>
+                                        <span>
+                                            {formatDetailedTimestamp(
+                                                workspaceIssue.created_at,
+                                                {
+                                                    timeZone:
+                                                        auth.user.timezone,
+                                                },
+                                            )}
+                                        </span>
                                     </Badge>
                                 ) : null}
                                 {workspaceIssue.estimated_hours ? (
@@ -477,11 +474,10 @@ export function IssueQuickViewDialog({
                                     />
                                 ) : null}
                             </section>
-
                         </div>
                     </div>
 
-                    <aside className="border-t bg-muted/20 xl:border-t-0 xl:border-l xl:flex xl:flex-col xl:overflow-hidden">
+                    <aside className="border-t bg-muted/20 xl:flex xl:flex-col xl:overflow-hidden xl:border-t-0 xl:border-l">
                         <div className="flex flex-col xl:h-full">
                             <div className="border-b px-4 py-4 sm:px-5">
                                 <div className="flex items-center justify-between gap-3">
@@ -572,4 +568,3 @@ export function IssueQuickViewDialog({
         </Dialog>
     );
 }
-

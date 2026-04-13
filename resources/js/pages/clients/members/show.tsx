@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bot,
@@ -28,6 +28,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatDetailedTimestamp } from '@/lib/datetime';
+import type { Auth } from '@/types';
 
 type Client = {
     id: number;
@@ -118,17 +120,6 @@ function getInitials(name: string): string {
         .toUpperCase();
 }
 
-function formatDateTime(value: string | null): string {
-    if (!value) {
-        return 'No activity yet';
-    }
-
-    return new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-}
-
 function filterSeriesByRange(
     series: ActivityPoint[],
     range: '30d' | '90d' | '365d' | 'all',
@@ -180,6 +171,7 @@ export default function ClientMemberShow({
     can_manage_members: boolean;
     can_manage_ai_credits: boolean;
 }) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const avatarSrc = membership.user.avatar_path
         ? `/storage/${membership.user.avatar_path}`
         : null;
@@ -209,6 +201,7 @@ export default function ClientMemberShow({
         >((groups, permission) => {
             groups[permission.group] ??= [];
             groups[permission.group].push(permission);
+
             return groups;
         }, {});
     }, [permission_catalog]);
@@ -263,6 +256,7 @@ export default function ClientMemberShow({
                 const board = available_boards.find(
                     (item) => item.id === boardId,
                 );
+
                 return Boolean(
                     board?.project && nextProjectIds.includes(board.project.id),
                 );
@@ -336,13 +330,23 @@ export default function ClientMemberShow({
                                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                                     <span>
                                         Joined{' '}
-                                        {formatDateTime(membership.joined_at)}
+                                        {formatDetailedTimestamp(
+                                            membership.joined_at,
+                                            {
+                                                timeZone: auth.user.timezone,
+                                                fallback: 'No activity yet',
+                                            },
+                                        )}
                                     </span>
                                     <span>
                                         Last activity{' '}
-                                        {formatDateTime(
+                                        {formatDetailedTimestamp(
                                             membership.activity
                                                 .last_activity_at,
+                                            {
+                                                timeZone: auth.user.timezone,
+                                                fallback: 'No activity yet',
+                                            },
                                         )}
                                     </span>
                                 </div>
@@ -972,8 +976,15 @@ export default function ClientMemberShow({
                                                         : ''}
                                                 </p>
                                                 <p className="mt-1 text-xs text-muted-foreground">
-                                                    {formatDateTime(
+                                                    {formatDetailedTimestamp(
                                                         entry.created_at,
+                                                        {
+                                                            timeZone:
+                                                                auth.user
+                                                                    .timezone,
+                                                            fallback:
+                                                                'No activity yet',
+                                                        },
                                                     )}
                                                 </p>
                                             </div>

@@ -14,6 +14,7 @@ use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
 
@@ -266,6 +267,77 @@ test('viewer can open backlog but cannot move issues', function () {
             ->waitFor('[data-testid="backlog-drawer"]', 20)
             ->waitForText('Viewer issue', 20)
             ->assertMissing('[aria-label="Move Viewer issue"]');
+    });
+});
+
+test('board quick view shows issue created timestamp in the saved user timezone', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+        'name' => 'Timezone Board Client',
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Timezone Board Project',
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Timezone Board',
+    ]);
+    $member = User::factory()->create([
+        'password' => 'password',
+        'timezone' => 'Asia/Tokyo',
+    ]);
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Timezone board issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    $issueTimestamp = CarbonImmutable::parse('2026-03-12 12:35:00', 'UTC');
+
+    Issue::query()->whereKey($issue->id)->update([
+        'created_at' => $issueTimestamp,
+        'updated_at' => $issueTimestamp,
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_READ,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->browse(function (Browser $browser) use ($member, $client, $project, $board, $issue) {
+        $browser->driver->manage()->deleteAllCookies();
+
+        $browser->loginAs($member)
+            ->visit('/overview')
+            ->waitForText($client->name, 20)
+            ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->waitFor('[data-testid="backlog-toggle"]', 20)
+            ->click('[data-testid="backlog-toggle"]')
+            ->waitForText('Timezone board issue', 20)
+            ->click('[data-testid="board-issue-'.$issue->id.'"] button[type="button"]')
+            ->waitForText('Open full issue', 20)
+            ->assertSee('Created')
+            ->assertSee('12 MAR 2026, 21:35');
     });
 });
 

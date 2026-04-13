@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Laravel\Dusk\Browser;
 
@@ -119,6 +120,70 @@ test('viewer can open an issue but cannot edit it', function () {
             ->assertSee('Viewer can inspect this')
             ->assertDontSee('Update issue')
             ->assertSee('Status: todo');
+    });
+});
+
+test('issue detail renders created and comment timestamps in the saved user timezone', function () {
+    $client = Client::factory()->create([
+        'name' => 'Timezone Issue Client',
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Timezone Issue Project',
+    ]);
+    $member = User::factory()->create([
+        'password' => 'password',
+        'timezone' => 'Asia/Tokyo',
+    ]);
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Timezone detail issue',
+        'description' => 'Timestamp detail target',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    $comment = IssueComment::query()->create([
+        'issue_id' => $issue->id,
+        'user_id' => $member->id,
+        'body' => 'Timezone detail comment',
+    ]);
+
+    $issueTimestamp = CarbonImmutable::parse('2026-03-12 12:35:00', 'UTC');
+    $commentTimestamp = CarbonImmutable::parse('2026-03-12 12:40:00', 'UTC');
+
+    Issue::query()->whereKey($issue->id)->update([
+        'created_at' => $issueTimestamp,
+        'updated_at' => $issueTimestamp,
+    ]);
+    IssueComment::query()->whereKey($comment->id)->update([
+        'created_at' => $commentTimestamp,
+        'updated_at' => $commentTimestamp,
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->browse(function (Browser $browser) use ($member, $client, $project, $issue) {
+        $browser->driver->manage()->deleteAllCookies();
+
+        $browser->loginAs($member)
+            ->visit(route('clients.projects.issues.show', [$client, $project, $issue], false))
+            ->waitForText('Timezone detail issue', 20)
+            ->assertSee('Created 12 MAR 2026, 21:35')
+            ->assertSee('12 MAR 2026, 21:40');
     });
 });
 

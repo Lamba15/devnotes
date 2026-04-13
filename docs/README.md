@@ -19,6 +19,7 @@ This directory captures the current agreed shape of the system.
 - [Audit Logs](./ui/audit-logs.md): audit log model, coverage, drill-down filters, and UI standards
 - [Tracking: Issues](./tracking/issues.md): issue role, capabilities, and naming
 - [Tracking: Boards](./tracking/boards.md): board behavior, backlog, columns, and status rules
+- [Domain: Dates and Times](./domain/dates-and-times.md): timestamp, date-only, and timezone handling rules
 
 ## Current Summary
 
@@ -43,6 +44,7 @@ This directory captures the current agreed shape of the system.
 - AI uses the same permissions as the active user and operates through tools and skills.
 - AI credit system controls non-owner access: -1 unlimited, 0 none, positive integer is a quota.
 - Users have profile photos (avatar_path), job titles, and timezone fields.
+- Instants are stored as UTC-backed timestamps and rendered in the active user's timezone.
 - Polymorphic attachments model supports images and files on issues and issue comments.
 - Audit logs are viewable by platform owners in a dedicated page with filtering.
 - Platform owner (God Admin) cannot delete their own account from settings.

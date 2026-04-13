@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatDateOnly } from '@/lib/datetime';
 
 type BoardMember = {
     id: number;
@@ -38,14 +39,6 @@ function getInitials(name: string): string {
         .slice(0, 2)
         .join('')
         .toUpperCase();
-}
-
-function formatAddedAt(value: string | null): string {
-    if (!value) {
-        return '—';
-    }
-
-    return new Date(value).toLocaleDateString();
 }
 
 export default function BoardMembersIndex({
@@ -126,9 +119,7 @@ export default function BoardMembersIndex({
                                 {getInitials(member.user.name)}
                             </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">
-                            {member.user.name}
-                        </span>
+                        <span className="font-medium">{member.user.name}</span>
                     </div>
                 );
             },
@@ -151,7 +142,7 @@ export default function BoardMembersIndex({
             sortKey: 'created_at',
             render: (member) => (
                 <span className="text-muted-foreground">
-                    {formatAddedAt(member.created_at)}
+                    {formatDateOnly(member.created_at?.slice(0, 10) ?? null)}
                 </span>
             ),
         },
@@ -166,8 +157,7 @@ export default function BoardMembersIndex({
                                   {
                                       label: 'Remove',
                                       destructive: true,
-                                      onClick: () =>
-                                          setDeleteIds([member.id]),
+                                      onClick: () => setDeleteIds([member.id]),
                                   },
                               ]}
                           />
@@ -243,9 +233,7 @@ export default function BoardMembersIndex({
                     rows={memberships}
                     emptyText="No board members yet."
                     getRowId={
-                        can_manage_members
-                            ? (member) => member.id
-                            : undefined
+                        can_manage_members ? (member) => member.id : undefined
                     }
                     selectedRowIds={
                         can_manage_members ? selectedIds : undefined

@@ -1,7 +1,7 @@
 import { Transition } from '@headlessui/react';
 import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import { Camera, Trash2 } from 'lucide-react';
-import { useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
@@ -10,9 +10,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { Auth } from '@/types';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { getBrowserTimeZone, getSupportedTimeZones } from '@/lib/datetime';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
+import type { Auth } from '@/types';
 
 function getInitials(name: string): string {
     return name
@@ -33,14 +35,28 @@ export default function Profile({
     const { auth } = usePage<{ auth: Auth }>().props;
     const isPlatformOwner = Boolean(auth.user.capabilities?.platform);
     const avatarInput = useRef<HTMLInputElement>(null);
+    const [timezone, setTimezone] = useState(
+        auth.user.timezone ?? getBrowserTimeZone() ?? 'UTC',
+    );
 
     const avatarUrl = auth.user.avatar_path
         ? `/storage/${auth.user.avatar_path}`
         : undefined;
+    const timezoneOptions = useMemo(
+        () =>
+            getSupportedTimeZones().map((timeZone) => ({
+                value: timeZone,
+                label: timeZone,
+            })),
+        [],
+    );
 
     const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+
+        if (!file) {
+return;
+}
 
         const formData = new FormData();
         formData.append('avatar', file);
@@ -72,10 +88,10 @@ export default function Profile({
                 />
 
                 <div className="flex items-center gap-6">
-                    <div className="relative group">
+                    <div className="group relative">
                         <Avatar className="size-20 text-lg">
                             <AvatarImage src={avatarUrl} alt={auth.user.name} />
-                            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                            <AvatarFallback className="bg-primary/10 text-lg font-semibold text-primary">
                                 {getInitials(auth.user.name)}
                             </AvatarFallback>
                         </Avatar>
@@ -177,6 +193,28 @@ export default function Profile({
                                 <InputError
                                     className="mt-2"
                                     message={errors.email}
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="timezone">Timezone</Label>
+
+                                <SearchableSelect
+                                    id="timezone"
+                                    name="timezone"
+                                    value={timezone}
+                                    onValueChange={setTimezone}
+                                    options={timezoneOptions}
+                                    placeholder="Select a timezone"
+                                />
+
+                                <p className="text-xs text-muted-foreground">
+                                    Dates and times are shown in this timezone.
+                                </p>
+
+                                <InputError
+                                    className="mt-2"
+                                    message={errors.timezone}
                                 />
                             </div>
 

@@ -43,6 +43,64 @@ class ProfileUpdateTest extends TestCase
         $this->assertNull($user->email_verified_at);
     }
 
+    public function test_profile_timezone_can_be_updated()
+    {
+        $user = User::factory()->create([
+            'timezone' => null,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->patch(route('profile.update'), [
+                'name' => 'Test User',
+                'email' => $user->email,
+                'timezone' => 'Africa/Cairo',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame('Africa/Cairo', $user->refresh()->timezone);
+    }
+
+    public function test_profile_update_rejects_invalid_timezone()
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->from(route('profile.edit'))
+            ->patch(route('profile.update'), [
+                'name' => 'Test User',
+                'email' => $user->email,
+                'timezone' => 'Mars/Olympus',
+            ]);
+
+        $response
+            ->assertSessionHasErrors('timezone')
+            ->assertRedirect(route('profile.edit'));
+    }
+
+    public function test_profile_timezone_can_be_persisted_through_dedicated_endpoint()
+    {
+        $user = User::factory()->create([
+            'timezone' => null,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->patch(route('profile.timezone.update'), [
+                'timezone' => 'Asia/Tokyo',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame('Asia/Tokyo', $user->fresh()->timezone);
+    }
+
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged()
     {
         $user = User::factory()->create();

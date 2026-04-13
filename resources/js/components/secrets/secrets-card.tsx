@@ -3,6 +3,7 @@ import { Copy, Eye, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatDetailedTimestamp } from '@/lib/datetime';
 
 type SecretSummary = {
     id: number;
@@ -28,8 +29,12 @@ export default function SecretsCard({
     deleteHref: (secretId: number) => string;
     revealHref: (secretId: number) => string;
 }) {
-    const [revealedValues, setRevealedValues] = useState<Record<number, string>>({});
-    const [revealingIds, setRevealingIds] = useState<Record<number, boolean>>({});
+    const [revealedValues, setRevealedValues] = useState<
+        Record<number, string>
+    >({});
+    const [revealingIds, setRevealingIds] = useState<Record<number, boolean>>(
+        {},
+    );
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
     async function revealSecret(secretId: number) {
@@ -43,7 +48,7 @@ export default function SecretsCard({
                 credentials: 'same-origin',
             });
 
-            if (! response.ok) {
+            if (!response.ok) {
                 throw new Error('Failed to reveal secret.');
             }
 
@@ -64,18 +69,24 @@ export default function SecretsCard({
     async function copySecret(secretId: number) {
         const value = revealedValues[secretId];
 
-        if (! value) {
+        if (!value) {
             return;
         }
 
         await navigator.clipboard.writeText(value);
         setCopiedId(secretId);
 
-        window.setTimeout(() => setCopiedId((current) => (current === secretId ? null : current)), 1500);
+        window.setTimeout(
+            () =>
+                setCopiedId((current) =>
+                    current === secretId ? null : current,
+                ),
+            1500,
+        );
     }
 
     function deleteSecret(secretId: number) {
-        if (! window.confirm('Delete this secret?')) {
+        if (!window.confirm('Delete this secret?')) {
             return;
         }
 
@@ -118,14 +129,21 @@ export default function SecretsCard({
                         >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
-                                    <p className="font-medium">{secret.label}</p>
+                                    <p className="font-medium">
+                                        {secret.label}
+                                    </p>
                                     {secret.description ? (
-                                        <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+                                        <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">
                                             {secret.description}
                                         </p>
                                     ) : null}
                                     <p className="mt-2 text-xs text-muted-foreground">
-                                        Updated {secret.updated_at ? new Date(secret.updated_at).toLocaleString() : 'recently'}
+                                        Updated{' '}
+                                        {secret.updated_at
+                                            ? formatDetailedTimestamp(
+                                                  secret.updated_at,
+                                              )
+                                            : 'recently'}
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -137,7 +155,9 @@ export default function SecretsCard({
                                         disabled={revealingIds[secret.id]}
                                     >
                                         <Eye className="mr-1.5 size-3.5" />
-                                        {revealedValues[secret.id] ? 'Reveal again' : 'Reveal'}
+                                        {revealedValues[secret.id]
+                                            ? 'Reveal again'
+                                            : 'Reveal'}
                                     </Button>
                                     <Link href={editHref(secret.id)}>
                                         <Button size="sm" variant="outline">
@@ -159,21 +179,27 @@ export default function SecretsCard({
                             <div className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-sm">
                                 {revealedValues[secret.id] ? (
                                     <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <code className="max-w-full whitespace-pre-wrap break-all text-xs text-foreground">
+                                        <code className="max-w-full text-xs break-all whitespace-pre-wrap text-foreground">
                                             {revealedValues[secret.id]}
                                         </code>
                                         <Button
                                             type="button"
                                             size="sm"
                                             variant="secondary"
-                                            onClick={() => copySecret(secret.id)}
+                                            onClick={() =>
+                                                copySecret(secret.id)
+                                            }
                                         >
                                             <Copy className="mr-1.5 size-3.5" />
-                                            {copiedId === secret.id ? 'Copied' : 'Copy'}
+                                            {copiedId === secret.id
+                                                ? 'Copied'
+                                                : 'Copy'}
                                         </Button>
                                     </div>
                                 ) : (
-                                    <span className="text-muted-foreground">Value hidden until revealed.</span>
+                                    <span className="text-muted-foreground">
+                                        Value hidden until revealed.
+                                    </span>
                                 )}
                             </div>
                         </div>

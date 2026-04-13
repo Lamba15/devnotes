@@ -44,6 +44,12 @@ type IssueRow = {
     status: string;
     priority: string;
     type: string;
+    assignee_id?: number | null;
+    due_date?: string | null;
+    estimated_hours?: string | null;
+    label?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
     project?: { id: number; name: string } | null;
     attachments: Array<{
         id: number;
@@ -167,6 +173,7 @@ export default function ClientIssuesPage({
                 };
                 const c = cfg[issue.status] ?? cfg.todo;
                 const Icon = c.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${c.color}`} />
@@ -189,6 +196,7 @@ export default function ClientIssuesPage({
                 };
                 const c = cfg[issue.priority] ?? cfg.medium;
                 const Icon = c.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${c.color}`} />
@@ -211,6 +219,7 @@ export default function ClientIssuesPage({
                 };
                 const c = cfg[issue.type] ?? cfg.task;
                 const Icon = c.icon;
+
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
                         <Icon className={`size-3 ${c.color}`} />
@@ -288,12 +297,6 @@ export default function ClientIssuesPage({
                 }}
                 clientId={client.id}
                 projectId={quickViewIssue?.project?.id ?? 0}
-                canManage={Boolean(
-                    quickViewIssue?.project &&
-                    creatable_projects.some(
-                        (project) => project.id === quickViewIssue.project?.id,
-                    ),
-                )}
             />
         </>
     );

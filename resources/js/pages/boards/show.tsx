@@ -64,9 +64,16 @@ type Issue = {
     priority: string;
     type: string;
     assignee_id?: number | null;
+    assignee?: {
+        id: number;
+        name: string;
+        avatar_path?: string | null;
+    } | null;
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
     attachment_count?: number;
     image_count?: number;
     file_count?: number;
@@ -336,8 +343,10 @@ export default function BoardShow({
     const backlogIssues = boardDataOverride?.backlogIssues ?? backlog;
     const allLanes = buildLanes(boardColumns);
     const quickViewIssue =
-        [...backlogIssues, ...boardColumns.flatMap((column) => column.issues)]
-            .find((issue) => issue.id === quickViewIssueId) ?? null;
+        [
+            ...backlogIssues,
+            ...boardColumns.flatMap((column) => column.issues),
+        ].find((issue) => issue.id === quickViewIssueId) ?? null;
     const activeIssue = dragState
         ? ([...backlogIssues, ...allLanes.flatMap((lane) => lane.issues)].find(
               (issue) => issue.id === dragState.activeIssueId,
@@ -874,7 +883,6 @@ export default function BoardShow({
                     }}
                     clientId={client.id}
                     projectId={project.id}
-                    canManage={can_create_issues}
                 />
             </CrudPage>
         </>
@@ -1069,7 +1077,10 @@ function BacklogDrawer({
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{
-                                height: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] },
+                                height: {
+                                    duration: 0.3,
+                                    ease: [0.25, 0.1, 0.25, 1],
+                                },
                                 opacity: { duration: 0.2, ease: 'easeInOut' },
                             }}
                             style={{ overflow: 'hidden' }}
@@ -1100,7 +1111,8 @@ function BacklogDrawer({
                                                 Backlog
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                Hidden board stash for unplaced issues.
+                                                Hidden board stash for unplaced
+                                                issues.
                                             </p>
                                         </div>
                                     </div>
@@ -1155,13 +1167,16 @@ function BacklogDrawer({
                                                         columnId={null}
                                                         canMove={canMoveIssues}
                                                         isMoving={
-                                                            movingIssueId === issue.id
+                                                            movingIssueId ===
+                                                            issue.id
                                                         }
                                                         isGhosted={
                                                             dragState?.activeIssueId ===
                                                             issue.id
                                                         }
-                                                        onNodeChange={onIssueNodeChange}
+                                                        onNodeChange={
+                                                            onIssueNodeChange
+                                                        }
                                                         onOpen={onIssueOpen}
                                                     />
                                                 </div>
@@ -1359,7 +1374,7 @@ function IssueCardContent({
             <div
                 className={cn(
                     'text-sm leading-snug font-medium text-foreground transition-colors duration-150',
-                    interactive && 'hover:text-primary',
+                    interactive && 'cursor-pointer hover:text-primary',
                 )}
             >
                 {issue.title}

@@ -37,6 +37,7 @@ import {
     SheetTrigger,
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { formatDetailedTimestamp, formatInstant } from '@/lib/datetime';
 import type { Auth } from '@/types';
 
 marked.setOptions({
@@ -440,6 +441,19 @@ export function AssistantPanel({
     >(null);
     const [deleteThreadId, setDeleteThreadId] = useState<number | null>(null);
 
+    async function loadThreads() {
+        setIsHistoryLoading(true);
+        const response = await fetch('/assistant/threads', {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const payload = await response.json();
+        setThreads(payload.data.threads ?? []);
+        setIsHistoryLoading(false);
+    }
+
     useEffect(() => {
         const syncHash = () => {
             setOpen(window.location.hash === '#assistant');
@@ -464,11 +478,19 @@ export function AssistantPanel({
             return;
         }
 
-        void loadThreads();
+        const timeout = window.setTimeout(() => {
+            void loadThreads();
+        }, 0);
+
+        return () => window.clearTimeout(timeout);
     }, [open]);
 
     useEffect(() => {
-        void loadThreads();
+        const timeout = window.setTimeout(() => {
+            void loadThreads();
+        }, 0);
+
+        return () => window.clearTimeout(timeout);
     }, []);
 
     const csrfToken =
@@ -524,19 +546,6 @@ export function AssistantPanel({
 
         return () => window.clearInterval(interval);
     }, [pendingRun]);
-
-    async function loadThreads() {
-        setIsHistoryLoading(true);
-        const response = await fetch('/assistant/threads', {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
-        const payload = await response.json();
-        setThreads(payload.data.threads ?? []);
-        setIsHistoryLoading(false);
-    }
 
     async function loadThread(nextThreadId: number) {
         setIsLoading(true);
@@ -803,16 +812,21 @@ export function AssistantPanel({
                                             onClick={() =>
                                                 void loadThread(thread.id)
                                             }
-                                            className={`flex-1 rounded-lg px-3 py-2.5 text-left text-sm transition ${thread.id === threadId ? 'bg-accent font-semibold text-accent-foreground shadow-[inset_3px_0_0_0_var(--primary)]' : 'text-foreground hover:bg-muted/60'}`}
+                                            className={`flex-1 cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm transition ${thread.id === threadId ? 'bg-accent font-semibold text-accent-foreground shadow-[inset_3px_0_0_0_var(--primary)]' : 'text-foreground hover:bg-muted/60'}`}
                                         >
                                             <p className="truncate">
                                                 {thread.title}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
                                                 {thread.updated_at
-                                                    ? new Date(
+                                                    ? formatDetailedTimestamp(
                                                           thread.updated_at,
-                                                      ).toLocaleString()
+                                                          {
+                                                              timeZone:
+                                                                  auth.user
+                                                                      .timezone,
+                                                          },
+                                                      )
                                                     : 'No activity yet'}
                                             </p>
                                         </button>
@@ -1072,9 +1086,8 @@ export function AssistantPanel({
                     <DialogContent>
                         <DialogTitle>Delete chat history?</DialogTitle>
                         <DialogDescription>
-                            This will permanently delete the selected agent
-                            chat thread, including its messages and
-                            confirmations.
+                            This will permanently delete the selected agent chat
+                            thread, including its messages and confirmations.
                         </DialogDescription>
 
                         <DialogFooter className="gap-2">
@@ -1287,6 +1300,7 @@ function AssistantMessageCard({
     expanded: boolean;
     onToggleDebug: () => void;
 }) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const isAssistant = message.role === 'assistant';
     const renderedContent = renderAssistantMarkdown(
         message.content || 'No content returned.',
@@ -1311,17 +1325,18 @@ function AssistantMessageCard({
                 <div
                     className={`flex items-center gap-2 text-xs text-muted-foreground ${isAssistant ? '' : 'justify-end'}`}
                 >
-                    {isAssistant ? (
-                        <Bot className="size-3.5" />
-                    ) : null}
+                    {isAssistant ? <Bot className="size-3.5" /> : null}
                     <span className="font-medium">
                         {isAssistant ? 'Agent' : 'You'}
                     </span>
                     <span>
                         {message.created_at
-                            ? new Date(
-                                  message.created_at,
-                              ).toLocaleTimeString()
+                            ? formatInstant(message.created_at, {
+                                  timeZone: auth.user.timezone,
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false,
+                              })
                             : null}
                     </span>
                 </div>
@@ -1345,12 +1360,12 @@ function AssistantMessageCard({
                             <div className="space-y-2">
                                 {renderedToolResults.map(
                                     ({ index, content }) => (
-                                    <div
-                                        key={`${message.id}-${index}`}
-                                        className="rounded-lg border border-dashed border-border/60 bg-muted/40 p-3 text-sm"
-                                    >
-                                        {content}
-                                    </div>
+                                        <div
+                                            key={`${message.id}-${index}`}
+                                            className="rounded-lg border border-dashed border-border/60 bg-muted/40 p-3 text-sm"
+                                        >
+                                            {content}
+                                        </div>
                                     ),
                                 )}
                             </div>
@@ -1507,6 +1522,7 @@ function renderAssistantMarkdown(content: string): string {
 }
 
 function AssistantDebugPanel({ message }: { message: AssistantMessage }) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const trace = message.meta?.trace;
     const [selectedToolIndex, setSelectedToolIndex] = useState<number | null>(
         null,
@@ -1541,9 +1557,27 @@ function AssistantDebugPanel({ message }: { message: AssistantMessage }) {
                 <KeyValueGrid
                     items={[
                         ['Status', message.meta?.status ?? 'unknown'],
-                        ['Created', formatDateTime(message.created_at)],
-                        ['Started', formatDateTime(trace?.started_at)],
-                        ['Finished', formatDateTime(trace?.finished_at)],
+                        [
+                            'Created',
+                            formatDateTime(
+                                message.created_at,
+                                auth.user.timezone,
+                            ),
+                        ],
+                        [
+                            'Started',
+                            formatDateTime(
+                                trace?.started_at,
+                                auth.user.timezone,
+                            ),
+                        ],
+                        [
+                            'Finished',
+                            formatDateTime(
+                                trace?.finished_at,
+                                auth.user.timezone,
+                            ),
+                        ],
                         [
                             'Duration',
                             trace?.duration_ms
@@ -1593,12 +1627,16 @@ function AssistantDebugPanel({ message }: { message: AssistantMessage }) {
                                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                                     <TimelineStat
                                         label="Started"
-                                        value={formatDateTime(phase.started_at)}
+                                        value={formatDateTime(
+                                            phase.started_at,
+                                            auth.user.timezone,
+                                        )}
                                     />
                                     <TimelineStat
                                         label="Finished"
                                         value={formatDateTime(
                                             phase.finished_at,
+                                            auth.user.timezone,
                                         )}
                                     />
                                     <TimelineStat
@@ -1908,8 +1946,14 @@ function TimelineStat({ label, value }: { label: string; value: string }) {
     );
 }
 
-function formatDateTime(value?: string | null): string {
-    return value ? new Date(value).toLocaleString() : 'unknown';
+function formatDateTime(
+    value?: string | null,
+    timeZone?: string | null,
+): string {
+    return formatDetailedTimestamp(value, {
+        timeZone,
+        fallback: 'unknown',
+    });
 }
 
 function DiscussionThread({ comments }: { comments: DiscussionComment[] }) {
@@ -1928,10 +1972,6 @@ function DiscussionThread({ comments }: { comments: DiscussionComment[] }) {
             ))}
         </div>
     );
-}
-
-function ToolResultBlock({ result }: { result: AssistantToolResult }) {
-    return renderToolResultContent(result);
 }
 
 function renderToolResultContent(

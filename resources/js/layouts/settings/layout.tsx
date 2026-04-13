@@ -64,11 +64,8 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
-                    <nav
-                        className="flex flex-col gap-1"
-                        aria-label="Settings"
-                    >
-                        <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <nav className="flex flex-col gap-1" aria-label="Settings">
+                        <p className="mb-1 px-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                             Sections
                         </p>
                         {sidebarNavItems.map((item, index) => (

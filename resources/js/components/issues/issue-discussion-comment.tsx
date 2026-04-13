@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { CornerDownRight, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { IssueAttachmentsSection } from '@/components/issues/issue-attachments';
@@ -5,6 +6,8 @@ import { RichIssueContent } from '@/components/issues/rich-issue-content';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { formatDetailedTimestamp } from '@/lib/datetime';
+import type { Auth } from '@/types';
 
 type IssueAttachment = {
     id?: number;
@@ -73,6 +76,7 @@ export function IssueDiscussionComment({
     ) => Promise<void>;
     onDelete: (commentId: number) => void;
 }) {
+    const { auth } = usePage<{ auth: Auth }>().props;
     const name = comment.user?.name ?? 'Unknown';
     const avatarSrc = comment.user?.avatar_path
         ? `/storage/${comment.user.avatar_path}`
@@ -110,9 +114,12 @@ export function IssueDiscussionComment({
                             <div className="flex items-center gap-2">
                                 {comment.created_at ? (
                                     <p className="text-xs text-muted-foreground">
-                                        {new Date(
+                                        {formatDetailedTimestamp(
                                             comment.created_at,
-                                        ).toLocaleString()}
+                                            {
+                                                timeZone: auth.user.timezone,
+                                            },
+                                        )}
                                     </p>
                                 ) : null}
                                 {comment.user?.id === authUserId ? (
@@ -309,4 +316,3 @@ export function IssueDiscussionComment({
         </div>
     );
 }
-
