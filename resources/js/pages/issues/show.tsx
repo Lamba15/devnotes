@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormField } from '@/components/crud/dynamic-form';
+import { IssueDetailsForm } from '@/components/issues/issue-details-form';
+import type { IssueFormValues } from '@/components/issues/issue-details-form';
 import { IssueDiscussionComment } from '@/components/issues/issue-discussion-comment';
 import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
 import { RichIssueContent } from '@/components/issues/rich-issue-content';
@@ -118,7 +118,7 @@ export default function IssueShow({
     priority_options: string[];
     type_options: string[];
 }) {
-    const form = useForm({
+    const form = useForm<IssueFormValues>({
         title: issue.title,
         description: issue.description ?? '<p></p>',
         assignee_id: issue.assignee_id ? String(issue.assignee_id) : '',
@@ -169,84 +169,6 @@ export default function IssueShow({
 
         router.visit(fallbackIssuesUrl);
     };
-
-    const fields: DynamicFormField[] = [
-        {
-            name: 'title',
-            label: 'Title',
-            type: 'text',
-            placeholder: 'Issue title',
-            wide: true,
-        },
-        {
-            name: 'description',
-            label: 'Description',
-            type: 'custom',
-            wide: true,
-            render: ({ value, onChange, error }) => (
-                <div className="space-y-2">
-                    <RichIssueEditor
-                        value={value}
-                        onChange={onChange}
-                        placeholder="Write the description, important integration notes, checklist, and context here..."
-                        attachments={descriptionFiles}
-                        onAttachmentsChange={setDescriptionFiles}
-                        mentionOptions={mentionOptions}
-                        uploadContext={{
-                            attachableType: 'issue',
-                            attachableId: issue.id,
-                        }}
-                    />
-                    {error ? (
-                        <p className="text-sm text-destructive">{error}</p>
-                    ) : null}
-                </div>
-            ),
-        },
-        {
-            name: 'assignee_id',
-            label: 'Assignee',
-            type: 'select',
-            options: assignee_options,
-        },
-        {
-            name: 'status',
-            label: 'Status',
-            type: 'select',
-            options: status_options.map((status) => ({
-                label: status,
-                value: status,
-            })),
-        },
-        {
-            name: 'priority',
-            label: 'Priority',
-            type: 'select',
-            options: priority_options.map((priority) => ({
-                label: priority,
-                value: priority,
-            })),
-        },
-        {
-            name: 'type',
-            label: 'Type',
-            type: 'select',
-            options: type_options.map((type) => ({ label: type, value: type })),
-        },
-        { name: 'due_date', label: 'Due date', type: 'date' as const },
-        {
-            name: 'estimated_hours',
-            label: 'Estimated hours',
-            type: 'text' as const,
-            placeholder: 'e.g. 4',
-        },
-        {
-            name: 'label',
-            label: 'Label',
-            type: 'text' as const,
-            placeholder: 'e.g. frontend, backend',
-        },
-    ];
 
     const saveComment = () => {
         setSavingComment(true);
@@ -332,8 +254,7 @@ export default function IssueShow({
                 <div className="w-full max-w-[1400px] space-y-8">
                     {/* Top Section: Form or Static Badges */}
                     {can_manage_issue ? (
-                        <DynamicForm
-                            fields={fields}
+                        <IssueDetailsForm
                             data={form.data}
                             errors={form.errors}
                             processing={form.processing}
@@ -341,11 +262,19 @@ export default function IssueShow({
                             cancelLabel={return_to?.label ?? 'Back'}
                             onCancel={goBack}
                             onChange={(name, value) =>
-                                form.setData(
-                                    name as keyof typeof form.data,
-                                    value,
-                                )
+                                form.setData(name, value)
                             }
+                            assigneeOptions={assignee_options}
+                            statusOptions={status_options}
+                            priorityOptions={priority_options}
+                            typeOptions={type_options}
+                            descriptionFiles={descriptionFiles}
+                            onDescriptionFilesChange={setDescriptionFiles}
+                            mentionOptions={mentionOptions}
+                            uploadContext={{
+                                attachableType: 'issue',
+                                attachableId: issue.id,
+                            }}
                             onSubmit={() => {
                                 form.transform((data) => ({
                                     ...data,

@@ -1,9 +1,8 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormSection } from '@/components/crud/dynamic-form';
-import { IssueAttachmentPicker } from '@/components/issues/issue-attachments';
+import { IssueDetailsForm } from '@/components/issues/issue-details-form';
+import type { IssueFormValues } from '@/components/issues/issue-details-form';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function IssuesCreate({
@@ -22,9 +21,9 @@ export default function IssuesCreate({
     type_options: string[];
 }) {
     const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
-    const form = useForm({
+    const form = useForm<IssueFormValues>({
         title: '',
-        description: '',
+        description: '<p></p>',
         assignee_id: '',
         status: 'todo',
         priority: 'medium',
@@ -34,91 +33,20 @@ export default function IssuesCreate({
         label: '',
     });
 
-    const sections: DynamicFormSection[] = [
-        {
-            name: 'issue',
-            title: 'Create issue',
-            description:
-                'Create an issue on its own page instead of mixing forms into the issue list.',
-            fields: [
-                {
-                    name: 'title',
-                    label: 'Title',
-                    type: 'text',
-                    placeholder: 'Issue title',
-                    wide: true,
-                },
-                {
-                    name: 'description',
-                    label: 'Description',
-                    type: 'textarea',
-                    placeholder: 'Optional description',
-                    wide: true,
-                },
-                {
-                    name: 'assignee_id',
-                    label: 'Assignee',
-                    type: 'select',
-                    options: assignee_options,
-                },
-                {
-                    name: 'status',
-                    label: 'Status',
-                    type: 'select',
-                    options: status_options.map((status) => ({
-                        label: status,
-                        value: status,
-                    })),
-                },
-                {
-                    name: 'priority',
-                    label: 'Priority',
-                    type: 'select',
-                    options: priority_options.map((priority) => ({
-                        label: priority,
-                        value: priority,
-                    })),
-                },
-                {
-                    name: 'type',
-                    label: 'Type',
-                    type: 'select',
-                    options: type_options.map((type) => ({
-                        label: type,
-                        value: type,
-                    })),
-                },
-                {
-                    name: 'due_date',
-                    label: 'Due date',
-                    type: 'date',
-                },
-                {
-                    name: 'estimated_hours',
-                    label: 'Estimated hours',
-                    type: 'text',
-                    placeholder: 'e.g. 4',
-                },
-                {
-                    name: 'label',
-                    label: 'Label',
-                    type: 'text',
-                    placeholder: 'e.g. frontend, backend, urgent',
-                },
-            ],
-        },
-    ];
-
     return (
         <>
             <Head title={`Create Issue`} />
             <CrudPage
                 title={`Create Issue`}
                 description={`${client.name} / ${project.name}`}
+                onBack={() =>
+                    router.visit(
+                        `/clients/${client.id}/projects/${project.id}/issues`,
+                    )
+                }
             >
-                <div className="space-y-6">
-                    <DynamicForm
-                        sections={sections}
+                <div className="w-full max-w-[1400px] space-y-8">
+                    <IssueDetailsForm
                         data={form.data}
                         errors={form.errors}
                         processing={form.processing}
@@ -129,9 +57,13 @@ export default function IssuesCreate({
                                 `/clients/${client.id}/projects/${project.id}/issues`,
                             )
                         }
-                        onChange={(name, value) =>
-                            form.setData(name as keyof typeof form.data, value)
-                        }
+                        onChange={(name, value) => form.setData(name, value)}
+                        assigneeOptions={assignee_options}
+                        statusOptions={status_options}
+                        priorityOptions={priority_options}
+                        typeOptions={type_options}
+                        descriptionFiles={attachmentFiles}
+                        onDescriptionFilesChange={setAttachmentFiles}
                         onSubmit={() => {
                             form.transform((data) => ({
                                 ...data,
@@ -145,10 +77,6 @@ export default function IssuesCreate({
                                 },
                             );
                         }}
-                    />
-                    <IssueAttachmentPicker
-                        files={attachmentFiles}
-                        onChange={setAttachmentFiles}
                     />
                 </div>
             </CrudPage>

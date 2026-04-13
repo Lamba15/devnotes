@@ -54,7 +54,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
-import { formatInstant } from '@/lib/datetime';
+import { formatDetailedTimestamp } from '@/lib/datetime';
 import { cn, stripHtml } from '@/lib/utils';
 
 type Issue = {
@@ -1018,7 +1018,7 @@ function BacklogDrawer({
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<
         'board' | 'newest' | 'oldest' | 'title'
-    >('board');
+    >('newest');
     const { isOver, setNodeRef } = useDroppable({
         id: BACKLOG_LANE_ID,
         data: {
@@ -1066,6 +1066,9 @@ function BacklogDrawer({
 
     const backlogViewIsTransformed =
         normalizedQuery.length > 0 || sortBy !== 'board';
+    const visualInsertionIndex = backlogViewIsTransformed
+        ? null
+        : adjustedInsertionIndex;
 
     return (
         <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-3 sm:px-6">
@@ -1213,13 +1216,8 @@ function BacklogDrawer({
                                 </div>
 
                                 <div
-                                    ref={
-                                        backlogViewIsTransformed
-                                            ? undefined
-                                            : setNodeRef
-                                    }
+                                    ref={setNodeRef}
                                     data-testid="backlog-dropzone"
-                                    aria-disabled={backlogViewIsTransformed}
                                     className={cn(
                                         'h-[min(65vh,28rem)] overflow-y-auto p-3 sm:h-[min(60vh,22rem)] sm:p-4',
                                         isOver && 'bg-primary/5',
@@ -1233,7 +1231,7 @@ function BacklogDrawer({
                                     >
                                         <div className="flex flex-col gap-2">
                                             {visibleIssues.length === 0 &&
-                                            adjustedInsertionIndex === null ? (
+                                            visualInsertionIndex === null ? (
                                                 <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
                                                     {issues.length === 0
                                                         ? 'No backlog issues'
@@ -1244,7 +1242,7 @@ function BacklogDrawer({
                                             {visibleIssues.map(
                                                 (issue, index) => (
                                                     <div key={issue.id}>
-                                                        {adjustedInsertionIndex ===
+                                                        {visualInsertionIndex ===
                                                         index ? (
                                                             <InsertionMarker label="Backlog" />
                                                         ) : null}
@@ -1252,8 +1250,7 @@ function BacklogDrawer({
                                                             issue={issue}
                                                             columnId={null}
                                                             canMove={
-                                                                canMoveIssues &&
-                                                                !backlogViewIsTransformed
+                                                                canMoveIssues
                                                             }
                                                             isMoving={
                                                                 movingIssueId ===
@@ -1272,7 +1269,7 @@ function BacklogDrawer({
                                                 ),
                                             )}
 
-                                            {adjustedInsertionIndex ===
+                                            {visualInsertionIndex ===
                                             visibleIssues.length ? (
                                                 <InsertionMarker label="Backlog" />
                                             ) : null}
@@ -1462,11 +1459,7 @@ function IssueCardContent({
     const typeClass =
         TYPE_COLORS[issue.type] ?? 'bg-muted text-muted-foreground';
     const addedLabel = issue.created_at
-        ? formatInstant(issue.created_at, {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-          })
+        ? formatDetailedTimestamp(issue.created_at)
         : null;
 
     return (
