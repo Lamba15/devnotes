@@ -19,6 +19,14 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserCreditsController;
+use App\Models\AuditLog;
+use App\Models\Board;
+use App\Models\Client;
+use App\Models\Invoice;
+use App\Models\Issue;
+use App\Models\Project;
+use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -30,16 +38,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         if ($request->user()->isPlatformOwner()) {
             return Inertia::render('overview', [
                 'stats' => [
-                    'clients' => \App\Models\Client::count(),
-                    'projects' => \App\Models\Project::count(),
-                    'issues' => \App\Models\Issue::count(),
-                    'open_issues' => \App\Models\Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
-                    'invoices' => \App\Models\Invoice::count(),
-                    'transactions' => \App\Models\Transaction::count(),
-                    'users' => \App\Models\User::count(),
-                    'boards' => \App\Models\Board::count(),
+                    'clients' => Client::count(),
+                    'projects' => Project::count(),
+                    'issues' => Issue::count(),
+                    'open_issues' => Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
+                    'invoices' => Invoice::count(),
+                    'transactions' => Transaction::count(),
+                    'users' => User::count(),
+                    'boards' => Board::count(),
                 ],
-                'recent_activity' => \App\Models\AuditLog::with('user:id,name')
+                'recent_activity' => AuditLog::with('user:id,name')
                     ->orderByDesc('created_at')
                     ->limit(8)
                     ->get()
@@ -125,6 +133,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('clients.projects.issues.edit');
     Route::get('clients/{client}/projects/{project}/issues/{issue}', [IssueController::class, 'show'])
         ->name('clients.projects.issues.show');
+    Route::get('clients/{client}/projects/{project}/issues/{issue}/workspace', [IssueController::class, 'workspace'])
+        ->name('clients.projects.issues.workspace');
     Route::put('clients/{client}/projects/{project}/issues/{issue}', [IssueController::class, 'update'])
         ->name('clients.projects.issues.update');
     Route::delete('clients/{client}/projects/{project}/issues/{issue}', [IssueController::class, 'destroy'])

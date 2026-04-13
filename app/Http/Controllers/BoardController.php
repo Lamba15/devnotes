@@ -6,6 +6,7 @@ use App\Actions\Boards\CreateBoard;
 use App\Actions\Boards\CreateBoardColumn;
 use App\Actions\Boards\DeleteBoard;
 use App\Actions\Boards\UpdateBoard;
+use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\BoardIssuePlacement;
 use App\Models\Client;
@@ -139,7 +140,7 @@ class BoardController extends Controller
                 ->with([
                     'placements' => fn ($placementQuery) => $placementQuery
                         ->orderBy('position')
-                        ->with('issue'),
+                        ->with('issue.attachments', 'issue.comments.user:id,name,avatar_path', 'issue.comments.attachments'),
                 ]),
         ]);
 
@@ -158,6 +159,7 @@ class BoardController extends Controller
             'backlog' => Issue::query()
                 ->where('project_id', $project->id)
                 ->whereNotIn('id', $placedIssueIds)
+                ->with('attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
                 ->orderBy('id')
                 ->get()
                 ->map(fn (Issue $issue) => $this->serializeIssue($issue))
@@ -224,12 +226,65 @@ class BoardController extends Controller
 
     private function serializeIssue(Issue $issue): array
     {
+        $issue->loadMissing('attachments');
+
+        $attachments = $issue->attachments
+            ->sortBy('id')
+            ->map(fn (Attachment $attachment) => [
+                'id' => $attachment->id,
+                'file_name' => $attachment->file_name,
+                'file_path' => $attachment->file_path,
+                'mime_type' => $attachment->mime_type,
+                'file_size' => $attachment->file_size,
+                'url' => asset('storage/'.$attachment->file_path),
+                'is_image' => $attachment->isImage(),
+            ])
+            ->values();
+        $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
+
         return [
             'id' => $issue->id,
             'title' => $issue->title,
+            'description' => $issue->description,
             'status' => $issue->status,
             'priority' => $issue->priority,
             'type' => $issue->type,
+            'attachments' => $attachments->all(),
+            'attachment_count' => $attachments->count(),
+            'image_count' => $images->count(),
+            'file_count' => $attachments->count() - $images->count(),
+            'preview_image_url' => $images->first()['url'] ?? null,
+            'comments' => $this->buildCommentTree($issue->comments, null),
+            'comments_count' => $issue->comments->count(),
+            'can_comment' => request()->user()?->canCommentOnIssue($issue) ?? false,
         ];
+    }
+
+    private function buildCommentTree($comments, ?int $parentId): array
+    {
+        return $comments
+            ->where('parent_id', $parentId)
+            ->map(fn ($comment) => [
+                'id' => $comment->id,
+                'body' => $comment->body,
+                'parent_id' => $comment->parent_id,
+                'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
+                'created_at' => $comment->created_at?->toISOString(),
+                'attachments' => $comment->attachments
+                    ->map(fn (Attachment $attachment) => [
+                        'id' => $attachment->id,
+                        'file_name' => $attachment->file_name,
+                        'file_path' => $attachment->file_path,
+                        'mime_type' => $attachment->mime_type,
+                        'file_size' => $attachment->file_size,
+                        'url' => asset('storage/'.$attachment->file_path),
+                        'is_image' => $attachment->isImage(),
+                    ])
+                    ->values()
+                    ->all(),
+                'replies' => $this->buildCommentTree($comments, $comment->id),
+            ])
+            ->values()
+            ->all();
     }
 }

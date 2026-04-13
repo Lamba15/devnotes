@@ -1,7 +1,9 @@
 import { Head, router, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import { IssueAttachmentPicker } from '@/components/issues/issue-attachments';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function IssuesCreate({
@@ -19,6 +21,7 @@ export default function IssuesCreate({
     priority_options: string[];
     type_options: string[];
 }) {
+    const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const form = useForm({
         title: '',
         description: '',
@@ -113,30 +116,41 @@ export default function IssuesCreate({
                 title={`Create Issue`}
                 description={`${client.name} / ${project.name}`}
             >
-                <DynamicForm
-                    sections={sections}
-                    data={form.data}
-                    errors={form.errors}
-                    processing={form.processing}
-                    submitLabel="Create issue"
-                    cancelLabel="Back to issues"
-                    onCancel={() =>
-                        router.visit(
-                            `/clients/${client.id}/projects/${project.id}/issues`,
-                        )
-                    }
-                    onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
-                    }
-                    onSubmit={() =>
-                        form.post(
-                            `/clients/${client.id}/projects/${project.id}/issues`,
-                        )
-                    }
-                />
+                <div className="space-y-6">
+                    <DynamicForm
+                        sections={sections}
+                        data={form.data}
+                        errors={form.errors}
+                        processing={form.processing}
+                        submitLabel="Create issue"
+                        cancelLabel="Back to issues"
+                        onCancel={() =>
+                            router.visit(
+                                `/clients/${client.id}/projects/${project.id}/issues`,
+                            )
+                        }
+                        onChange={(name, value) =>
+                            form.setData(name as keyof typeof form.data, value)
+                        }
+                        onSubmit={() => {
+                            form.transform((data) => ({
+                                ...data,
+                                attachments: attachmentFiles,
+                            }));
+
+                            form.post(
+                                `/clients/${client.id}/projects/${project.id}/issues`,
+                                {
+                                    forceFormData: true,
+                                },
+                            );
+                        }}
+                    />
+                    <IssueAttachmentPicker
+                        files={attachmentFiles}
+                        onChange={setAttachmentFiles}
+                    />
+                </div>
             </CrudPage>
         </>
     );

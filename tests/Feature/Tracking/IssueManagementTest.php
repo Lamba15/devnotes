@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Attachment;
 use App\Models\Behavior;
 use App\Models\Client;
 use App\Models\ClientMembership;
@@ -11,6 +12,8 @@ use App\Models\ProjectStatus;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -301,6 +304,96 @@ test('client admins can create issues and issue creation is audited', function (
         'subject_type' => Issue::class,
         'subject_id' => $issue->id,
     ]);
+});
+
+test('client admins can create an issue with image and file attachments', function () {
+    Storage::fake('public');
+
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('clients.projects.issues.store', [$client, $project]), [
+            'title' => 'Issue with media',
+            'status' => 'todo',
+            'priority' => 'medium',
+            'type' => 'task',
+            'attachments' => [
+                UploadedFile::fake()->create('preview.png', 64, 'image/png'),
+                UploadedFile::fake()->create('brief.pdf', 32, 'application/pdf'),
+            ],
+        ])
+        ->assertRedirect(route('clients.projects.issues.index', [$client, $project]));
+
+    $issue = Issue::query()->where('title', 'Issue with media')->firstOrFail();
+
+    expect($issue->attachments()->count())->toBe(2);
+
+    $this->assertDatabaseHas('attachments', [
+        'attachable_type' => Issue::class,
+        'attachable_id' => $issue->id,
+        'file_name' => 'preview.png',
+    ]);
+
+    $this->assertDatabaseHas('attachments', [
+        'attachable_type' => Issue::class,
+        'attachable_id' => $issue->id,
+        'file_name' => 'brief.pdf',
+    ]);
+});
+
+test('issue attachment endpoint requires issue management permission', function () {
+    Storage::fake('public');
+
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Locked issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => User::factory()->create()->id,
+    ]);
+    $viewer = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $viewer->id,
+        'role' => 'viewer',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $viewer->id,
+    ]);
+
+    $this->actingAs($viewer)
+        ->post(route('attachments.store'), [
+            'attachable_type' => 'issue',
+            'attachable_id' => $issue->id,
+            'file' => UploadedFile::fake()->create('blocked.png', 32, 'image/png'),
+        ])
+        ->assertForbidden();
+
+    expect(Attachment::query()->count())->toBe(0);
 });
 
 test('issue create and edit pages expose project assignee options', function () {

@@ -9,6 +9,7 @@ use App\Models\Client;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -21,7 +22,7 @@ class IssueCommentController extends Controller
         Project $project,
         Issue $issue,
         CreateIssueComment $createIssueComment,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         abort_unless(
             $project->client_id === $client->id && $issue->project_id === $project->id,
             404,
@@ -51,6 +52,12 @@ class IssueCommentController extends Controller
             }
         }
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'comment' => $this->serializeCommentTreeNode($comment->fresh(['user:id,name,avatar_path', 'attachments'])),
+            ]);
+        }
+
         return to_route('clients.projects.issues.show', [$client, $project, $issue]);
     }
 
@@ -60,7 +67,7 @@ class IssueCommentController extends Controller
         Project $project,
         Issue $issue,
         IssueComment $comment,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         abort_unless(
             $project->client_id === $client->id
             && $issue->project_id === $project->id
@@ -87,6 +94,12 @@ class IssueCommentController extends Controller
             'after_json' => $comment->only(['body']),
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'comment' => $this->serializeCommentTreeNode($comment->fresh(['user:id,name,avatar_path', 'attachments'])),
+            ]);
+        }
+
         return to_route('clients.projects.issues.show', [$client, $project, $issue]);
     }
 
@@ -96,7 +109,7 @@ class IssueCommentController extends Controller
         Project $project,
         Issue $issue,
         IssueComment $comment,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         abort_unless(
             $project->client_id === $client->id
             && $issue->project_id === $project->id
@@ -127,6 +140,13 @@ class IssueCommentController extends Controller
             'before_json' => $snapshot,
         ]);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'deleted' => true,
+                'id' => $snapshot['id'],
+            ]);
+        }
+
         return to_route('clients.projects.issues.show', [$client, $project, $issue]);
     }
 
@@ -140,5 +160,29 @@ class IssueCommentController extends Controller
             $this->deleteReplies($reply);
             $reply->delete();
         }
+    }
+
+    private function serializeCommentTreeNode(IssueComment $comment): array
+    {
+        return [
+            'id' => $comment->id,
+            'body' => $comment->body,
+            'parent_id' => $comment->parent_id,
+            'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
+            'created_at' => $comment->created_at?->toISOString(),
+            'attachments' => $comment->attachments
+                ->map(fn (Attachment $attachment) => [
+                    'id' => $attachment->id,
+                    'file_name' => $attachment->file_name,
+                    'file_path' => $attachment->file_path,
+                    'mime_type' => $attachment->mime_type,
+                    'file_size' => $attachment->file_size,
+                    'url' => asset('storage/'.$attachment->file_path),
+                    'is_image' => $attachment->isImage(),
+                ])
+                ->values()
+                ->all(),
+            'replies' => [],
+        ];
     }
 }

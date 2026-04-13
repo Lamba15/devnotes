@@ -29,14 +29,19 @@ import {
     ChevronDown,
     ChevronUp,
     GripVertical,
+    Image as ImageIcon,
     Pencil,
+    Paperclip,
     Plus,
     Users,
     X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
+import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
+import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -49,14 +54,35 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
-import { cn } from '@/lib/utils';
+import { cn, stripHtml } from '@/lib/utils';
 
 type Issue = {
     id: number;
     title: string;
+    description?: string | null;
     status: string;
     priority: string;
     type: string;
+    assignee_id?: number | null;
+    due_date?: string | null;
+    estimated_hours?: string | null;
+    label?: string | null;
+    attachment_count?: number;
+    image_count?: number;
+    file_count?: number;
+    preview_image_url?: string | null;
+    comments_count?: number;
+    attachments?: Array<{
+        id?: number;
+        file_name: string;
+        file_path?: string | null;
+        mime_type: string;
+        file_size: number;
+        url?: string | null;
+        is_image?: boolean;
+    }>;
+    comments?: SharedDiscussionComment[];
+    can_comment?: boolean;
 };
 
 type Column = {
@@ -134,7 +160,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 const BACKLOG_LANE_ID = 'lane-backlog';
 const ISSUE_CARD_CLASS =
-    'group w-full rounded-lg bg-card p-2.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md';
+    'group w-full rounded-xl bg-card p-3.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md';
 
 function getLaneId(columnId: number | null) {
     return columnId === null ? BACKLOG_LANE_ID : `lane-${columnId}`;
@@ -282,6 +308,9 @@ export default function BoardShow({
     const [boardDataOverride, setBoardDataOverride] =
         useState<BoardData | null>(null);
     const [dragState, setDragState] = useState<DragState | null>(null);
+    const [quickViewIssueId, setQuickViewIssueId] = useState<number | null>(
+        null,
+    );
     const [isBacklogOpen, setIsBacklogOpen] = useState(false);
     const [showAddColumn, setShowAddColumn] = useState(false);
     const issueElementRefs = useRef(new Map<number, HTMLDivElement>());
@@ -306,6 +335,9 @@ export default function BoardShow({
     const boardColumns = boardDataOverride?.boardColumns ?? columns;
     const backlogIssues = boardDataOverride?.backlogIssues ?? backlog;
     const allLanes = buildLanes(boardColumns);
+    const quickViewIssue =
+        [...backlogIssues, ...boardColumns.flatMap((column) => column.issues)]
+            .find((issue) => issue.id === quickViewIssueId) ?? null;
     const activeIssue = dragState
         ? ([...backlogIssues, ...allLanes.flatMap((lane) => lane.issues)].find(
               (issue) => issue.id === dragState.activeIssueId,
@@ -782,12 +814,13 @@ export default function BoardShow({
                                 <BoardLane
                                     key={lane.id}
                                     lane={lane}
-                                    clientId={client.id}
-                                    projectId={project.id}
                                     canMoveIssues={can_move_issues}
                                     movingIssueId={movingIssueId}
                                     dragState={dragState}
                                     onIssueNodeChange={setIssueElementRef}
+                                    onIssueOpen={(issueId) =>
+                                        setQuickViewIssueId(issueId)
+                                    }
                                 />
                             ))}
                         </div>
@@ -795,8 +828,6 @@ export default function BoardShow({
 
                     <BacklogDrawer
                         issues={backlogIssues}
-                        clientId={client.id}
-                        projectId={project.id}
                         canMoveIssues={can_move_issues}
                         movingIssueId={movingIssueId}
                         dragState={dragState}
@@ -805,6 +836,7 @@ export default function BoardShow({
                         onCloseWithFocus={() => closeBacklogDrawer(true)}
                         onIssueNodeChange={setIssueElementRef}
                         toggleButtonRef={backlogToggleRef}
+                        onIssueOpen={(issueId) => setQuickViewIssueId(issueId)}
                     />
 
                     <DragOverlay adjustScale={false}>
@@ -831,6 +863,19 @@ export default function BoardShow({
                         ) : null}
                     </DragOverlay>
                 </DndContext>
+
+                <IssueQuickViewDialog
+                    issue={quickViewIssue}
+                    open={quickViewIssue !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setQuickViewIssueId(null);
+                        }
+                    }}
+                    clientId={client.id}
+                    projectId={project.id}
+                    canManage={can_create_issues}
+                />
             </CrudPage>
         </>
     );
@@ -838,20 +883,18 @@ export default function BoardShow({
 
 function BoardLane({
     lane,
-    clientId,
-    projectId,
     canMoveIssues,
     movingIssueId,
     dragState,
     onIssueNodeChange,
+    onIssueOpen,
 }: {
     lane: Lane;
-    clientId: number;
-    projectId: number;
     canMoveIssues: boolean;
     movingIssueId: number | null;
     dragState: DragState | null;
     onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
+    onIssueOpen: (issueId: number) => void;
 }) {
     const { isOver, setNodeRef } = useDroppable({
         id: getLaneId(lane.id),
@@ -877,7 +920,7 @@ function BoardLane({
         <div
             data-testid={`board-lane-${lane.id}`}
             className={cn(
-                'flex w-64 min-w-[256px] shrink-0 flex-col',
+                'flex w-96 min-w-[384px] shrink-0 flex-col',
                 'border-l border-border',
             )}
         >
@@ -917,7 +960,6 @@ function BoardLane({
                                 ) : null}
                                 <IssueCard
                                     issue={issue}
-                                    href={`/clients/${clientId}/projects/${projectId}/issues/${issue.id}`}
                                     columnId={lane.id}
                                     canMove={canMoveIssues}
                                     isMoving={movingIssueId === issue.id}
@@ -925,6 +967,7 @@ function BoardLane({
                                         dragState?.activeIssueId === issue.id
                                     }
                                     onNodeChange={onIssueNodeChange}
+                                    onOpen={onIssueOpen}
                                 />
                             </div>
                         ))}
@@ -941,8 +984,6 @@ function BoardLane({
 
 function BacklogDrawer({
     issues,
-    clientId,
-    projectId,
     canMoveIssues,
     movingIssueId,
     dragState,
@@ -951,10 +992,9 @@ function BacklogDrawer({
     onCloseWithFocus,
     onIssueNodeChange,
     toggleButtonRef,
+    onIssueOpen,
 }: {
     issues: Issue[];
-    clientId: number;
-    projectId: number;
     canMoveIssues: boolean;
     movingIssueId: number | null;
     dragState: DragState | null;
@@ -963,6 +1003,7 @@ function BacklogDrawer({
     onCloseWithFocus: () => void;
     onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
     toggleButtonRef: RefObject<HTMLButtonElement | null>;
+    onIssueOpen: (issueId: number) => void;
 }) {
     const { isOver, setNodeRef } = useDroppable({
         id: BACKLOG_LANE_ID,
@@ -1020,109 +1061,123 @@ function BacklogDrawer({
                     )}
                 </button>
 
-                {isOpen ? (
-                    <div
-                        id={drawerId}
-                        data-testid="backlog-drawer"
-                        role="region"
-                        aria-label="Backlog"
-                        tabIndex={-1}
-                        onKeyDown={(event) => {
-                            if (event.key !== 'Escape') {
-                                return;
-                            }
-
-                            event.preventDefault();
-                            onCloseWithFocus();
-                        }}
-                        className="pointer-events-auto w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-border/70 bg-background/95 shadow-2xl backdrop-blur-sm"
-                    >
-                        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 sm:px-5">
-                            <div className="flex items-center gap-2">
-                                <div className="rounded-full bg-muted p-2 text-muted-foreground">
-                                    <Archive className="size-4" />
-                                </div>
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">
-                                        Backlog
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Hidden board stash for unplaced issues.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                                    {issues.length} issue
-                                    {issues.length === 1 ? '' : 's'}
-                                </span>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={onCloseWithFocus}
-                                >
-                                    <X className="size-4" />
-                                    Close
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div
-                            ref={setNodeRef}
-                            data-testid="backlog-dropzone"
-                            className={cn(
-                                'h-[min(65vh,28rem)] overflow-y-auto p-3 sm:h-[min(60vh,22rem)] sm:p-4',
-                                isOver && 'bg-primary/5',
-                            )}
+                <AnimatePresence initial={false}>
+                    {isOpen ? (
+                        <motion.div
+                            key="backlog-drawer"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{
+                                height: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] },
+                                opacity: { duration: 0.2, ease: 'easeInOut' },
+                            }}
+                            style={{ overflow: 'hidden' }}
+                            className="pointer-events-auto w-full max-w-5xl rounded-[1.75rem] border border-border/70 bg-background/95 shadow-2xl backdrop-blur-sm"
                         >
-                            <SortableContext
-                                items={issues.map((issue) =>
-                                    getIssueId(issue.id),
-                                )}
-                                strategy={verticalListSortingStrategy}
-                            >
-                                <div className="flex flex-col gap-2">
-                                    {issues.length === 0 &&
-                                    adjustedInsertionIndex === null ? (
-                                        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-                                            No backlog issues
-                                        </div>
-                                    ) : null}
+                            <div
+                                id={drawerId}
+                                data-testid="backlog-drawer"
+                                role="region"
+                                aria-label="Backlog"
+                                tabIndex={-1}
+                                onKeyDown={(event) => {
+                                    if (event.key !== 'Escape') {
+                                        return;
+                                    }
 
-                                    {issues.map((issue, index) => (
-                                        <div key={issue.id}>
+                                    event.preventDefault();
+                                    onCloseWithFocus();
+                                }}
+                            >
+                                <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 sm:px-5">
+                                    <div className="flex items-center gap-2">
+                                        <div className="rounded-full bg-muted p-2 text-muted-foreground">
+                                            <Archive className="size-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                Backlog
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Hidden board stash for unplaced issues.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                                            {issues.length} issue
+                                            {issues.length === 1 ? '' : 's'}
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={onCloseWithFocus}
+                                        >
+                                            <X className="size-4" />
+                                            Close
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div
+                                    ref={setNodeRef}
+                                    data-testid="backlog-dropzone"
+                                    className={cn(
+                                        'h-[min(65vh,28rem)] overflow-y-auto p-3 sm:h-[min(60vh,22rem)] sm:p-4',
+                                        isOver && 'bg-primary/5',
+                                    )}
+                                >
+                                    <SortableContext
+                                        items={issues.map((issue) =>
+                                            getIssueId(issue.id),
+                                        )}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        <div className="flex flex-col gap-2">
+                                            {issues.length === 0 &&
+                                            adjustedInsertionIndex === null ? (
+                                                <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+                                                    No backlog issues
+                                                </div>
+                                            ) : null}
+
+                                            {issues.map((issue, index) => (
+                                                <div key={issue.id}>
+                                                    {adjustedInsertionIndex ===
+                                                    index ? (
+                                                        <InsertionMarker label="Backlog" />
+                                                    ) : null}
+                                                    <IssueCard
+                                                        issue={issue}
+                                                        columnId={null}
+                                                        canMove={canMoveIssues}
+                                                        isMoving={
+                                                            movingIssueId === issue.id
+                                                        }
+                                                        isGhosted={
+                                                            dragState?.activeIssueId ===
+                                                            issue.id
+                                                        }
+                                                        onNodeChange={onIssueNodeChange}
+                                                        onOpen={onIssueOpen}
+                                                    />
+                                                </div>
+                                            ))}
+
                                             {adjustedInsertionIndex ===
-                                            index ? (
+                                            issues.length ? (
                                                 <InsertionMarker label="Backlog" />
                                             ) : null}
-                                            <IssueCard
-                                                issue={issue}
-                                                href={`/clients/${clientId}/projects/${projectId}/issues/${issue.id}`}
-                                                columnId={null}
-                                                canMove={canMoveIssues}
-                                                isMoving={
-                                                    movingIssueId === issue.id
-                                                }
-                                                isGhosted={
-                                                    dragState?.activeIssueId ===
-                                                    issue.id
-                                                }
-                                                onNodeChange={onIssueNodeChange}
-                                            />
                                         </div>
-                                    ))}
-
-                                    {adjustedInsertionIndex ===
-                                    issues.length ? (
-                                        <InsertionMarker label="Backlog" />
-                                    ) : null}
+                                    </SortableContext>
                                 </div>
-                            </SortableContext>
-                        </div>
-                    </div>
-                ) : null}
+                            </div>
+                        </motion.div>
+                    ) : null}
+                </AnimatePresence>
             </div>
         </div>
     );
@@ -1140,20 +1195,20 @@ function InsertionMarker({ label }: { label: string }) {
 
 function IssueCard({
     issue,
-    href,
     columnId,
     canMove = false,
     isMoving = false,
     isGhosted = false,
     onNodeChange,
+    onOpen,
 }: {
     issue: Issue;
-    href: string;
     columnId: number | null;
     canMove?: boolean;
     isMoving?: boolean;
     isGhosted?: boolean;
     onNodeChange?: (issueId: number, node: HTMLDivElement | null) => void;
+    onOpen?: (issueId: number) => void;
 }) {
     const {
         attributes,
@@ -1198,13 +1253,13 @@ function IssueCard({
         >
             <IssueCardBody
                 issue={issue}
-                href={href}
                 interactive
                 showHandle={canMove}
                 handleTestId={
                     canMove ? `issue-drag-handle-${issue.id}` : undefined
                 }
                 className="w-full"
+                onOpen={onOpen ? () => onOpen(issue.id) : undefined}
                 handleProps={
                     canMove
                         ? {
@@ -1222,22 +1277,22 @@ function IssueCard({
 
 function IssueCardBody({
     issue,
-    href,
     interactive = false,
     showHandle = false,
     handleProps,
     handleTestId,
     className,
     style,
+    onOpen,
 }: {
     issue: Issue;
-    href?: string;
     interactive?: boolean;
     showHandle?: boolean;
     handleProps?: Record<string, unknown>;
     handleTestId?: string;
     className?: string;
     style?: CSSProperties;
+    onOpen?: () => void;
 }) {
     return (
         <div className={cn('w-full', className)} style={style}>
@@ -1257,13 +1312,21 @@ function IssueCardBody({
                     </div>
                 )}
 
-                {href ? (
-                    <Link href={href} className="min-w-0 flex-1">
+                {onOpen ? (
+                    <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onOpen();
+                        }}
+                    >
                         <IssueCardContent
                             issue={issue}
                             interactive={interactive}
                         />
-                    </Link>
+                    </button>
                 ) : (
                     <IssueCardContent issue={issue} interactive={interactive} />
                 )}
@@ -1286,6 +1349,13 @@ function IssueCardContent({
 
     return (
         <div className="min-w-0 flex-1">
+            {issue.preview_image_url ? (
+                <img
+                    src={issue.preview_image_url}
+                    alt={issue.title}
+                    className="mb-2 aspect-[4/3] w-full rounded-lg border object-cover"
+                />
+            ) : null}
             <div
                 className={cn(
                     'text-sm leading-snug font-medium text-foreground transition-colors duration-150',
@@ -1294,6 +1364,11 @@ function IssueCardContent({
             >
                 {issue.title}
             </div>
+            {issue.description ? (
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                    {stripHtml(issue.description)}
+                </p>
+            ) : null}
             <div className="mt-2 flex flex-wrap gap-1.5">
                 <span
                     className={cn(
@@ -1311,6 +1386,18 @@ function IssueCardContent({
                 >
                     {issue.type}
                 </span>
+                {issue.image_count ? (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <ImageIcon className="size-3" />
+                        {issue.image_count}
+                    </span>
+                ) : null}
+                {issue.file_count ? (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <Paperclip className="size-3" />
+                        {issue.file_count}
+                    </span>
+                ) : null}
             </div>
         </div>
     );

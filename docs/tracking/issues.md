@@ -10,49 +10,56 @@
 
 ### Core Fields
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | auto-increment | Primary key |
-| project_id | FK to projects | Required. The owning project |
-| title | string, max 255 | Required. The issue title |
-| description | text, nullable | Optional long-form description |
-| status | string, max 255 | Required. One of: todo, in_progress, done |
-| priority | string, max 255 | Required. One of: low, medium, high |
-| type | string, max 255 | Required. One of: task, bug, feature |
-| assignee_id | FK to users, nullable | Optional. Who is assigned to this issue |
+| Field       | Type                  | Notes                                     |
+| ----------- | --------------------- | ----------------------------------------- |
+| id          | auto-increment        | Primary key                               |
+| project_id  | FK to projects        | Required. The owning project              |
+| title       | string, max 255       | Required. The issue title                 |
+| description | text, nullable        | Optional long-form description            |
+| status      | string, max 255       | Required. One of: todo, in_progress, done |
+| priority    | string, max 255       | Required. One of: low, medium, high       |
+| type        | string, max 255       | Required. One of: task, bug, feature      |
+| assignee_id | FK to users, nullable | Optional. Who is assigned to this issue   |
 
 ### Extended Fields
 
-| Field | Type | Notes |
-|-------|------|-------|
-| due_date | date, nullable | Optional deadline for the issue |
-| estimated_hours | string, nullable | Optional time estimate (e.g. "4", "2.5") |
-| label | string, nullable | Optional freeform label (e.g. "frontend", "urgent") |
+| Field           | Type             | Notes                                               |
+| --------------- | ---------------- | --------------------------------------------------- |
+| due_date        | date, nullable   | Optional deadline for the issue                     |
+| estimated_hours | string, nullable | Optional time estimate (e.g. "4", "2.5")            |
+| label           | string, nullable | Optional freeform label (e.g. "frontend", "urgent") |
 
 ### System Fields
 
-| Field | Type | Notes |
-|-------|------|-------|
-| created_at | timestamp | Record creation |
+| Field      | Type      | Notes             |
+| ---------- | --------- | ----------------- |
+| created_at | timestamp | Record creation   |
 | updated_at | timestamp | Last modification |
 
 ## Relationships
 
-| Relation | Type | Target | Notes |
-|----------|------|--------|-------|
-| project | belongsTo | Project | The owning project |
-| assignee | belongsTo | User | Optional assigned user |
-| comments | hasMany | IssueComment | Discussion thread |
-| attachments | morphMany | Attachment | Polymorphic files and images |
-| boardPlacements | hasMany | BoardIssuePlacement | Board positions |
+| Relation        | Type      | Target              | Notes                        |
+| --------------- | --------- | ------------------- | ---------------------------- |
+| project         | belongsTo | Project             | The owning project           |
+| assignee        | belongsTo | User                | Optional assigned user       |
+| comments        | hasMany   | IssueComment        | Discussion thread            |
+| attachments     | morphMany | Attachment          | Polymorphic files and images |
+| boardPlacements | hasMany   | BoardIssuePlacement | Board positions              |
 
 ## Current Capabilities
 
 - Files and images can be attached to issues
+- Issue attachments should render image-first: images are previewed visually while non-image files stay compact and metadata-focused
 - Comments exist with nested Reddit-style threading
 - File attachments can be added to comments in the discussion
 - Issues support due dates, time estimates, and labels
 - Status, priority, and type are rendered with color-coded icons in the UI
+
+## Attachment Presentation
+
+- Images and non-image files use the same attachment model but should not share the same UI treatment.
+- Issue cards and quick views may surface image presence directly when it improves scanability.
+- Attachments should feel native to an issue rather than hidden behind a generic file list.
 
 ## Comment Threading
 

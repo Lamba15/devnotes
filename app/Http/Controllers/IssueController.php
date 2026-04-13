@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Actions\Tracking\CreateIssue;
 use App\Actions\Tracking\DeleteIssue;
 use App\Actions\Tracking\UpdateIssue;
+use App\Models\Attachment;
+use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -51,7 +54,11 @@ class IssueController extends Controller
         abort_unless($request->user()->hasProjectAccess($project), 403);
 
         $issues = $project->issues()
-            ->with('assignee:id,name')
+            ->with([
+                'assignee:id,name',
+                'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+                'comments.user:id,name,avatar_path',
+            ])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($issueQuery) use ($search): void {
                     $issueQuery->where('title', 'like', "%{$search}%")
@@ -70,7 +77,7 @@ class IssueController extends Controller
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issues' => collect($issues->items())
-                ->map(fn (Issue $issue) => $this->serializeIssue($issue))
+                ->map(fn (Issue $issue) => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)))
                 ->all(),
             'pagination' => [
                 'current_page' => $issues->currentPage(),
@@ -109,9 +116,12 @@ class IssueController extends Controller
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'string', 'max:255'],
             'label' => ['nullable', 'string', 'max:255'],
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'max:10240'],
         ]);
 
-        $createIssue->handle($request->user(), $project, $validated);
+        $issue = $createIssue->handle($request->user(), $project, $validated);
+        $this->storeAttachments($request, $issue);
 
         return to_route('clients.projects.issues.index', [$client, $project]);
     }
@@ -127,7 +137,7 @@ class IssueController extends Controller
         return Inertia::render('issues/edit', [
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
-            'issue' => $this->serializeIssue($issue),
+            'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
             'assignee_options' => $this->serializeAssigneeOptions($project, $issue),
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
@@ -146,18 +156,29 @@ class IssueController extends Controller
         return Inertia::render('issues/show', [
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
-            'issue' => $this->serializeIssue($issue),
+            'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
             'can_manage_issue' => $request->user()->canManageIssues($project),
             'can_comment' => $request->user()->canCommentOnIssue($issue),
             'comments' => $this->serializeComments($issue),
             'attachments' => $issue->attachments()
                 ->orderBy('id')
-                ->get(['id', 'file_name', 'file_path', 'mime_type', 'file_size'])
+                ->get()
+                ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
                 ->all(),
             'assignee_options' => $this->serializeAssigneeOptions($project, $issue),
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
             'type_options' => ['task', 'bug', 'feature'],
+        ]);
+    }
+
+    public function workspace(Request $request, Client $client, Project $project, Issue $issue): JsonResponse
+    {
+        abort_unless($project->client_id === $client->id && $issue->project_id === $project->id, 404);
+        abort_unless($request->user()->hasProjectAccess($project), 403);
+
+        return response()->json([
+            'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
         ]);
     }
 
@@ -167,7 +188,7 @@ class IssueController extends Controller
         Project $project,
         Issue $issue,
         UpdateIssue $updateIssue,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         abort_unless(
             $project->client_id === $client->id && $issue->project_id === $project->id,
             404,
@@ -183,9 +204,18 @@ class IssueController extends Controller
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'string', 'max:255'],
             'label' => ['nullable', 'string', 'max:255'],
+            'attachments' => ['nullable', 'array', 'max:10'],
+            'attachments.*' => ['file', 'max:10240'],
         ]);
 
-        $updateIssue->handle($request->user(), $issue, $validated);
+        $issue = $updateIssue->handle($request->user(), $issue, $validated);
+        $this->storeAttachments($request, $issue);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'issue' => $this->serializeIssue($issue->fresh(), $request->user()->canCommentOnIssue($issue)),
+            ]);
+        }
 
         return to_route('clients.projects.issues.show', [$client, $project, $issue]);
     }
@@ -207,9 +237,20 @@ class IssueController extends Controller
         return to_route('clients.projects.issues.index', [$client, $project]);
     }
 
-    private function serializeIssue(Issue $issue): array
+    private function serializeIssue(Issue $issue, bool $canComment = false): array
     {
-        $issue->loadMissing('assignee:id,name,avatar_path');
+        $issue->loadMissing([
+            'assignee:id,name,avatar_path',
+            'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+            'comments.user:id,name,avatar_path',
+            'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+        ]);
+
+        $attachments = $issue->attachments
+            ->sortBy('id')
+            ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
+            ->values();
+        $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
 
         return [
             'id' => $issue->id,
@@ -224,7 +265,69 @@ class IssueController extends Controller
             'estimated_hours' => $issue->estimated_hours,
             'label' => $issue->label,
             'created_at' => $issue->created_at?->toISOString(),
+            'attachments' => $attachments->all(),
+            'attachment_count' => $attachments->count(),
+            'image_count' => $images->count(),
+            'file_count' => $attachments->count() - $images->count(),
+            'preview_image_url' => $images->first()['url'] ?? null,
+            'comments' => $this->buildCommentTree($issue->comments, null),
+            'comments_count' => $issue->comments->count(),
+            'can_comment' => $canComment,
         ];
+    }
+
+    private function serializeAttachment(Attachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'file_name' => $attachment->file_name,
+            'file_path' => $attachment->file_path,
+            'mime_type' => $attachment->mime_type,
+            'file_size' => $attachment->file_size,
+            'url' => asset('storage/'.$attachment->file_path),
+            'is_image' => $attachment->isImage(),
+        ];
+    }
+
+    private function storeAttachments(Request $request, Issue $issue): Collection
+    {
+        if (! $request->hasFile('attachments')) {
+            return collect();
+        }
+
+        $attachments = collect();
+
+        foreach ($request->file('attachments') as $file) {
+            $path = $file->store('attachments', 'public');
+
+            $attachment = Attachment::query()->create([
+                'attachable_type' => $issue->getMorphClass(),
+                'attachable_id' => $issue->id,
+                'uploaded_by' => $request->user()->id,
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+            ]);
+
+            AuditLog::query()->create([
+                'user_id' => $request->user()->id,
+                'event' => 'attachment.uploaded',
+                'source' => 'web',
+                'subject_type' => Attachment::class,
+                'subject_id' => $attachment->id,
+                'after_json' => [
+                    'file_name' => $attachment->file_name,
+                    'mime_type' => $attachment->mime_type,
+                    'attachable_type' => 'issue',
+                    'attachable_id' => $issue->id,
+                ],
+            ]);
+
+            $attachments->push($attachment);
+        }
+
+        return $attachments;
     }
 
     private function serializeAssigneeOptions(Project $project, ?Issue $issue = null): array
@@ -280,7 +383,10 @@ class IssueController extends Controller
     private function serializeComments(Issue $issue): array
     {
         $comments = $issue->comments()
-            ->with('user:id,name,avatar_path')
+            ->with([
+                'user:id,name,avatar_path',
+                'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+            ])
             ->orderBy('id')
             ->get();
 
@@ -297,6 +403,10 @@ class IssueController extends Controller
                 'parent_id' => $comment->parent_id,
                 'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
                 'created_at' => $comment->created_at?->toISOString(),
+                'attachments' => $comment->attachments
+                    ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
+                    ->values()
+                    ->all(),
                 'replies' => $this->buildCommentTree($comments, $comment->id),
             ])
             ->values()

@@ -35,6 +35,14 @@ export type DynamicFormField =
     | (BaseField & {
           type: 'select';
           options?: DynamicFormOption[];
+      })
+    | (BaseField & {
+          type: 'custom';
+          render: (props: {
+              value: any;
+              onChange: (value: any) => void;
+              error?: string;
+          }) => React.ReactNode;
       });
 
 export type DynamicFormSection = {
@@ -242,6 +250,14 @@ function FormField({
                     }))}
                 />
             ) : null}
+
+            {field.type === 'custom' && field.render
+                ? field.render({
+                      value,
+                      onChange: (val) => onChange(field.name, val),
+                      error,
+                  })
+                : null}
 
             {field.description ? (
                 <p className="text-sm text-muted-foreground">

@@ -5,10 +5,12 @@ import {
     CheckCircle2,
     Circle,
     Flame,
+    Image as ImageIcon,
     Lightbulb,
     ListTodo,
     Loader2,
     Minus,
+    Paperclip,
     Plus,
     Search,
 } from 'lucide-react';
@@ -18,6 +20,7 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FilterBar } from '@/components/crud/filter-bar';
+import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { stripHtml } from '@/lib/utils';
 
 const statusConfig: Record<string, { icon: typeof Circle; color: string }> = {
     todo: { icon: Circle, color: 'text-muted-foreground' },
@@ -50,6 +54,19 @@ const typeConfig: Record<string, { icon: typeof ListTodo; color: string }> = {
     feature: { icon: Lightbulb, color: 'text-violet-500' },
 };
 
+type IssueCommentPreview = {
+    id: number;
+    body: string;
+    parent_id: number | null;
+    created_at?: string;
+    user: {
+        id: number;
+        name: string;
+        avatar_path?: string | null;
+    } | null;
+    replies: IssueCommentPreview[];
+};
+
 type Issue = {
     id: number;
     title: string;
@@ -61,6 +78,25 @@ type Issue = {
         id: number;
         name: string;
     } | null;
+    due_date?: string | null;
+    estimated_hours?: string | null;
+    label?: string | null;
+    attachments: Array<{
+        id: number;
+        file_name: string;
+        file_path?: string | null;
+        mime_type: string;
+        file_size: number;
+        url?: string | null;
+        is_image?: boolean;
+    }>;
+    attachment_count: number;
+    image_count: number;
+    file_count: number;
+    preview_image_url: string | null;
+    comments_count: number;
+    can_comment: boolean;
+    comments: IssueCommentPreview[];
 };
 
 export default function IssuesIndex({
@@ -96,6 +132,11 @@ export default function IssuesIndex({
     const [selectedIssueIds, setSelectedIssueIds] = useState<
         Array<string | number>
     >([]);
+    const [quickViewIssueId, setQuickViewIssueId] = useState<number | null>(
+        null,
+    );
+    const quickViewIssue =
+        issues.find((issue) => issue.id === quickViewIssueId) ?? null;
 
     useEffect(() => {
         const timeout = window.setTimeout(() => {
@@ -124,12 +165,51 @@ export default function IssuesIndex({
             sortable: true,
             sortKey: 'title',
             render: (issue) => (
-                <Link
-                    href={`/clients/${client.id}/projects/${project.id}/issues/${issue.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
+                <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-start gap-3 text-left"
+                    onClick={() => setQuickViewIssueId(issue.id)}
                 >
-                    {issue.title}
-                </Link>
+                    {issue.preview_image_url ? (
+                        <img
+                            src={issue.preview_image_url}
+                            alt={issue.title}
+                            className="mt-0.5 size-14 rounded-lg border object-cover"
+                        />
+                    ) : (
+                        <div className="mt-0.5 flex size-14 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+                            <ImageIcon className="size-4" />
+                        </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                        <div className="font-medium underline-offset-4 hover:underline">
+                            {issue.title}
+                        </div>
+                        {issue.description ? (
+                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                                {stripHtml(issue.description)}
+                            </p>
+                        ) : (
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                No description yet.
+                            </p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            {issue.image_count > 0 ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                                    <ImageIcon className="size-3" />
+                                    {issue.image_count}
+                                </span>
+                            ) : null}
+                            {issue.file_count > 0 ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                                    <Paperclip className="size-3" />
+                                    {issue.file_count}
+                                </span>
+                            ) : null}
+                        </div>
+                    </div>
+                </button>
             ),
         },
         {
@@ -154,7 +234,8 @@ export default function IssuesIndex({
             sortable: true,
             sortKey: 'priority',
             render: (issue) => {
-                const cfg = priorityConfig[issue.priority] ?? priorityConfig.medium;
+                const cfg =
+                    priorityConfig[issue.priority] ?? priorityConfig.medium;
                 const Icon = cfg.icon;
                 return (
                     <Badge variant="outline" className="gap-1 capitalize">
@@ -184,7 +265,11 @@ export default function IssuesIndex({
             key: 'assignee',
             header: 'Assignee',
             render: (issue) => (
-                <span className={issue.assignee ? 'font-medium' : 'text-muted-foreground'}>
+                <span
+                    className={
+                        issue.assignee ? 'font-medium' : 'text-muted-foreground'
+                    }
+                >
                     {issue.assignee?.name ?? 'Unassigned'}
                 </span>
             ),
@@ -291,7 +376,7 @@ export default function IssuesIndex({
             >
                 <FilterBar>
                     <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
@@ -377,6 +462,18 @@ export default function IssuesIndex({
                     </DialogContent>
                 </Dialog>
             </CrudPage>
+            <IssueQuickViewDialog
+                issue={quickViewIssue}
+                open={quickViewIssue !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setQuickViewIssueId(null);
+                    }
+                }}
+                clientId={client.id}
+                projectId={project.id}
+                canManage={can_manage_issues}
+            />
         </>
     );
 }

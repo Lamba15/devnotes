@@ -1,29 +1,35 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     Calendar,
-    Check,
-    ChevronRight,
     Clock,
     Download,
     Image as ImageIcon,
     MessageSquare,
     Paperclip,
-    Pencil,
     Send,
     Tag,
-    Trash2,
-    X,
 } from 'lucide-react';
-import type { ChangeEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormField } from '@/components/crud/dynamic-form';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { IssueDiscussionComment } from '@/components/issues/issue-discussion-comment';
+import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
+import { RichIssueContent } from '@/components/issues/rich-issue-content';
+import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+
+type IssueAttachment = {
+    id?: number;
+    file_name: string;
+    file_path?: string | null;
+    mime_type: string;
+    file_size: number;
+    url?: string | null;
+    is_image?: boolean;
+};
 
 type Issue = {
     id: number;
@@ -42,308 +48,44 @@ type Issue = {
     label: string | null;
 };
 
-type AttachmentRow = {
-    id: number;
-    file_name: string;
-    file_path: string;
-    mime_type: string;
-    file_size: number;
-};
+type MentionOption = { id: string; label: string };
 
-type IssueComment = {
-    id: number;
-    body: string;
-    parent_id: number | null;
-    user: {
-        id: number;
-        name: string;
-        avatar_path?: string | null;
-    } | null;
-    replies: IssueComment[];
-    created_at?: string;
-};
-
-function getInitials(name: string): string {
-    return name
-        .split(' ')
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
+function isRichTextEmpty(html: string): boolean {
+    return (
+        html
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim() === ''
+    );
 }
 
-function countReplies(comment: IssueComment): number {
-    let count = comment.replies.length;
-    for (const reply of comment.replies) {
-        count += countReplies(reply);
-    }
-    return count;
-}
+function collectMentionOptions(
+    comments: SharedDiscussionComment[],
+    authUser: { id: number; name: string },
+): MentionOption[] {
+    const seen = new Map<string, MentionOption>();
 
-function Comment({
-    comment,
-    canReply,
-    replyBody,
-    replyingTo,
-    authUserId,
-    commentBaseUrl,
-    onReplyToggle,
-    onReplyChange,
-    onReplySubmit,
-}: {
-    comment: IssueComment;
-    canReply: boolean;
-    replyBody: string;
-    replyingTo: number | null;
-    authUserId: number;
-    commentBaseUrl: string;
-    onReplyToggle: (commentId: number) => void;
-    onReplyChange: (commentId: number, value: string) => void;
-    onReplySubmit: (commentId: number) => void;
-}) {
-    const name = comment.user?.name ?? 'Unknown';
-    const avatarSrc = comment.user?.avatar_path
-        ? `/storage/${comment.user.avatar_path}`
-        : null;
-    const isReplying = replyingTo === comment.id;
-    const hasReplies = comment.replies.length > 0;
-    const [collapsed, setCollapsed] = useState(false);
-    const [editing, setEditing] = useState(false);
-    const [editBody, setEditBody] = useState(comment.body);
-    const [confirmDelete, setConfirmDelete] = useState(false);
+    const pushUser = (
+        user: { id: number; name: string } | null | undefined,
+    ) => {
+        if (!user) {
+            return;
+        }
 
-    const isOwner = comment.user?.id === authUserId;
-    const totalReplies = countReplies(comment);
-
-    const submitEdit = () => {
-        if (!editBody.trim()) return;
-        router.put(
-            `${commentBaseUrl}/${comment.id}`,
-            { body: editBody },
-            {
-                preserveScroll: true,
-                onSuccess: () => setEditing(false),
-            },
-        );
+        seen.set(String(user.id), { id: String(user.id), label: user.name });
     };
 
-    const submitDelete = () => {
-        router.delete(`${commentBaseUrl}/${comment.id}`, {
-            preserveScroll: true,
+    const walk = (nodes?: SharedDiscussionComment[]) => {
+        nodes?.forEach((node) => {
+            pushUser(node.user ?? undefined);
+            walk(node.replies);
         });
     };
 
-    return (
-        <div className="flex gap-3">
-            {/* Avatar + collapse line */}
-            <div className="flex shrink-0 flex-col items-center">
-                <Avatar className="size-8">
-                    {avatarSrc && <AvatarImage src={avatarSrc} alt={name} />}
-                    <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                        {getInitials(name)}
-                    </AvatarFallback>
-                </Avatar>
-                {hasReplies ? (
-                    <button
-                        type="button"
-                        onClick={() => setCollapsed((c) => !c)}
-                        className="group/line mt-1 flex w-5 flex-1 cursor-pointer justify-center"
-                        title={
-                            collapsed ? 'Expand replies' : 'Collapse replies'
-                        }
-                    >
-                        <div className="w-px bg-border transition-colors group-hover/line:bg-primary" />
-                    </button>
-                ) : null}
-            </div>
+    pushUser(authUser);
+    walk(comments);
 
-            {/* Content */}
-            <div className="min-w-0 flex-1 pb-4">
-                <p className="text-sm font-medium text-foreground">{name}</p>
-
-                {editing ? (
-                    <div className="mt-1 flex gap-2">
-                        <Textarea
-                            value={editBody}
-                            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                                setEditBody(e.target.value)
-                            }
-                            className="min-h-16 flex-1 resize-none text-sm"
-                            autoFocus
-                            onKeyDown={(e) => {
-                                if (
-                                    e.key === 'Enter' &&
-                                    (e.metaKey || e.ctrlKey)
-                                ) {
-                                    e.preventDefault();
-                                    submitEdit();
-                                }
-                                if (e.key === 'Escape') {
-                                    setEditing(false);
-                                    setEditBody(comment.body);
-                                }
-                            }}
-                        />
-                        <div className="flex flex-col gap-1">
-                            <Button
-                                size="sm"
-                                onClick={submitEdit}
-                                disabled={!editBody.trim()}
-                            >
-                                <Check className="size-3.5" />
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                    setEditing(false);
-                                    setEditBody(comment.body);
-                                }}
-                            >
-                                <X className="size-3.5" />
-                            </Button>
-                        </div>
-                    </div>
-                ) : (
-                    <p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap text-foreground/80">
-                        {comment.body}
-                    </p>
-                )}
-
-                <div className="mt-2 flex items-center gap-3">
-                    {canReply && !editing ? (
-                        <button
-                            type="button"
-                            onClick={() => onReplyToggle(comment.id)}
-                            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground"
-                        >
-                            <MessageSquare className="size-3" />
-                            Reply
-                        </button>
-                    ) : null}
-
-                    {isOwner && !editing ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => setEditing(true)}
-                                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground"
-                            >
-                                <Pencil className="size-3" />
-                                Edit
-                            </button>
-                            {confirmDelete ? (
-                                <span className="inline-flex items-center gap-1 text-xs">
-                                    <span className="text-destructive">
-                                        Delete?
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={submitDelete}
-                                        className="font-medium text-destructive hover:underline"
-                                    >
-                                        Yes
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setConfirmDelete(false)}
-                                        className="text-muted-foreground hover:underline"
-                                    >
-                                        No
-                                    </button>
-                                </span>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmDelete(true)}
-                                    className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-destructive"
-                                >
-                                    <Trash2 className="size-3" />
-                                    Delete
-                                </button>
-                            )}
-                        </>
-                    ) : null}
-
-                    {hasReplies && collapsed ? (
-                        <button
-                            type="button"
-                            onClick={() => setCollapsed(false)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-primary transition hover:text-primary/80"
-                        >
-                            <ChevronRight className="size-3" />
-                            {totalReplies}{' '}
-                            {totalReplies === 1 ? 'reply' : 'replies'}
-                        </button>
-                    ) : null}
-                </div>
-
-                {/* Inline reply form */}
-                {isReplying ? (
-                    <div className="mt-3 flex gap-2">
-                        <Textarea
-                            value={replyBody}
-                            onChange={(
-                                event: ChangeEvent<HTMLTextAreaElement>,
-                            ) => onReplyChange(comment.id, event.target.value)}
-                            placeholder="Write a reply..."
-                            className="min-h-16 flex-1 resize-none text-sm"
-                            autoFocus
-                            onKeyDown={(event) => {
-                                if (
-                                    event.key === 'Enter' &&
-                                    (event.metaKey || event.ctrlKey)
-                                ) {
-                                    event.preventDefault();
-                                    onReplySubmit(comment.id);
-                                }
-                            }}
-                        />
-                        <div className="flex flex-col gap-1">
-                            <Button
-                                size="sm"
-                                onClick={() => onReplySubmit(comment.id)}
-                                disabled={replyBody.trim() === ''}
-                            >
-                                <Send className="size-3.5" />
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => onReplyToggle(comment.id)}
-                            >
-                                Cancel
-                            </Button>
-                        </div>
-                    </div>
-                ) : null}
-
-                {/* Nested replies */}
-                {hasReplies && !collapsed ? (
-                    <div className="mt-3 space-y-0">
-                        {comment.replies.map((reply) => (
-                            <Comment
-                                key={reply.id}
-                                comment={reply}
-                                canReply={canReply}
-                                replyBody={
-                                    replyingTo === reply.id
-                                        ? (replyBody ?? '')
-                                        : ''
-                                }
-                                replyingTo={replyingTo}
-                                authUserId={authUserId}
-                                commentBaseUrl={commentBaseUrl}
-                                onReplyToggle={onReplyToggle}
-                                onReplyChange={onReplyChange}
-                                onReplySubmit={onReplySubmit}
-                            />
-                        ))}
-                    </div>
-                ) : null}
-            </div>
-        </div>
-    );
+    return Array.from(seen.values());
 }
 
 export default function IssueShow({
@@ -364,8 +106,8 @@ export default function IssueShow({
     issue: Issue;
     can_manage_issue: boolean;
     can_comment: boolean;
-    comments: IssueComment[];
-    attachments?: AttachmentRow[];
+    comments: SharedDiscussionComment[];
+    attachments?: IssueAttachment[];
     assignee_options: Array<{ label: string; value: string }>;
     status_options: string[];
     priority_options: string[];
@@ -373,7 +115,7 @@ export default function IssueShow({
 }) {
     const form = useForm({
         title: issue.title,
-        description: issue.description ?? '',
+        description: issue.description ?? '<p></p>',
         assignee_id: issue.assignee_id ? String(issue.assignee_id) : '',
         status: issue.status,
         priority: issue.priority,
@@ -382,20 +124,25 @@ export default function IssueShow({
         estimated_hours: issue.estimated_hours ?? '',
         label: issue.label ?? '',
     });
-    const commentForm = useForm({
-        body: '',
-    });
-    const [replyBodies, setReplyBodies] = useState<Record<number, string>>({});
-    const [replyingTo, setReplyingTo] = useState<number | null>(null);
+
+    const [descriptionFiles, setDescriptionFiles] = useState<File[]>([]);
+    
+    const [commentDraft, setCommentDraft] = useState('<p></p>');
     const [commentFiles, setCommentFiles] = useState<File[]>([]);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [savingComment, setSavingComment] = useState(false);
 
     const { auth } = usePage<{
         auth: {
             user: { id: number; name: string; avatar_path?: string | null };
         };
     }>().props;
+
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
+
+    const mentionOptions = useMemo(
+        () => collectMentionOptions(comments, auth.user),
+        [comments, auth.user],
+    );
 
     const fields: DynamicFormField[] = [
         {
@@ -403,12 +150,32 @@ export default function IssueShow({
             label: 'Title',
             type: 'text',
             placeholder: 'Issue title',
+            wide: true,
         },
         {
             name: 'description',
             label: 'Description',
-            type: 'textarea',
-            placeholder: 'Optional description',
+            type: 'custom',
+            wide: true,
+            render: ({ value, onChange, error }) => (
+                <div className="space-y-2">
+                    <RichIssueEditor
+                        value={value}
+                        onChange={onChange}
+                        placeholder="Write the description, important integration notes, checklist, and context here..."
+                        attachments={descriptionFiles}
+                        onAttachmentsChange={setDescriptionFiles}
+                        mentionOptions={mentionOptions}
+                        uploadContext={{
+                            attachableType: 'issue',
+                            attachableId: issue.id,
+                        }}
+                    />
+                    {error ? (
+                        <p className="text-sm text-destructive">{error}</p>
+                    ) : null}
+                </div>
+            )
         },
         {
             name: 'assignee_id',
@@ -455,38 +222,65 @@ export default function IssueShow({
         },
     ];
 
-    const toggleReply = (commentId: number) => {
-        if (replyingTo === commentId) {
-            setReplyingTo(null);
-        } else {
-            setReplyingTo(commentId);
-        }
+    const saveComment = () => {
+        setSavingComment(true);
+
+        const formData = new FormData();
+        formData.append('body', commentDraft);
+        commentFiles.forEach((file) => formData.append('attachments[]', file));
+
+        router.post(commentUrl, formData as any, {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                setCommentDraft('<p></p>');
+                setCommentFiles([]);
+            },
+            onFinish: () => setSavingComment(false),
+        });
     };
 
-    const submitReply = (commentId: number) => {
-        const body = (replyBodies[commentId] ?? '').trim();
+    const saveReply = async (parentId: number, body: string, files: File[]) => {
+        return new Promise<void>((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('body', body);
+            formData.append('parent_id', String(parentId));
+            files.forEach((file) => formData.append('attachments[]', file));
 
-        if (!body) {
-            return;
-        }
-
-        router.post(
-            commentUrl,
-            {
-                body,
-                parent_id: commentId,
-            },
-            {
+            router.post(commentUrl, formData as any, {
                 preserveScroll: true,
-                onSuccess: () => {
-                    setReplyBodies((current) => ({
-                        ...current,
-                        [commentId]: '',
-                    }));
-                    setReplyingTo(null);
+                forceFormData: true,
+                onSuccess: () => resolve(),
+                onError: (errors) => reject(errors),
+            });
+        });
+    };
+
+    const updateComment = async (
+        commentId: number,
+        body: string,
+        parentId?: number | null,
+    ) => {
+        return new Promise<void>((resolve, reject) => {
+            router.put(
+                `${commentUrl}/${commentId}`,
+                {
+                    body,
+                    ...(parentId ? { parent_id: parentId } : {}),
                 },
-            },
-        );
+                {
+                    preserveScroll: true,
+                    onSuccess: () => resolve(),
+                    onError: (errors) => reject(errors),
+                },
+            );
+        });
+    };
+
+    const deleteComment = async (commentId: number) => {
+        router.delete(`${commentUrl}/${commentId}`, {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -495,320 +289,227 @@ export default function IssueShow({
             <CrudPage
                 title={issue.title}
                 description={`${client.name} / ${project.name}`}
-                onBack={() => window.history.back()}
+                onBack={() => {
+                    const fallbackUrl = `/clients/${client.id}/projects/${project.id}/issues`;
+
+                    if (window.history.length > 1) {
+                        router.visit(fallbackUrl);
+                    } else {
+                        router.visit(fallbackUrl);
+                    }
+                }}
             >
-                {can_manage_issue ? (
-                    <DynamicForm
-                        fields={fields}
-                        data={form.data}
-                        errors={form.errors}
-                        processing={form.processing}
-                        submitLabel="Update issue"
-                        cancelLabel="Back"
-                        onCancel={() => window.history.back()}
-                        onChange={(name, value) =>
-                            form.setData(name as keyof typeof form.data, value)
-                        }
-                        onSubmit={() =>
-                            form.put(
-                                `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
-                            )
-                        }
-                    />
-                ) : (
-                    <section className="rounded-xl bg-card p-4 shadow-sm">
-                        <p className="text-sm text-muted-foreground">
-                            {issue.description ?? 'No description.'}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                            <Badge
-                                variant="outline"
-                                className="gap-1 capitalize"
-                            >
-                                Status: {issue.status.replace('_', ' ')}
-                            </Badge>
-                            <Badge
-                                variant="outline"
-                                className="gap-1 capitalize"
-                            >
-                                Priority: {issue.priority}
-                            </Badge>
-                            <Badge
-                                variant="outline"
-                                className="gap-1 capitalize"
-                            >
-                                Type: {issue.type}
-                            </Badge>
-                            <Badge variant="outline">
-                                Assignee: {issue.assignee?.name ?? 'Unassigned'}
-                            </Badge>
-                            {issue.due_date ? (
-                                <Badge variant="outline" className="gap-1">
-                                    <Calendar className="size-3" />
-                                    {issue.due_date}
-                                </Badge>
-                            ) : null}
-                            {issue.estimated_hours ? (
-                                <Badge variant="outline" className="gap-1">
-                                    <Clock className="size-3" />
-                                    {issue.estimated_hours}h
-                                </Badge>
-                            ) : null}
-                            {issue.label ? (
-                                <Badge variant="outline" className="gap-1">
-                                    <Tag className="size-3" />
-                                    {issue.label}
-                                </Badge>
-                            ) : null}
-                        </div>
-                    </section>
-                )}
-
-                {/* Attachments */}
-                {attachments.length > 0 ? (
-                    <section className="space-y-3">
-                        <h2 className="flex items-center gap-2 text-base font-semibold">
-                            <Paperclip className="size-4" />
-                            Attachments
-                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                {attachments.length}
-                            </span>
-                        </h2>
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            {attachments.map((att) => {
-                                const isImage =
-                                    att.mime_type.startsWith('image/');
-                                return (
-                                    <div
-                                        key={att.id}
-                                        className="flex items-center gap-3 rounded-lg border px-3 py-2"
-                                    >
-                                        {isImage ? (
-                                            <ImageIcon className="size-4 shrink-0 text-blue-500" />
-                                        ) : (
-                                            <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                                        )}
-                                        <span className="min-w-0 flex-1 truncate text-sm">
-                                            {att.file_name}
-                                        </span>
-                                        <a
-                                            href={`/storage/${att.file_path}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="shrink-0 text-muted-foreground hover:text-foreground"
-                                        >
-                                            <Download className="size-4" />
-                                        </a>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-                ) : null}
-
-                {/* Discussion */}
-                <section className="space-y-6">
-                    <div className="flex items-center gap-3">
-                        <h2 className="text-base font-semibold">Discussion</h2>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            {comments.length}
-                        </span>
-                    </div>
-
-                    {/* Comment thread */}
-                    {comments.length > 0 ? (
-                        <div className="space-y-0">
-                            {comments.map((comment) => (
-                                <Comment
-                                    key={comment.id}
-                                    comment={comment}
-                                    canReply={can_comment}
-                                    replyBody={replyBodies[comment.id] ?? ''}
-                                    replyingTo={replyingTo}
-                                    authUserId={auth.user.id}
-                                    commentBaseUrl={commentUrl}
-                                    onReplyToggle={toggleReply}
-                                    onReplyChange={(commentId, value) =>
-                                        setReplyBodies((current) => ({
-                                            ...current,
-                                            [commentId]: value,
-                                        }))
+                <div className="w-full max-w-[1400px] space-y-8">
+                    {/* Top Section: Form or Static Badges */}
+                    {can_manage_issue ? (
+                        <DynamicForm
+                            fields={fields}
+                            data={form.data}
+                            errors={form.errors}
+                            processing={form.processing}
+                            submitLabel="Update issue"
+                            cancelLabel="Back"
+                            onCancel={() => window.history.back()}
+                            onChange={(name, value) =>
+                                form.setData(name as keyof typeof form.data, value)
+                            }
+                            onSubmit={() => {
+                                form.transform((data) => ({
+                                    ...data,
+                                    _method: 'put',
+                                    attachments: descriptionFiles,
+                                }));
+                                form.post(
+                                    `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
+                                    {
+                                        forceFormData: true,
+                                        onSuccess: () => setDescriptionFiles([]),
                                     }
-                                    onReplySubmit={submitReply}
-                                />
-                            ))}
-                        </div>
+                                );
+                            }}
+                        />
                     ) : (
-                        <p className="py-6 text-center text-sm text-muted-foreground">
-                            No comments yet. Start the discussion below.
-                        </p>
+                        <section className="rounded-xl border bg-card p-6 shadow-sm">
+                            <div className="mb-6 flex flex-wrap gap-2">
+                                <Badge
+                                    variant="outline"
+                                    className="gap-1 capitalize"
+                                >
+                                    Status: {issue.status.replace('_', ' ')}
+                                </Badge>
+                                <Badge
+                                    variant="outline"
+                                    className="gap-1 capitalize"
+                                >
+                                    Priority: {issue.priority}
+                                </Badge>
+                                <Badge
+                                    variant="outline"
+                                    className="gap-1 capitalize"
+                                >
+                                    Type: {issue.type}
+                                </Badge>
+                                <Badge variant="outline">
+                                    Assignee: {issue.assignee?.name ?? 'Unassigned'}
+                                </Badge>
+                                {issue.due_date ? (
+                                    <Badge variant="outline" className="gap-1">
+                                        <Calendar className="size-3" />
+                                        {issue.due_date}
+                                    </Badge>
+                                ) : null}
+                                {issue.estimated_hours ? (
+                                    <Badge variant="outline" className="gap-1">
+                                        <Clock className="size-3" />
+                                        {issue.estimated_hours}h
+                                    </Badge>
+                                ) : null}
+                                {issue.label ? (
+                                    <Badge variant="outline" className="gap-1">
+                                        <Tag className="size-3" />
+                                        {issue.label}
+                                    </Badge>
+                                ) : null}
+                            </div>
+
+                            <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                                Description
+                            </h2>
+                            {issue.description ? (
+                                <RichIssueContent
+                                    html={issue.description}
+                                    className="prose-lg text-foreground/95"
+                                />
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    No description.
+                                </p>
+                            )}
+                        </section>
                     )}
 
-                    {/* New comment composer */}
-                    {can_comment ? (
-                        <form
-                            className="flex gap-3"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                const formData = new FormData();
-                                formData.append('body', commentForm.data.body);
-                                commentFiles.forEach((file) =>
-                                    formData.append('attachments[]', file),
-                                );
-                                router.post(commentUrl, formData as any, {
-                                    preserveScroll: true,
-                                    forceFormData: true,
-                                    onSuccess: () => {
-                                        commentForm.reset('body');
-                                        setCommentFiles([]);
-                                    },
-                                });
-                            }}
-                        >
-                            <Avatar className="size-8 shrink-0">
-                                {auth.user.avatar_path && (
-                                    <AvatarImage
-                                        src={`/storage/${auth.user.avatar_path}`}
-                                        alt={auth.user.name}
+                    {/* Attachments Section */}
+                    {attachments.length > 0 ? (
+                        <section className="space-y-4">
+                            <h2 className="flex items-center gap-2 text-base font-semibold">
+                                <Paperclip className="size-4" />
+                                Attachments
+                                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                    {attachments.length}
+                                </span>
+                            </h2>
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                {attachments.map((att) => {
+                                    const isImage = att.mime_type
+                                        ? att.mime_type.startsWith('image/')
+                                        : att.is_image;
+
+                                    return (
+                                        <div
+                                            key={att.id ?? att.file_name}
+                                            className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm"
+                                        >
+                                            {isImage ? (
+                                                <ImageIcon className="size-4 shrink-0 text-blue-500" />
+                                            ) : (
+                                                <Paperclip className="size-4 shrink-0 text-muted-foreground" />
+                                            )}
+                                            {att.file_path ? (
+                                                <a
+                                                    href={`/storage/${att.file_path}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="min-w-0 flex-1 truncate text-sm font-medium hover:underline hover:text-primary transition-colors"
+                                                >
+                                                    {att.file_name}
+                                                </a>
+                                            ) : (
+                                                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                                    {att.file_name}
+                                                </span>
+                                            )}
+                                            {att.file_path ? (
+                                                <a
+                                                    href={`/storage/${att.file_path}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                                >
+                                                    <Download className="size-4" />
+                                                </a>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    ) : null}
+
+                    {/* Discussion Section */}
+                    <section className="space-y-6">
+                        <div className="flex items-center gap-3 border-b pb-4">
+                            <h2 className="text-xl font-semibold">Discussion</h2>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                {comments.length}
+                            </span>
+                        </div>
+
+                        {comments.length > 0 ? (
+                            <div className="space-y-4">
+                                {comments.map((comment) => (
+                                    <IssueDiscussionComment
+                                        key={comment.id}
+                                        comment={comment}
+                                        depth={0}
+                                        authUserId={auth.user.id}
+                                        issueId={issue.id}
+                                        canComment={can_comment}
+                                        mentionOptions={mentionOptions}
+                                        onReply={saveReply}
+                                        onUpdate={updateComment}
+                                        onDelete={deleteComment}
                                     />
-                                )}
-                                <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                                    {getInitials(auth.user.name)}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1 space-y-2">
-                                <Textarea
-                                    name="comment_body"
-                                    value={commentForm.data.body}
-                                    placeholder="Add a comment..."
-                                    className="min-h-20 resize-none text-sm"
-                                    onChange={(
-                                        event: ChangeEvent<HTMLTextAreaElement>,
-                                    ) =>
-                                        commentForm.setData(
-                                            'body',
-                                            event.target.value,
-                                        )
-                                    }
-                                    onKeyDown={(event) => {
-                                        if (
-                                            event.key === 'Enter' &&
-                                            (event.metaKey || event.ctrlKey)
-                                        ) {
-                                            event.preventDefault();
-                                            const formData = new FormData();
-                                            formData.append(
-                                                'body',
-                                                commentForm.data.body,
-                                            );
-                                            commentFiles.forEach((file) =>
-                                                formData.append(
-                                                    'attachments[]',
-                                                    file,
-                                                ),
-                                            );
-                                            router.post(
-                                                commentUrl,
-                                                formData as any,
-                                                {
-                                                    preserveScroll: true,
-                                                    forceFormData: true,
-                                                    onSuccess: () => {
-                                                        commentForm.reset(
-                                                            'body',
-                                                        );
-                                                        setCommentFiles([]);
-                                                    },
-                                                },
-                                            );
-                                        }
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-dashed bg-card px-4 py-12 text-center shadow-sm">
+                                <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/50" />
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    No comments yet. Start the discussion below.
+                                </p>
+                            </div>
+                        )}
+
+                        {can_comment ? (
+                            <div className="mt-6 rounded-xl border bg-card p-4 shadow-sm">
+                                <RichIssueEditor
+                                    value={commentDraft}
+                                    onChange={setCommentDraft}
+                                    placeholder="Write a comment, checklist, note, integration update, or blocker..."
+                                    attachments={commentFiles}
+                                    onAttachmentsChange={setCommentFiles}
+                                    mentionOptions={mentionOptions}
+                                    uploadContext={{
+                                        attachableType: 'issue',
+                                        attachableId: issue.id,
                                     }}
                                 />
-                                {commentFiles.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {commentFiles.map((file, idx) => (
-                                            <span
-                                                key={idx}
-                                                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
-                                            >
-                                                <Paperclip className="size-3 text-muted-foreground" />
-                                                <span className="max-w-[150px] truncate">
-                                                    {file.name}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setCommentFiles((f) =>
-                                                            f.filter(
-                                                                (_, i) =>
-                                                                    i !== idx,
-                                                            ),
-                                                        )
-                                                    }
-                                                    className="ml-0.5 text-muted-foreground hover:text-foreground"
-                                                >
-                                                    <X className="size-3" />
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : null}
-                                {commentForm.errors.body ? (
-                                    <p className="text-sm text-destructive">
-                                        {commentForm.errors.body}
-                                    </p>
-                                ) : null}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-[10px] text-muted-foreground">
-                                            Cmd+Enter to send
-                                        </p>
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            multiple
-                                            className="hidden"
-                                            onChange={(event) => {
-                                                if (event.target.files) {
-                                                    setCommentFiles((prev) => [
-                                                        ...prev,
-                                                        ...Array.from(
-                                                            event.target.files!,
-                                                        ),
-                                                    ]);
-                                                    event.target.value = '';
-                                                }
-                                            }}
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() =>
-                                                fileInputRef.current?.click()
-                                            }
-                                        >
-                                            <Paperclip className="size-3.5" />
-                                        </Button>
-                                    </div>
+                                <div className="mt-3 flex justify-end">
                                     <Button
-                                        type="submit"
-                                        size="sm"
+                                        type="button"
                                         disabled={
-                                            commentForm.processing ||
-                                            (commentForm.data.body.trim() ===
-                                                '' &&
-                                                commentFiles.length === 0)
+                                            savingComment || isRichTextEmpty(commentDraft)
                                         }
+                                        onClick={saveComment}
                                     >
-                                        <Send className="size-3.5" />
-                                        Comment
+                                        <Send className="mr-2 size-4" />
+                                        {savingComment ? 'Posting...' : 'Comment'}
                                     </Button>
                                 </div>
                             </div>
-                        </form>
-                    ) : null}
-                </section>
+                        ) : null}
+                    </section>
+                </div>
             </CrudPage>
         </>
     );
