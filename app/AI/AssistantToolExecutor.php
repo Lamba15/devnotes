@@ -2,6 +2,9 @@
 
 namespace App\AI;
 
+use App\Actions\Boards\CreateBoard;
+use App\Actions\Boards\DeleteBoard;
+use App\Actions\Boards\UpdateBoard;
 use App\Actions\Clients\CreateClient;
 use App\Actions\Clients\UpdateClient;
 use App\Actions\Finance\CreateInvoice;
@@ -23,11 +26,15 @@ use App\Models\Project;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AssistantToolExecutor
 {
     public function __construct(
+        private readonly CreateBoard $createBoard,
+        private readonly UpdateBoard $updateBoard,
+        private readonly DeleteBoard $deleteBoard,
         private readonly CreateClient $createClient,
         private readonly UpdateClient $updateClient,
         private readonly CreateProject $createProject,
@@ -54,6 +61,9 @@ class AssistantToolExecutor
             'get_issue_detail' => $this->executeGetIssueDetail($user, $payload),
             'get_board_context' => $this->executeGetBoardContext($user, $payload),
             'list_accessible_boards' => $this->executeListAccessibleBoards($user, $payload),
+            'create_board' => $this->executeCreateBoard($user, $payload, $confirmation),
+            'update_board' => $this->executeUpdateBoard($user, $payload, $confirmation),
+            'delete_board' => $this->executeDeleteBoard($user, $payload, $confirmation),
             'move_issue_on_board' => $this->executeMoveIssueOnBoard($user, $payload, $confirmation),
             'move_issues_on_board' => $this->executeMoveIssuesOnBoard($user, $payload, $confirmation),
             'add_issue_comment' => $this->executeAddIssueComment($user, $payload, $confirmation),
@@ -547,6 +557,60 @@ class AssistantToolExecutor
         ];
     }
 
+    private function executeCreateBoard(
+        User $user,
+        array $payload,
+        ?AssistantActionConfirmation $confirmation,
+    ): array {
+        $client = Client::query()->findOrFail($payload['client_id']);
+        $payload['columns'] = $this->normalizeBoardColumns($payload['columns'] ?? null);
+        $this->validateBoardColumns($payload['columns'] ?? null, false);
+
+        $board = $this->createBoard->handle($user, $client, $payload, 'ai_assistant');
+        $board->load(['project.client', 'columns' => fn ($query) => $query->orderBy('position')]);
+
+        return $this->serializeBoardResult($board, $confirmation);
+    }
+
+    private function executeUpdateBoard(
+        User $user,
+        array $payload,
+        ?AssistantActionConfirmation $confirmation,
+    ): array {
+        $board = Board::query()->with('project.client')->findOrFail($payload['board_id']);
+        $payload['columns'] = $this->normalizeBoardColumns($payload['columns'] ?? null);
+        $this->validateBoardColumns($payload['columns'] ?? null, true);
+
+        $board = $this->updateBoard->handle($user, $board, $payload, 'ai_assistant');
+        $board->load(['project.client', 'columns' => fn ($query) => $query->orderBy('position')]);
+
+        return $this->serializeBoardResult($board, $confirmation);
+    }
+
+    private function executeDeleteBoard(
+        User $user,
+        array $payload,
+        ?AssistantActionConfirmation $confirmation,
+    ): array {
+        $board = Board::query()->with('project.client')->findOrFail($payload['board_id']);
+
+        $boardName = $board->name;
+        $boardId = $board->id;
+        $project = $board->project?->only(['id', 'name']);
+        $client = $board->project?->client?->only(['id', 'name']);
+
+        $this->deleteBoard->handle($user, $board, 'ai_assistant');
+
+        return [
+            'type' => 'board_deleted',
+            'id' => $boardId,
+            'name' => $boardName,
+            'project' => $project,
+            'client' => $client,
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
     private function executeMoveIssueOnBoard(
         User $user,
         array $payload,
@@ -779,6 +843,32 @@ class AssistantToolExecutor
         ];
     }
 
+    private function serializeBoardResult(Board $board, ?AssistantActionConfirmation $confirmation): array
+    {
+        return [
+            'type' => 'board',
+            'id' => $board->id,
+            'name' => $board->name,
+            'project' => [
+                'id' => $board->project?->id,
+                'name' => $board->project?->name,
+                'client' => $board->project?->client?->only(['id', 'name']),
+            ],
+            'columns' => $board->columns
+                ->sortBy('position')
+                ->values()
+                ->map(fn (BoardColumn $column) => [
+                    'id' => $column->id,
+                    'name' => $column->name,
+                    'position' => $column->position,
+                    'updates_status' => $column->updates_status,
+                    'mapped_status' => $column->mapped_status,
+                ])
+                ->all(),
+            'confirmation_id' => $confirmation?->id,
+        ];
+    }
+
     private function buildCommentTree($comments, ?int $parentId): array
     {
         return $comments
@@ -837,6 +927,104 @@ class AssistantToolExecutor
         }
 
         return true;
+    }
+
+    private function validateBoardColumns(mixed $columns, bool $allowExistingColumnIds): void
+    {
+        if ($columns === null) {
+            return;
+        }
+
+        if (! is_array($columns)) {
+            throw ValidationException::withMessages([
+                'columns' => 'Board columns must be provided as an array.',
+            ]);
+        }
+
+        foreach (array_values($columns) as $index => $column) {
+            $path = 'columns.'.($index + 1);
+
+            if (! is_array($column)) {
+                throw ValidationException::withMessages([
+                    $path => 'Each board column must be an object.',
+                ]);
+            }
+
+            if ($allowExistingColumnIds && array_key_exists('id', $column) && ! is_null($column['id']) && ! is_int($column['id'])) {
+                throw ValidationException::withMessages([
+                    $path.'.id' => 'Column ids must be integers.',
+                ]);
+            }
+
+            if (! array_key_exists('name', $column) || ! is_string($column['name']) || trim($column['name']) === '') {
+                throw ValidationException::withMessages([
+                    $path.'.name' => 'Each board column must have a name.',
+                ]);
+            }
+
+            if (mb_strlen($column['name']) > 255) {
+                throw ValidationException::withMessages([
+                    $path.'.name' => 'Board column names may not be greater than 255 characters.',
+                ]);
+            }
+
+            if (array_key_exists('updates_status', $column) && ! is_bool($column['updates_status']) && ! is_null($column['updates_status'])) {
+                throw ValidationException::withMessages([
+                    $path.'.updates_status' => 'The updates_status field must be true or false.',
+                ]);
+            }
+
+            if (array_key_exists('mapped_status', $column)
+                && ! is_null($column['mapped_status'])
+                && ! in_array($column['mapped_status'], ['todo', 'in_progress', 'done'], true)) {
+                throw ValidationException::withMessages([
+                    $path.'.mapped_status' => 'The mapped status must be one of todo, in_progress, or done.',
+                ]);
+            }
+
+            if (($column['updates_status'] ?? false) && ! filled($column['mapped_status'] ?? null)) {
+                throw ValidationException::withMessages([
+                    $path.'.mapped_status' => 'Status-updating columns must choose a mapped status.',
+                ]);
+            }
+        }
+    }
+
+    private function normalizeBoardColumns(mixed $columns): mixed
+    {
+        if (! is_array($columns)) {
+            return $columns;
+        }
+
+        return array_map(function (mixed $column): mixed {
+            if (! is_array($column)) {
+                return $column;
+            }
+
+            if (array_key_exists('mapped_status', $column) && is_string($column['mapped_status'])) {
+                $column['mapped_status'] = $this->normalizeBoardMappedStatus($column['mapped_status']);
+            }
+
+            return $column;
+        }, $columns);
+    }
+
+    private function normalizeBoardMappedStatus(string $mappedStatus): string
+    {
+        $normalized = Str::of($mappedStatus)
+            ->trim()
+            ->lower()
+            ->squish()
+            ->replace('-', '_')
+            ->replace(' ', '_')
+            ->toString();
+
+        return match ($normalized) {
+            'to_do' => 'todo',
+            'inprogress', 'in_progress', 'progress', 'doing', 'working', 'started' => 'in_progress',
+            'complete', 'completed', 'finished' => 'done',
+            default => $normalized,
+        };
     }
 
     private function executeListAuditLogs(User $user, array $payload): array

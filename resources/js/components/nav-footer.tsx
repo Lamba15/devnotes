@@ -30,6 +30,9 @@ export function NavFooter({
                                     className="text-neutral-600 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100"
                                     onClick={() => {
                                         window.location.hash = toUrl(item.href);
+                                        window.dispatchEvent(
+                                            new CustomEvent('assistant:open'),
+                                        );
                                     }}
                                 >
                                     {item.icon && (

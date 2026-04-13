@@ -58,7 +58,7 @@ This directory captures the current agreed shape of the system.
 - All date fields in forms use native date pickers via the DynamicForm date field type.
 - All list pages have search icons in filter inputs, plus icons on create buttons, and colored badges for status/type columns.
 - Finance detail pages display amounts with color-coded formatting and use icons for metadata fields.
-- AI assistant has 34 tools covering client, project, issue, board, finance, and platform management.
+- AI assistant has 37 tools covering client, project, issue, board, finance, and platform management.
 - Audit logs cover all CRUD actions, settings changes, attachment uploads/deletes, credit changes, and authentication events.
 - The project should follow strict TDD.
 - Normal automated tests should use Pest.

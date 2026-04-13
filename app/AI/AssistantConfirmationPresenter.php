@@ -15,6 +15,9 @@ class AssistantConfirmationPresenter
         return match ($confirmation->tool_name) {
             'move_issue_on_board' => $this->presentSingleBoardMove($confirmation),
             'move_issues_on_board' => $this->presentBulkBoardMove($confirmation),
+            'create_board' => $this->presentCreateBoard($confirmation),
+            'update_board' => $this->presentUpdateBoard($confirmation),
+            'delete_board' => $this->presentDeleteBoard($confirmation),
             'create_client' => $this->presentCreateClient($confirmation),
             'update_client' => $this->presentUpdateClient($confirmation),
             default => $this->presentGeneric($confirmation),
@@ -87,6 +90,58 @@ class AssistantConfirmationPresenter
         ];
     }
 
+    private function presentCreateBoard(AssistantActionConfirmation $confirmation): array
+    {
+        $payload = $confirmation->payload_json ?? [];
+        $client = Client::query()->find($payload['client_id'] ?? null);
+        $project = \App\Models\Project::query()->find($payload['project_id'] ?? null);
+
+        return [
+            'title' => 'Create board',
+            'summary' => filled($payload['name'] ?? null) && filled($project?->name)
+                ? sprintf('Create board "%s" in project "%s".', $payload['name'], $project->name)
+                : 'Create a new board.',
+            'context' => [
+                'project' => $project?->only(['id', 'name']),
+                'client' => $client?->only(['id', 'name']),
+            ],
+            'items' => $this->presentBoardColumns($payload['columns'] ?? []),
+            'impact' => null,
+        ];
+    }
+
+    private function presentUpdateBoard(AssistantActionConfirmation $confirmation): array
+    {
+        $payload = $confirmation->payload_json ?? [];
+        $board = Board::query()->with('project.client')->find($payload['board_id'] ?? null);
+
+        return [
+            'title' => 'Update board',
+            'summary' => $board
+                ? sprintf('Update board "%s".', $board->name)
+                : 'Update a board.',
+            'context' => $this->boardContext($board),
+            'items' => $this->presentBoardColumns($payload['columns'] ?? []),
+            'impact' => null,
+        ];
+    }
+
+    private function presentDeleteBoard(AssistantActionConfirmation $confirmation): array
+    {
+        $payload = $confirmation->payload_json ?? [];
+        $board = Board::query()->with('project.client')->find($payload['board_id'] ?? null);
+
+        return [
+            'title' => 'Delete board',
+            'summary' => $board
+                ? sprintf('Delete board "%s".', $board->name)
+                : 'Delete a board.',
+            'context' => $this->boardContext($board),
+            'items' => [],
+            'impact' => 'This permanently removes the board from the project.',
+        ];
+    }
+
     private function presentUpdateClient(AssistantActionConfirmation $confirmation): array
     {
         $payload = $confirmation->payload_json ?? [];
@@ -125,5 +180,23 @@ class AssistantConfirmationPresenter
             'project' => $board->project?->only(['id', 'name']),
             'client' => $board->project?->client?->only(['id', 'name']),
         ];
+    }
+
+    private function presentBoardColumns(array $columns): array
+    {
+        return collect($columns)
+            ->filter(fn (mixed $column) => is_array($column) && filled($column['name'] ?? null))
+            ->map(function (array $column): array {
+                $description = ($column['updates_status'] ?? false) && filled($column['mapped_status'] ?? null)
+                    ? sprintf('Status-updating column mapped to %s', $column['mapped_status'])
+                    : 'Non-status-updating column';
+
+                return [
+                    'label' => $column['name'],
+                    'description' => $description,
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

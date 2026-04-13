@@ -218,6 +218,40 @@ class AssistantFlowTest extends TestCase
         $this->assertDatabaseMissing('clients', ['name' => 'Rejected AI Client']);
     }
 
+    public function test_thread_updated_at_is_touched_when_new_messages_are_added(): void
+    {
+        $user = User::factory()->create();
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'First reply.',
+        ]));
+
+        $firstResponse = $this->actingAs($user)->postJson(route('assistant.messages.store'), [
+            'message' => 'First message',
+        ]);
+
+        $threadId = $firstResponse->json('data.thread.id');
+        $thread = AssistantThread::query()->findOrFail($threadId);
+        $initialUpdatedAt = $thread->updated_at;
+
+        $this->travel(2)->seconds();
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'Second reply.',
+        ]));
+
+        $this->actingAs($user)->postJson(route('assistant.messages.store'), [
+            'message' => 'Second message',
+            'thread_id' => $threadId,
+        ])->assertOk();
+
+        $thread->refresh();
+
+        expect($thread->updated_at)->not->toBeNull();
+        expect($initialUpdatedAt)->not->toBeNull();
+        expect($thread->updated_at->gt($initialUpdatedAt))->toBeTrue();
+    }
+
     public function test_client_update_tool_calls_create_pending_confirmations(): void
     {
         $client = Client::factory()->create([
@@ -1495,6 +1529,501 @@ class AssistantFlowTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.messages.1.tool_results.0.items.0.name', 'Zulu Board')
             ->assertJsonPath('data.messages.1.tool_results.0.items.1.name', 'Alpha Board');
+    }
+
+    public function test_board_create_tool_calls_create_pending_confirmations(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+            'name' => 'Assistant Board Project',
+        ]);
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'I can create that board once you confirm.',
+            'tool_calls' => [[
+                'id' => 'call_board_create',
+                'name' => 'create_board',
+                'arguments' => [
+                    'client_id' => $client->id,
+                    'project_id' => $project->id,
+                    'name' => 'AI Board',
+                    'columns' => [
+                        [
+                            'name' => 'Todo',
+                            'updates_status' => true,
+                            'mapped_status' => 'todo',
+                        ],
+                        [
+                            'name' => 'Done',
+                            'updates_status' => true,
+                            'mapped_status' => 'done',
+                        ],
+                    ],
+                ],
+            ]],
+        ]));
+
+        $response = $this->actingAs($user)->postJson(route('assistant.messages.store'), [
+            'message' => 'Create a board for that project',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pending_confirmation.tool_name', 'create_board')
+            ->assertJsonPath('data.pending_confirmation.status', 'pending')
+            ->assertJsonPath('data.pending_confirmation.presentation.title', 'Create board')
+            ->assertJsonPath('data.pending_confirmation.presentation.summary', 'Create board "AI Board" in project "Assistant Board Project".');
+
+        $this->assertDatabaseMissing('boards', ['name' => 'AI Board']);
+    }
+
+    public function test_approved_board_create_confirmations_execute_the_tool(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'create_board',
+            'payload_json' => [
+                'client_id' => $client->id,
+                'project_id' => $project->id,
+                'name' => 'Approved AI Board',
+                'columns' => [
+                    [
+                        'name' => 'Ready',
+                        'updates_status' => false,
+                    ],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.type', 'board')
+            ->assertJsonPath('data.result.name', 'Approved AI Board')
+            ->assertJsonPath('data.result.columns.0.name', 'Ready');
+
+        $board = Board::query()->where('name', 'Approved AI Board')->firstOrFail();
+
+        $this->assertDatabaseHas('boards', [
+            'id' => $board->id,
+            'project_id' => $project->id,
+            'name' => 'Approved AI Board',
+        ]);
+        $this->assertDatabaseHas('board_columns', [
+            'board_id' => $board->id,
+            'name' => 'Ready',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'board.created',
+            'source' => 'ai_assistant',
+            'subject_type' => Board::class,
+            'subject_id' => $board->id,
+        ]);
+    }
+
+    public function test_approved_board_create_confirmations_normalize_human_status_labels(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'create_board',
+            'payload_json' => [
+                'client_id' => $client->id,
+                'project_id' => $project->id,
+                'name' => 'Human Label Board',
+                'columns' => [
+                    [
+                        'name' => 'Todo',
+                        'updates_status' => true,
+                        'mapped_status' => 'to do',
+                    ],
+                    [
+                        'name' => 'In Progress',
+                        'updates_status' => true,
+                        'mapped_status' => 'in progress',
+                    ],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.type', 'board')
+            ->assertJsonPath('data.result.columns.0.mapped_status', 'todo')
+            ->assertJsonPath('data.result.columns.1.mapped_status', 'in_progress');
+
+        $board = Board::query()->where('name', 'Human Label Board')->firstOrFail();
+
+        $this->assertDatabaseHas('board_columns', [
+            'board_id' => $board->id,
+            'name' => 'Todo',
+            'mapped_status' => 'todo',
+        ]);
+        $this->assertDatabaseHas('board_columns', [
+            'board_id' => $board->id,
+            'name' => 'In Progress',
+            'mapped_status' => 'in_progress',
+        ]);
+    }
+
+    public function test_board_update_tool_calls_create_pending_confirmations(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Rename me',
+        ]);
+        $column = BoardColumn::query()->create([
+            'board_id' => $board->id,
+            'name' => 'Old column',
+            'position' => 1,
+            'updates_status' => false,
+        ]);
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'I can update that board once you confirm.',
+            'tool_calls' => [[
+                'id' => 'call_board_update',
+                'name' => 'update_board',
+                'arguments' => [
+                    'board_id' => $board->id,
+                    'name' => 'Renamed by AI',
+                    'columns' => [
+                        [
+                            'id' => $column->id,
+                            'name' => 'In progress',
+                            'updates_status' => true,
+                            'mapped_status' => 'in_progress',
+                        ],
+                    ],
+                ],
+            ]],
+        ]));
+
+        $response = $this->actingAs($user)->postJson(route('assistant.messages.store'), [
+            'message' => 'Rename that board and update its columns',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pending_confirmation.tool_name', 'update_board')
+            ->assertJsonPath('data.pending_confirmation.status', 'pending')
+            ->assertJsonPath('data.pending_confirmation.presentation.title', 'Update board')
+            ->assertJsonPath('data.pending_confirmation.presentation.summary', 'Update board "Rename me".');
+
+        $this->assertDatabaseMissing('boards', [
+            'id' => $board->id,
+            'name' => 'Renamed by AI',
+        ]);
+    }
+
+    public function test_approved_board_update_confirmations_execute_the_tool(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Original AI Board',
+        ]);
+        $column = BoardColumn::query()->create([
+            'board_id' => $board->id,
+            'name' => 'Original lane',
+            'position' => 1,
+            'updates_status' => false,
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'update_board',
+            'payload_json' => [
+                'board_id' => $board->id,
+                'name' => 'Updated AI Board',
+                'columns' => [
+                    [
+                        'id' => $column->id,
+                        'name' => 'Shipped',
+                        'updates_status' => true,
+                        'mapped_status' => 'done',
+                    ],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.type', 'board')
+            ->assertJsonPath('data.result.name', 'Updated AI Board')
+            ->assertJsonPath('data.result.columns.0.name', 'Shipped')
+            ->assertJsonPath('data.result.columns.0.mapped_status', 'done');
+
+        $this->assertDatabaseHas('boards', [
+            'id' => $board->id,
+            'name' => 'Updated AI Board',
+        ]);
+        $this->assertDatabaseHas('board_columns', [
+            'id' => $column->id,
+            'board_id' => $board->id,
+            'name' => 'Shipped',
+            'updates_status' => true,
+            'mapped_status' => 'done',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'board.updated',
+            'source' => 'ai_assistant',
+            'subject_type' => Board::class,
+            'subject_id' => $board->id,
+        ]);
+    }
+
+    public function test_approved_board_update_confirmations_normalize_human_status_labels(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Normalize Update Board',
+        ]);
+        $column = BoardColumn::query()->create([
+            'board_id' => $board->id,
+            'name' => 'Needs normalization',
+            'position' => 1,
+            'updates_status' => false,
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'update_board',
+            'payload_json' => [
+                'board_id' => $board->id,
+                'columns' => [
+                    [
+                        'id' => $column->id,
+                        'name' => 'Doing',
+                        'updates_status' => true,
+                        'mapped_status' => 'in-progress',
+                    ],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.columns.0.mapped_status', 'in_progress');
+
+        $this->assertDatabaseHas('board_columns', [
+            'id' => $column->id,
+            'mapped_status' => 'in_progress',
+        ]);
+    }
+
+    public function test_approved_board_update_confirmations_normalize_status_synonyms(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Synonym Normalize Board',
+        ]);
+        $doingColumn = BoardColumn::query()->create([
+            'board_id' => $board->id,
+            'name' => 'Doing lane',
+            'position' => 1,
+            'updates_status' => false,
+        ]);
+        $doneColumn = BoardColumn::query()->create([
+            'board_id' => $board->id,
+            'name' => 'Done lane',
+            'position' => 2,
+            'updates_status' => false,
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'update_board',
+            'payload_json' => [
+                'board_id' => $board->id,
+                'columns' => [
+                    [
+                        'id' => $doingColumn->id,
+                        'name' => 'Doing lane',
+                        'updates_status' => true,
+                        'mapped_status' => 'doing',
+                    ],
+                    [
+                        'id' => $doneColumn->id,
+                        'name' => 'Done lane',
+                        'updates_status' => true,
+                        'mapped_status' => 'completed',
+                    ],
+                ],
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.columns.0.mapped_status', 'in_progress')
+            ->assertJsonPath('data.result.columns.1.mapped_status', 'done');
+
+        $this->assertDatabaseHas('board_columns', [
+            'id' => $doingColumn->id,
+            'mapped_status' => 'in_progress',
+        ]);
+        $this->assertDatabaseHas('board_columns', [
+            'id' => $doneColumn->id,
+            'mapped_status' => 'done',
+        ]);
+    }
+
+    public function test_board_delete_tool_calls_create_pending_confirmations(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Disposable Board',
+        ]);
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'I can delete that board once you confirm.',
+            'tool_calls' => [[
+                'id' => 'call_board_delete',
+                'name' => 'delete_board',
+                'arguments' => [
+                    'board_id' => $board->id,
+                ],
+            ]],
+        ]));
+
+        $response = $this->actingAs($user)->postJson(route('assistant.messages.store'), [
+            'message' => 'Delete that board',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pending_confirmation.tool_name', 'delete_board')
+            ->assertJsonPath('data.pending_confirmation.status', 'pending')
+            ->assertJsonPath('data.pending_confirmation.presentation.title', 'Delete board')
+            ->assertJsonPath('data.pending_confirmation.presentation.summary', 'Delete board "Disposable Board".');
+
+        $this->assertDatabaseHas('boards', [
+            'id' => $board->id,
+            'name' => 'Disposable Board',
+        ]);
+    }
+
+    public function test_approved_board_delete_confirmations_execute_the_tool(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+        $board = Board::query()->create([
+            'project_id' => $project->id,
+            'name' => 'Delete Approved Board',
+        ]);
+        $thread = AssistantThread::query()->create(['user_id' => $user->id]);
+        $confirmation = AssistantActionConfirmation::query()->create([
+            'thread_id' => $thread->id,
+            'user_id' => $user->id,
+            'tool_name' => 'delete_board',
+            'payload_json' => [
+                'board_id' => $board->id,
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('assistant.confirmations.approve', $confirmation), []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.confirmation.status', 'executed')
+            ->assertJsonPath('data.result.type', 'board_deleted')
+            ->assertJsonPath('data.result.name', 'Delete Approved Board');
+
+        $this->assertDatabaseMissing('boards', [
+            'id' => $board->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'event' => 'board.deleted',
+            'source' => 'ai_assistant',
+            'subject_type' => Board::class,
+            'subject_id' => $board->id,
+        ]);
     }
 
     public function test_finance_list_tools_support_filters_search_and_sorting(): void

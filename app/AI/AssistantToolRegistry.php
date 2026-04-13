@@ -265,6 +265,85 @@ class AssistantToolRegistry
                 ],
             ],
             [
+                'name' => 'create_board',
+                'description' => 'Create a board in a client the current user can manage.',
+                'skill' => 'issue_tracking',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'client_id' => ['type' => 'integer'],
+                        'project_id' => ['type' => 'integer'],
+                        'name' => ['type' => 'string'],
+                        'columns' => [
+                            'type' => ['array', 'null'],
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'name' => ['type' => 'string'],
+                                    'updates_status' => ['type' => ['boolean', 'null']],
+                                    'mapped_status' => ['type' => ['string', 'null']],
+                                ],
+                                'required' => ['name'],
+                                'additionalProperties' => false,
+                            ],
+                        ],
+                    ],
+                    'required' => ['client_id', 'project_id', 'name'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'update_board',
+                'description' => 'Update a board the current user can manage.',
+                'skill' => 'issue_tracking',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'board_id' => ['type' => 'integer'],
+                        'project_id' => ['type' => ['integer', 'null']],
+                        'name' => ['type' => ['string', 'null']],
+                        'columns' => [
+                            'type' => ['array', 'null'],
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'id' => ['type' => ['integer', 'null']],
+                                    'name' => ['type' => 'string'],
+                                    'updates_status' => ['type' => ['boolean', 'null']],
+                                    'mapped_status' => ['type' => ['string', 'null']],
+                                ],
+                                'required' => ['name'],
+                                'additionalProperties' => false,
+                            ],
+                        ],
+                    ],
+                    'required' => ['board_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
+                'name' => 'delete_board',
+                'description' => 'Delete a board the current user can manage.',
+                'skill' => 'issue_tracking',
+                'requires_confirmation' => true,
+                'guard' => fn (User $user): bool => $user->isPlatformOwner()
+                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'board_id' => ['type' => 'integer'],
+                    ],
+                    'required' => ['board_id'],
+                    'additionalProperties' => false,
+                ],
+            ],
+            [
                 'name' => 'move_issue_on_board',
                 'description' => 'Move an issue onto a board column the current user can move issues on.',
                 'skill' => 'issue_tracking',

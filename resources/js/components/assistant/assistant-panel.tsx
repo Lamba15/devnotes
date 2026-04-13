@@ -311,6 +311,30 @@ type AssistantToolResult =
           }>;
       }
     | {
+          type: 'board';
+          id: number;
+          name: string;
+          project?: {
+              id: number;
+              name: string;
+              client?: { id: number; name: string } | null;
+          } | null;
+          columns: Array<{
+              id: number;
+              name: string;
+              position: number;
+              updates_status: boolean;
+              mapped_status: string | null;
+          }>;
+      }
+    | {
+          type: 'board_deleted';
+          id: number;
+          name: string;
+          project?: { id: number; name: string } | null;
+          client?: { id: number; name: string } | null;
+      }
+    | {
           type: 'transaction';
           id: number;
           description: string;
@@ -420,11 +444,31 @@ export function AssistantPanel({
         const syncHash = () => {
             setOpen(window.location.hash === '#assistant');
         };
+        const openAssistant = () => {
+            setOpen(true);
+            void loadThreads();
+        };
 
         syncHash();
         window.addEventListener('hashchange', syncHash);
+        window.addEventListener('assistant:open', openAssistant);
 
-        return () => window.removeEventListener('hashchange', syncHash);
+        return () => {
+            window.removeEventListener('hashchange', syncHash);
+            window.removeEventListener('assistant:open', openAssistant);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        void loadThreads();
+    }, [open]);
+
+    useEffect(() => {
+        void loadThreads();
     }, []);
 
     const csrfToken =
@@ -686,8 +730,6 @@ export function AssistantPanel({
                 window.location.hash = 'assistant';
             }
 
-            void loadThreads();
-
             return;
         }
 
@@ -702,6 +744,7 @@ export function AssistantPanel({
             {!hideTrigger ? (
                 <SheetTrigger asChild>
                     <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         className="gap-2"
@@ -728,6 +771,7 @@ export function AssistantPanel({
                                 History
                             </div>
                             <Button
+                                type="button"
                                 size="sm"
                                 variant="outline"
                                 onClick={() => void createThread()}
@@ -773,6 +817,7 @@ export function AssistantPanel({
                                             </p>
                                         </button>
                                         <Button
+                                            type="button"
                                             size="icon"
                                             variant="ghost"
                                             className="opacity-0 transition group-hover:opacity-100"
@@ -803,6 +848,7 @@ export function AssistantPanel({
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
+                                    type="button"
                                     size="sm"
                                     variant="outline"
                                     onClick={() => void loadThreads()}
@@ -813,6 +859,7 @@ export function AssistantPanel({
                                 </Button>
                                 {canDebug ? (
                                     <Button
+                                        type="button"
                                         size="sm"
                                         variant={
                                             debugMode ? 'default' : 'outline'
@@ -953,6 +1000,7 @@ export function AssistantPanel({
                                         ) : null}
                                         <div className="flex gap-2">
                                             <Button
+                                                type="button"
                                                 size="sm"
                                                 onClick={() =>
                                                     void handleConfirmation(
@@ -966,6 +1014,7 @@ export function AssistantPanel({
                                                 Confirm
                                             </Button>
                                             <Button
+                                                type="button"
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() =>
@@ -997,6 +1046,7 @@ export function AssistantPanel({
                             />
                             <div className="mt-3 flex items-center justify-end">
                                 <Button
+                                    type="button"
                                     onClick={() => void sendMessage()}
                                     disabled={isLoading}
                                     data-testid="assistant-send"
@@ -1029,10 +1079,13 @@ export function AssistantPanel({
 
                         <DialogFooter className="gap-2">
                             <DialogClose asChild>
-                                <Button variant="secondary">Cancel</Button>
+                                <Button type="button" variant="secondary">
+                                    Cancel
+                                </Button>
                             </DialogClose>
 
                             <Button
+                                type="button"
                                 variant="destructive"
                                 disabled={isLoading || deleteThreadId === null}
                                 onClick={() => {
@@ -1238,6 +1291,15 @@ function AssistantMessageCard({
     const renderedContent = renderAssistantMarkdown(
         message.content || 'No content returned.',
     );
+    const renderedToolResults = (message.tool_results ?? [])
+        .map((result, index) => ({
+            index,
+            content: renderToolResultContent(result),
+        }))
+        .filter(
+            (item): item is { index: number; content: React.ReactNode } =>
+                item.content !== null,
+        );
 
     return (
         <div
@@ -1279,16 +1341,18 @@ function AssistantMessageCard({
                                 {message.content}
                             </p>
                         )}
-                        {message.tool_results?.length ? (
+                        {renderedToolResults.length ? (
                             <div className="space-y-2">
-                                {message.tool_results.map((result, index) => (
+                                {renderedToolResults.map(
+                                    ({ index, content }) => (
                                     <div
                                         key={`${message.id}-${index}`}
                                         className="rounded-lg border border-dashed border-border/60 bg-muted/40 p-3 text-sm"
                                     >
-                                        <ToolResultBlock result={result} />
+                                        {content}
                                     </div>
-                                ))}
+                                    ),
+                                )}
                             </div>
                         ) : null}
                     </div>
@@ -1867,6 +1931,12 @@ function DiscussionThread({ comments }: { comments: DiscussionComment[] }) {
 }
 
 function ToolResultBlock({ result }: { result: AssistantToolResult }) {
+    return renderToolResultContent(result);
+}
+
+function renderToolResultContent(
+    result: AssistantToolResult,
+): React.ReactNode | null {
     if (result.type === 'error') {
         return <p>{result.message}</p>;
     }
@@ -2052,6 +2122,38 @@ function ToolResultBlock({ result }: { result: AssistantToolResult }) {
                         `${issue.title ?? 'Issue'} - ${issue.status ?? 'unknown'} / ${issue.priority ?? 'unknown'}`,
                 )}
             />
+        );
+    }
+
+    if (result.type === 'board') {
+        return (
+            <div className="space-y-2">
+                <p>
+                    Board saved:{' '}
+                    <span className="font-medium">{result.name}</span>
+                </p>
+                <p className="text-muted-foreground">
+                    {result.project?.client?.name ?? 'No client'} /{' '}
+                    {result.project?.name ?? 'No project'}
+                </p>
+                <SimpleList
+                    title="Columns"
+                    items={result.columns.map((column) =>
+                        column.updates_status && column.mapped_status
+                            ? `${column.name} - updates status to ${column.mapped_status}`
+                            : `${column.name} - no status update`,
+                    )}
+                />
+            </div>
+        );
+    }
+
+    if (result.type === 'board_deleted') {
+        return (
+            <p>
+                Board deleted:{' '}
+                <span className="font-medium">{result.name}</span>
+            </p>
         );
     }
 

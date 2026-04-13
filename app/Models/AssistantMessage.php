@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['thread_id', 'role', 'content', 'tool_calls_json', 'tool_results_json', 'meta_json'])]
 class AssistantMessage extends Model
 {
+    protected $touches = ['thread'];
+
     protected function casts(): array
     {
         return [
