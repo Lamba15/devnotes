@@ -124,6 +124,8 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const BACKLOG_LANE_ID = 'lane-backlog';
+const ISSUE_CARD_CLASS =
+    'group w-full rounded-lg bg-card p-2.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md';
 
 function getLaneId(columnId: number | null) {
     return columnId === null ? BACKLOG_LANE_ID : `lane-${columnId}`;
@@ -282,6 +284,7 @@ export default function BoardShow({
         useState<BoardData | null>(null);
     const [dragState, setDragState] = useState<DragState | null>(null);
     const [showAddColumn, setShowAddColumn] = useState(false);
+    const issueElementRefs = useRef(new Map<number, HTMLDivElement>());
     const lastOverIdRef = useRef<string | null>(null);
     const pendingBoardDataRef = useRef<BoardData | null>(null);
     const columnForm = useForm({
@@ -307,6 +310,19 @@ export default function BoardShow({
               .flatMap((lane) => lane.issues)
               .find((issue) => issue.id === dragState.activeIssueId) ?? null)
         : null;
+
+    const setIssueElementRef = (
+        issueId: number,
+        node: HTMLDivElement | null,
+    ) => {
+        if (node) {
+            issueElementRefs.current.set(issueId, node);
+
+            return;
+        }
+
+        issueElementRefs.current.delete(issueId);
+    };
 
     useEffect(() => {
         const handleAssistantBoardSync = (event: Event) => {
@@ -489,13 +505,22 @@ export default function BoardShow({
             return;
         }
 
+        const issueElement = issueElementRefs.current.get(issueId);
+        const issueRect = issueElement?.getBoundingClientRect();
+
         lastOverIdRef.current = String(event.active.id);
         setDragState({
             activeIssueId: issueId,
             source,
             over: source,
-            overlayWidth: event.active.rect.current.initial?.width ?? null,
-            overlayHeight: event.active.rect.current.initial?.height ?? null,
+            overlayWidth:
+                issueRect?.width ??
+                event.active.rect.current.initial?.width ??
+                null,
+            overlayHeight:
+                issueRect?.height ??
+                event.active.rect.current.initial?.height ??
+                null,
         });
     };
 
@@ -742,23 +767,33 @@ export default function BoardShow({
                                     canMoveIssues={can_move_issues}
                                     movingIssueId={movingIssueId}
                                     dragState={dragState}
+                                    onIssueNodeChange={setIssueElementRef}
                                 />
                             ))}
                         </div>
                     </div>
 
-                    <DragOverlay>
+                    <DragOverlay adjustScale={false}>
                         {activeIssue ? (
-                            <IssueCardBody
-                                issue={activeIssue}
-                                showHandle
-                                className="rounded-lg bg-card p-2.5 shadow-xl ring-1 ring-border/60"
+                            <div
+                                className={ISSUE_CARD_CLASS}
                                 style={{
-                                    width: dragState?.overlayWidth ?? 256,
+                                    width: dragState?.overlayWidth ?? undefined,
+                                    minWidth:
+                                        dragState?.overlayWidth ?? undefined,
+                                    maxWidth:
+                                        dragState?.overlayWidth ?? undefined,
                                     minHeight:
                                         dragState?.overlayHeight ?? undefined,
+                                    boxSizing: 'border-box',
                                 }}
-                            />
+                            >
+                                <IssueCardBody
+                                    issue={activeIssue}
+                                    showHandle
+                                    className="w-full"
+                                />
+                            </div>
                         ) : null}
                     </DragOverlay>
                 </DndContext>
@@ -774,6 +809,7 @@ function BoardLane({
     canMoveIssues,
     movingIssueId,
     dragState,
+    onIssueNodeChange,
 }: {
     lane: Lane;
     clientId: number;
@@ -781,6 +817,7 @@ function BoardLane({
     canMoveIssues: boolean;
     movingIssueId: number | null;
     dragState: DragState | null;
+    onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
 }) {
     const { isOver, setNodeRef } = useDroppable({
         id: getLaneId(lane.id),
@@ -853,6 +890,7 @@ function BoardLane({
                                     isGhosted={
                                         dragState?.activeIssueId === issue.id
                                     }
+                                    onNodeChange={onIssueNodeChange}
                                 />
                             </div>
                         ))}
@@ -884,6 +922,7 @@ function IssueCard({
     canMove = false,
     isMoving = false,
     isGhosted = false,
+    onNodeChange,
 }: {
     issue: Issue;
     href: string;
@@ -891,6 +930,7 @@ function IssueCard({
     canMove?: boolean;
     isMoving?: boolean;
     isGhosted?: boolean;
+    onNodeChange?: (issueId: number, node: HTMLDivElement | null) => void;
 }) {
     const {
         attributes,
@@ -917,13 +957,16 @@ function IssueCard({
 
     return (
         <div
-            ref={setNodeRef}
+            ref={(node) => {
+                setNodeRef(node);
+                onNodeChange?.(issue.id, node);
+            }}
             style={{
-                transform: CSS.Transform.toString(transform),
+                transform: CSS.Translate.toString(transform),
                 transition,
             }}
             className={cn(
-                'group rounded-lg bg-card p-2.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md',
+                ISSUE_CARD_CLASS,
                 isDragging && 'opacity-0',
                 isGhosted && !isDragging && 'opacity-20',
                 isMoving && 'scale-[0.985] opacity-60',
@@ -934,6 +977,7 @@ function IssueCard({
                 href={href}
                 interactive
                 showHandle={canMove}
+                className="w-full"
                 handleProps={
                     canMove
                         ? {
@@ -967,7 +1011,7 @@ function IssueCardBody({
     style?: CSSProperties;
 }) {
     return (
-        <div className={className} style={style}>
+        <div className={cn('w-full', className)} style={style}>
             <div className="flex items-start gap-2.5">
                 {showHandle ? (
                     <button
