@@ -115,6 +115,7 @@ export default function FinanceTransactions({
             render: (transaction) => {
                 const num = Number(transaction.amount);
                 const isPositive = num >= 0;
+
                 return (
                     <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}

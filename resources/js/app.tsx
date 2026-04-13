@@ -88,10 +88,47 @@ createInertiaApp({
                 layout?: unknown;
             } & ComponentType;
 
-            if (page.layout === undefined) {
-                (
-                    page as { layout?: ReturnType<typeof resolveDefaultLayout> }
-                ).layout = resolveDefaultLayout(name);
+            let layoutProps = {};
+            let hasCustomLayout = false;
+
+            if (page.layout !== undefined) {
+                // If it's an object but not a React Element or Array, it's considered page layout props
+                if (
+                    typeof page.layout === 'object' &&
+                    !Array.isArray(page.layout) &&
+                    page.layout !== null &&
+                    !(
+                        page.layout &&
+                        typeof (page.layout as any).$$typeof === 'symbol'
+                    ) // check if it's a react element
+                ) {
+                    layoutProps = page.layout;
+                } else {
+                    hasCustomLayout = true;
+                }
+            }
+
+            if (!hasCustomLayout) {
+                const DefaultLayout = resolveDefaultLayout(name);
+
+                if (Array.isArray(DefaultLayout)) {
+                    page.layout = (childNode: ReactNode) => {
+                        return DefaultLayout.reduceRight(
+                            (acc, Layout) => (
+                                <Layout {...layoutProps}>{acc}</Layout>
+                            ),
+                            childNode,
+                        );
+                    };
+                } else if (DefaultLayout) {
+                    page.layout = (childNode: ReactNode) => (
+                        <DefaultLayout {...layoutProps}>
+                            {childNode}
+                        </DefaultLayout>
+                    );
+                } else {
+                    page.layout = undefined;
+                }
             }
 
             return page as ComponentType;

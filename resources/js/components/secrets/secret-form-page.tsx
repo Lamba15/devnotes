@@ -75,6 +75,7 @@ export default function SecretFormPage({
                     onSubmit={() => {
                         if (method === 'post') {
                             form.post(submitUrl);
+
                             return;
                         }
 

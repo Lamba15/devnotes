@@ -11,8 +11,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { getPageProps } from '@/lib/page-props';
 import AppLayout from '@/layouts/app-layout';
+import { getPageProps } from '@/lib/page-props';
 import { cn } from '@/lib/utils';
 
 type ClientWorkspaceLayoutProps = PropsWithChildren<{}>;
@@ -172,6 +172,7 @@ export default function ClientWorkspaceLayout({
                                         ? isCurrentUrl(section.href)
                                         : isCurrentOrParentUrl(section.href);
                                     const Icon = section.icon;
+
                                     return (
                                         <Link
                                             key={section.title}

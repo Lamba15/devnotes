@@ -1,9 +1,9 @@
-const { generateHTML } = require('@tiptap/html');
 const Document = require('@tiptap/extension-document');
 const Paragraph = require('@tiptap/extension-paragraph');
-const Text = require('@tiptap/extension-text');
-const TaskList = require('@tiptap/extension-task-list');
 const TaskItem = require('@tiptap/extension-task-item');
+const TaskList = require('@tiptap/extension-task-list');
+const Text = require('@tiptap/extension-text');
+const { generateHTML } = require('@tiptap/html');
 
 const html = generateHTML({
   type: 'doc',

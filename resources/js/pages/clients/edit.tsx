@@ -139,7 +139,10 @@ export default function ClientsEdit({
                                     className="hidden"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
-                                        if (file) handleImageUpload(file);
+
+                                        if (file) {
+handleImageUpload(file);
+}
                                     }}
                                 />
                                 <Button

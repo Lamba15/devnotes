@@ -71,6 +71,7 @@ export default function ClientFinancePage({
             render: (row) => {
                 const num = Number(row.amount);
                 const isPositive = num >= 0;
+
                 return (
                     <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
@@ -107,6 +108,7 @@ export default function ClientFinancePage({
                     overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                     draft: 'bg-muted text-muted-foreground',
                 };
+
                 return (
                     <Badge variant="outline" className={`capitalize ${colors[row.status] ?? ''}`}>
                         {row.status}

@@ -86,6 +86,7 @@ export default function ClientShow({
                         { label: 'Statuses', value: summary.statuses_count, icon: ListChecks, color: 'text-pink-600 dark:text-pink-400' },
                     ].map((stat) => {
                         const Icon = stat.icon;
+
                         return (
                             <Card key={stat.label} className="shadow-none">
                                 <CardContent className="flex items-center gap-3 p-4">
@@ -233,6 +234,7 @@ export default function ClientShow({
                                         const avatarSrc = membership.user.avatar_path
                                             ? `/storage/${membership.user.avatar_path}`
                                             : null;
+
                                         return (
                                             <div
                                                 key={membership.id}

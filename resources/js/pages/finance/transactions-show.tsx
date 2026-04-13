@@ -64,6 +64,7 @@ export default function FinanceTransactionShow({
                                 {(() => {
                                     const num = Number(transaction.amount);
                                     const isPositive = num >= 0;
+
                                     return (
                                         <p className={`mt-1 flex items-center gap-1 text-lg font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                                             {isPositive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}

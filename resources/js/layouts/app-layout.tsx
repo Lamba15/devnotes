@@ -1,5 +1,5 @@
-import { getPageProps } from '@/lib/page-props';
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
+import { getPageProps } from '@/lib/page-props';
 import type { BreadcrumbItem } from '@/types';
 
 type AppLayoutPageProps = {

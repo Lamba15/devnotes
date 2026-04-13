@@ -7,11 +7,11 @@ import {
     Plus,
     Ticket,
 } from 'lucide-react';
+import SecretsCard from '@/components/secrets/secrets-card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import SecretsCard from '@/components/secrets/secrets-card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
@@ -158,6 +158,7 @@ export default function ProjectShow({
                         },
                     ].map((stat) => {
                         const Icon = stat.icon;
+
                         return (
                             <Card key={stat.label} className="shadow-none">
                                 <CardContent className="p-4">
