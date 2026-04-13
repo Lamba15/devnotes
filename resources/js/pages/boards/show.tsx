@@ -54,6 +54,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatInstant } from '@/lib/datetime';
 import { cn, stripHtml } from '@/lib/utils';
 
 type Issue = {
@@ -1014,6 +1015,10 @@ function BacklogDrawer({
     toggleButtonRef: RefObject<HTMLButtonElement | null>;
     onIssueOpen: (issueId: number) => void;
 }) {
+    const [query, setQuery] = useState('');
+    const [sortBy, setSortBy] = useState<
+        'board' | 'newest' | 'oldest' | 'title'
+    >('board');
     const { isOver, setNodeRef } = useDroppable({
         id: BACKLOG_LANE_ID,
         data: {
@@ -1034,6 +1039,33 @@ function BacklogDrawer({
                 ? insertionIndex + 1
                 : insertionIndex
             : insertionIndex;
+    const normalizedQuery = query.trim().toLowerCase();
+    let visibleIssues = issues.filter((issue) => {
+        if (!normalizedQuery) {
+            return true;
+        }
+
+        return [issue.title, stripHtml(issue.description ?? '')]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(normalizedQuery));
+    });
+
+    if (sortBy === 'newest') {
+        visibleIssues = [...visibleIssues].sort((left, right) =>
+            (right.created_at ?? '').localeCompare(left.created_at ?? ''),
+        );
+    } else if (sortBy === 'oldest') {
+        visibleIssues = [...visibleIssues].sort((left, right) =>
+            (left.created_at ?? '').localeCompare(right.created_at ?? ''),
+        );
+    } else if (sortBy === 'title') {
+        visibleIssues = [...visibleIssues].sort((left, right) =>
+            left.title.localeCompare(right.title),
+        );
+    }
+
+    const backlogViewIsTransformed =
+        normalizedQuery.length > 0 || sortBy !== 'board';
 
     return (
         <div className="pointer-events-none fixed inset-x-0 bottom-3 z-30 px-3 sm:px-6">
@@ -1103,7 +1135,7 @@ function BacklogDrawer({
                                 }}
                             >
                                 <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 sm:px-5">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex min-w-0 items-center gap-2">
                                         <div className="rounded-full bg-muted p-2 text-muted-foreground">
                                             <Archive className="size-4" />
                                         </div>
@@ -1116,6 +1148,51 @@ function BacklogDrawer({
                                                 issues.
                                             </p>
                                         </div>
+                                    </div>
+
+                                    <div className="mx-3 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+                                        <Input
+                                            value={query}
+                                            onChange={(event) =>
+                                                setQuery(event.target.value)
+                                            }
+                                            placeholder="Filter backlog"
+                                            data-testid="backlog-filter"
+                                            className="h-8 w-full max-w-60 min-w-40 bg-background sm:w-56"
+                                        />
+                                        <Select
+                                            value={sortBy}
+                                            onValueChange={(value) =>
+                                                setSortBy(
+                                                    value as
+                                                        | 'board'
+                                                        | 'newest'
+                                                        | 'oldest'
+                                                        | 'title',
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                data-testid="backlog-sort"
+                                                className="h-8 w-full min-w-32 bg-background sm:w-40"
+                                            >
+                                                <SelectValue placeholder="Sort" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="board">
+                                                    Board order
+                                                </SelectItem>
+                                                <SelectItem value="newest">
+                                                    Newest
+                                                </SelectItem>
+                                                <SelectItem value="oldest">
+                                                    Oldest
+                                                </SelectItem>
+                                                <SelectItem value="title">
+                                                    Title
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
 
                                     <div className="flex items-center gap-2">
@@ -1136,55 +1213,67 @@ function BacklogDrawer({
                                 </div>
 
                                 <div
-                                    ref={setNodeRef}
+                                    ref={
+                                        backlogViewIsTransformed
+                                            ? undefined
+                                            : setNodeRef
+                                    }
                                     data-testid="backlog-dropzone"
+                                    aria-disabled={backlogViewIsTransformed}
                                     className={cn(
                                         'h-[min(65vh,28rem)] overflow-y-auto p-3 sm:h-[min(60vh,22rem)] sm:p-4',
                                         isOver && 'bg-primary/5',
                                     )}
                                 >
                                     <SortableContext
-                                        items={issues.map((issue) =>
+                                        items={visibleIssues.map((issue) =>
                                             getIssueId(issue.id),
                                         )}
                                         strategy={verticalListSortingStrategy}
                                     >
                                         <div className="flex flex-col gap-2">
-                                            {issues.length === 0 &&
+                                            {visibleIssues.length === 0 &&
                                             adjustedInsertionIndex === null ? (
                                                 <div className="rounded-2xl border border-dashed border-border/70 bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-                                                    No backlog issues
+                                                    {issues.length === 0
+                                                        ? 'No backlog issues'
+                                                        : 'No issues match this filter'}
                                                 </div>
                                             ) : null}
 
-                                            {issues.map((issue, index) => (
-                                                <div key={issue.id}>
-                                                    {adjustedInsertionIndex ===
-                                                    index ? (
-                                                        <InsertionMarker label="Backlog" />
-                                                    ) : null}
-                                                    <IssueCard
-                                                        issue={issue}
-                                                        columnId={null}
-                                                        canMove={canMoveIssues}
-                                                        isMoving={
-                                                            movingIssueId ===
-                                                            issue.id
-                                                        }
-                                                        isGhosted={
-                                                            dragState?.activeIssueId ===
-                                                            issue.id
-                                                        }
-                                                        onNodeChange={
-                                                            onIssueNodeChange
-                                                        }
-                                                        onOpen={onIssueOpen}
-                                                    />
-                                                </div>
-                                            ))}
+                                            {visibleIssues.map(
+                                                (issue, index) => (
+                                                    <div key={issue.id}>
+                                                        {adjustedInsertionIndex ===
+                                                        index ? (
+                                                            <InsertionMarker label="Backlog" />
+                                                        ) : null}
+                                                        <IssueCard
+                                                            issue={issue}
+                                                            columnId={null}
+                                                            canMove={
+                                                                canMoveIssues &&
+                                                                !backlogViewIsTransformed
+                                                            }
+                                                            isMoving={
+                                                                movingIssueId ===
+                                                                issue.id
+                                                            }
+                                                            isGhosted={
+                                                                dragState?.activeIssueId ===
+                                                                issue.id
+                                                            }
+                                                            onNodeChange={
+                                                                onIssueNodeChange
+                                                            }
+                                                            onOpen={onIssueOpen}
+                                                        />
+                                                    </div>
+                                                ),
+                                            )}
 
                                             {adjustedInsertionIndex ===
-                                            issues.length ? (
+                                            visibleIssues.length ? (
                                                 <InsertionMarker label="Backlog" />
                                             ) : null}
                                         </div>
@@ -1271,6 +1360,7 @@ function IssueCard({
                 issue={issue}
                 interactive
                 showHandle={canMove}
+                showBacklogMeta={columnId === null}
                 handleTestId={
                     canMove ? `issue-drag-handle-${issue.id}` : undefined
                 }
@@ -1295,6 +1385,7 @@ function IssueCardBody({
     issue,
     interactive = false,
     showHandle = false,
+    showBacklogMeta = false,
     handleProps,
     handleTestId,
     className,
@@ -1304,6 +1395,7 @@ function IssueCardBody({
     issue: Issue;
     interactive?: boolean;
     showHandle?: boolean;
+    showBacklogMeta?: boolean;
     handleProps?: Record<string, unknown>;
     handleTestId?: string;
     className?: string;
@@ -1341,10 +1433,15 @@ function IssueCardBody({
                         <IssueCardContent
                             issue={issue}
                             interactive={interactive}
+                            showBacklogMeta={showBacklogMeta}
                         />
                     </button>
                 ) : (
-                    <IssueCardContent issue={issue} interactive={interactive} />
+                    <IssueCardContent
+                        issue={issue}
+                        interactive={interactive}
+                        showBacklogMeta={showBacklogMeta}
+                    />
                 )}
             </div>
         </div>
@@ -1354,14 +1451,23 @@ function IssueCardBody({
 function IssueCardContent({
     issue,
     interactive = false,
+    showBacklogMeta = false,
 }: {
     issue: Issue;
     interactive?: boolean;
+    showBacklogMeta?: boolean;
 }) {
     const priorityClass =
         PRIORITY_COLORS[issue.priority] ?? 'bg-muted text-muted-foreground';
     const typeClass =
         TYPE_COLORS[issue.type] ?? 'bg-muted text-muted-foreground';
+    const addedLabel = issue.created_at
+        ? formatInstant(issue.created_at, {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+          })
+        : null;
 
     return (
         <div className="min-w-0 flex-1">
@@ -1372,13 +1478,20 @@ function IssueCardContent({
                     className="mb-2 aspect-[4/3] w-full rounded-lg border object-cover"
                 />
             ) : null}
-            <div
-                className={cn(
-                    'text-sm leading-snug font-medium text-foreground transition-colors duration-150',
-                    interactive && 'cursor-pointer hover:text-primary',
-                )}
-            >
-                {issue.title}
+            <div className="flex items-start justify-between gap-3">
+                <div
+                    className={cn(
+                        'min-w-0 text-sm leading-snug font-medium text-foreground transition-colors duration-150',
+                        interactive && 'cursor-pointer hover:text-primary',
+                    )}
+                >
+                    {issue.title}
+                </div>
+                {showBacklogMeta && addedLabel ? (
+                    <span className="shrink-0 text-[10px] font-medium whitespace-nowrap text-muted-foreground">
+                        {addedLabel}
+                    </span>
+                ) : null}
             </div>
             {issue.description ? (
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">

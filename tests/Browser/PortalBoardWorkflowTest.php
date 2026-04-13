@@ -296,12 +296,25 @@ test('board quick view shows issue created timestamp in the saved user timezone'
         'type' => 'task',
         'creator_id' => $member->id,
     ]);
+    $otherIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Another backlog issue',
+        'status' => 'done',
+        'priority' => 'low',
+        'type' => 'bug',
+        'creator_id' => $member->id,
+    ]);
 
     $issueTimestamp = CarbonImmutable::parse('2026-03-12 12:35:00', 'UTC');
+    $otherTimestamp = CarbonImmutable::parse('2026-03-10 08:15:00', 'UTC');
 
     Issue::query()->whereKey($issue->id)->update([
         'created_at' => $issueTimestamp,
         'updated_at' => $issueTimestamp,
+    ]);
+    Issue::query()->whereKey($otherIssue->id)->update([
+        'created_at' => $otherTimestamp,
+        'updated_at' => $otherTimestamp,
     ]);
 
     $membership = ClientMembership::query()->create([
@@ -334,6 +347,13 @@ test('board quick view shows issue created timestamp in the saved user timezone'
             ->waitFor('[data-testid="backlog-toggle"]', 20)
             ->click('[data-testid="backlog-toggle"]')
             ->waitForText('Timezone board issue', 20)
+            ->assertPresent('[data-testid="backlog-filter"]')
+            ->assertPresent('[data-testid="backlog-sort"]')
+            ->assertSee('12 Mar 2026')
+            ->type('[data-testid="backlog-filter"]', 'Timezone board issue')
+            ->pause(250)
+            ->assertSee('Timezone board issue')
+            ->assertDontSee('Another backlog issue')
             ->click('[data-testid="board-issue-'.$issue->id.'"] button[type="button"]')
             ->waitForText('Open full issue', 20)
             ->assertSee('Created')
