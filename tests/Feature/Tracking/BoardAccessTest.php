@@ -296,6 +296,93 @@ test('member with board access can move issues on that board', function () {
     expect($issue->fresh()->status)->toBe('in_progress');
 });
 
+test('moving an issue to its existing board position is accepted and keeps the same order', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Stable order board',
+    ]);
+    $column = BoardColumn::query()->create([
+        'board_id' => $board->id,
+        'name' => 'Doing',
+        'position' => 1,
+        'updates_status' => false,
+    ]);
+    $member = User::factory()->create();
+    $firstIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'First issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+    $secondIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Second issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    BoardIssuePlacement::query()->create([
+        'board_id' => $board->id,
+        'issue_id' => $firstIssue->id,
+        'column_id' => $column->id,
+        'position' => 1,
+    ]);
+    BoardIssuePlacement::query()->create([
+        'board_id' => $board->id,
+        'issue_id' => $secondIssue->id,
+        'column_id' => $column->id,
+        'position' => 2,
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->post(route('boards.issues.move', $board), [
+            'issue_id' => $secondIssue->id,
+            'column_id' => $column->id,
+            'position' => 2,
+        ])
+        ->assertRedirect(route('clients.projects.boards.show', [$client, $project, $board]));
+
+    expect(
+        BoardIssuePlacement::query()
+            ->where('board_id', $board->id)
+            ->where('column_id', $column->id)
+            ->orderBy('position')
+            ->pluck('issue_id')
+            ->all()
+    )->toBe([$firstIssue->id, $secondIssue->id]);
+});
+
 test('read only member cannot move issues on a board', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

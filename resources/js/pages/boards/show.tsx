@@ -213,6 +213,13 @@ function findIssueLocation(
     return null;
 }
 
+function areSameIssueLocations(
+    left: IssueLocation | DragDestination,
+    right: IssueLocation | DragDestination,
+) {
+    return left.columnId === right.columnId && left.index === right.index;
+}
+
 function moveIssueInBoardData(
     issueId: number,
     columnId: number | null,
@@ -488,6 +495,7 @@ export default function BoardShow({
     const getDropDestination = (
         event: DragOverEvent | DragEndEvent,
         draggedIssueId: number,
+        source: IssueLocation,
     ): DragDestination | null => {
         const overData = event.over?.data.current;
 
@@ -510,6 +518,14 @@ export default function BoardShow({
         }
 
         const targetColumnId = overData.columnId as number | null;
+
+        if (overData.issueId === draggedIssueId) {
+            return {
+                columnId: source.columnId,
+                index: source.index,
+            };
+        }
+
         const laneIssues = getIssuesForColumn(targetColumnId, draggedIssueId);
         const overIndex = laneIssues.findIndex(
             (issue) => issue.id === overData.issueId,
@@ -586,7 +602,11 @@ export default function BoardShow({
             return;
         }
 
-        const destination = getDropDestination(event, issueId);
+        const destination = getDropDestination(
+            event,
+            issueId,
+            dragState.source,
+        );
 
         if (!destination) {
             return;
@@ -597,10 +617,7 @@ export default function BoardShow({
                 return current;
             }
 
-            if (
-                current.over.columnId === destination.columnId &&
-                current.over.index === destination.index
-            ) {
+            if (areSameIssueLocations(current.over, destination)) {
                 return current;
             }
 
@@ -626,12 +643,10 @@ export default function BoardShow({
         }
 
         const destination =
-            getDropDestination(event, issueId) ?? dragState.over;
+            getDropDestination(event, issueId, dragState.source) ??
+            dragState.over;
 
-        if (
-            dragState.source.columnId === destination.columnId &&
-            dragState.source.index === destination.index
-        ) {
+        if (areSameIssueLocations(dragState.source, destination)) {
             handleDragCancel();
 
             return;
@@ -913,8 +928,11 @@ function BoardLane({
             columnId: lane.id,
         },
     });
+    const isNoOpDrop =
+        dragState !== null &&
+        areSameIssueLocations(dragState.source, dragState.over);
     const insertionIndex =
-        dragState?.over.columnId === lane.id
+        dragState?.over.columnId === lane.id && !isNoOpDrop
             ? Math.max(0, Math.min(dragState.over.index, lane.issues.length))
             : null;
     const adjustedInsertionIndex =
@@ -976,6 +994,12 @@ function BoardLane({
                                     isGhosted={
                                         dragState?.activeIssueId === issue.id
                                     }
+                                    isDropTarget={
+                                        isNoOpDrop &&
+                                        dragState?.source.columnId ===
+                                            lane.id &&
+                                        dragState.activeIssueId === issue.id
+                                    }
                                     onNodeChange={onIssueNodeChange}
                                     onOpen={onIssueOpen}
                                 />
@@ -1027,8 +1051,11 @@ function BacklogDrawer({
         },
     });
     const drawerId = 'board-backlog-drawer';
+    const isNoOpDrop =
+        dragState !== null &&
+        areSameIssueLocations(dragState.source, dragState.over);
     const insertionIndex =
-        dragState?.over.columnId === null
+        dragState?.over.columnId === null && !isNoOpDrop
             ? Math.max(0, Math.min(dragState.over.index, issues.length))
             : null;
     const adjustedInsertionIndex =
@@ -1260,6 +1287,15 @@ function BacklogDrawer({
                                                                 dragState?.activeIssueId ===
                                                                 issue.id
                                                             }
+                                                            isDropTarget={
+                                                                isNoOpDrop &&
+                                                                dragState
+                                                                    ?.source
+                                                                    .columnId ===
+                                                                    null &&
+                                                                dragState.activeIssueId ===
+                                                                    issue.id
+                                                            }
                                                             onNodeChange={
                                                                 onIssueNodeChange
                                                             }
@@ -1301,6 +1337,7 @@ function IssueCard({
     canMove = false,
     isMoving = false,
     isGhosted = false,
+    isDropTarget = false,
     onNodeChange,
     onOpen,
 }: {
@@ -1309,6 +1346,7 @@ function IssueCard({
     canMove?: boolean;
     isMoving?: boolean;
     isGhosted?: boolean;
+    isDropTarget?: boolean;
     onNodeChange?: (issueId: number, node: HTMLDivElement | null) => void;
     onOpen?: (issueId: number) => void;
 }) {
@@ -1351,6 +1389,9 @@ function IssueCard({
                 isDragging && 'opacity-0',
                 isGhosted && !isDragging && 'opacity-20',
                 isMoving && 'scale-[0.985] opacity-60',
+                isDropTarget &&
+                    !isDragging &&
+                    'bg-primary/6 shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_12px_32px_rgba(59,130,246,0.12)] ring-2 ring-primary/35',
             )}
         >
             <IssueCardBody
