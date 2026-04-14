@@ -7,6 +7,7 @@ import AppLayout from '@/layouts/app-layout';
 export default function FinanceTransactionsEdit({
     transaction,
     projects,
+    category_options,
 }: {
     transaction: {
         id: number;
@@ -22,6 +23,7 @@ export default function FinanceTransactionsEdit({
         name: string;
         client: { id: number; name: string };
     }>;
+    category_options: Array<{ label: string; value: string }>;
 }) {
     const form = useForm({
         project_id: String(transaction.project_id),
@@ -29,7 +31,7 @@ export default function FinanceTransactionsEdit({
         amount: String(transaction.amount ?? ''),
         occurred_date: transaction.occurred_date ?? '',
         category: transaction.category ?? '',
-        currency: transaction.currency ?? 'USD',
+        currency: transaction.currency ?? 'EGP',
     });
 
     const sections: DynamicFormSection[] = [
@@ -51,7 +53,7 @@ export default function FinanceTransactionsEdit({
                 {
                     name: 'description',
                     label: 'Description',
-                    type: 'text',
+                    type: 'textarea',
                     placeholder: 'Transaction description',
                     wide: true,
                 },
@@ -69,13 +71,17 @@ export default function FinanceTransactionsEdit({
                 {
                     name: 'category',
                     label: 'Category',
-                    type: 'text',
-                    placeholder: 'e.g. payment, expense, refund',
+                    type: 'select',
+                    placeholder: 'Select or create category',
+                    creatable: true,
+                    options: category_options,
                 },
                 {
                     name: 'currency',
                     label: 'Currency',
                     type: 'select',
+                    placeholder: 'Select or create currency',
+                    creatable: true,
                     options: [
                         { label: 'USD', value: 'USD' },
                         { label: 'EUR', value: 'EUR' },

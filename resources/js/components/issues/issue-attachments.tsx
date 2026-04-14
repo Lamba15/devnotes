@@ -372,7 +372,11 @@ function AttachmentContent({
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         {images.map((attachment) => {
                             const index = attachments.indexOf(attachment);
-                            const src = attachment.url || (attachment.file_path ? `/storage/${attachment.file_path}` : '');
+                            const src =
+                                attachment.url ||
+                                (attachment.file_path
+                                    ? `/storage/${attachment.file_path}`
+                                    : '');
 
                             return (
                                 <div
@@ -444,10 +448,13 @@ function AttachmentContent({
                                     </div>
                                     {attachment.url || attachment.file_path ? (
                                         <a
-                                            href={attachment.url || `/storage/${attachment.file_path}`}
+                                            href={
+                                                attachment.url ||
+                                                `/storage/${attachment.file_path}`
+                                            }
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="min-w-0 flex-1 hover:underline text-foreground"
+                                            className="min-w-0 flex-1 text-foreground hover:underline"
                                         >
                                             <p className="truncate text-sm font-medium">
                                                 {attachment.file_name}
@@ -501,7 +508,9 @@ function AttachmentActions({
     onDelete?: (index: number) => void;
     deleteLabel: string;
 }) {
-    const src = attachment.url || (attachment.file_path ? `/storage/${attachment.file_path}` : '');
+    const src =
+        attachment.url ||
+        (attachment.file_path ? `/storage/${attachment.file_path}` : '');
 
     return (
         <div className="flex items-center gap-1">

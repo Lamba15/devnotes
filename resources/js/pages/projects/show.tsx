@@ -86,7 +86,9 @@ export default function ProjectShow({
                                         href={`/clients/${client.id}/projects/${project.id}/edit`}
                                     >
                                         <Camera className="mr-1.5 size-3.5" />
-                                        {project.image_path ? 'Update logo' : 'Add logo'}
+                                        {project.image_path
+                                            ? 'Update logo'
+                                            : 'Add logo'}
                                     </Link>
                                 </Button>
                             ) : null}
@@ -114,7 +116,9 @@ export default function ProjectShow({
                     </CardHeader>
                     <CardContent className="grid gap-4 sm:grid-cols-2">
                         <div>
-                            <p className="text-sm font-medium text-muted-foreground">Status</p>
+                            <p className="text-sm font-medium text-muted-foreground">
+                                Status
+                            </p>
                             <div className="mt-1">
                                 <Badge variant="outline" className="capitalize">
                                     {project.status?.name ?? 'No status'}
@@ -123,10 +127,15 @@ export default function ProjectShow({
                         </div>
                         {project.budget ? (
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">Budget</p>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Budget
+                                </p>
                                 <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-foreground">
                                     <Banknote className="size-3.5 text-emerald-500" />
-                                    {formatCurrencyAmount(project.budget, project.currency)}
+                                    {formatCurrencyAmount(
+                                        project.budget,
+                                        project.currency,
+                                    )}
                                 </p>
                             </div>
                         ) : null}
@@ -163,12 +172,18 @@ export default function ProjectShow({
                             <Card key={stat.label} className="shadow-none">
                                 <CardContent className="p-4">
                                     <div className="flex items-center gap-3">
-                                        <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}>
+                                        <div
+                                            className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}
+                                        >
                                             <Icon className="size-4" />
                                         </div>
                                         <div>
-                                            <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                            <p className="text-2xl font-semibold">{stat.value}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {stat.label}
+                                            </p>
+                                            <p className="text-2xl font-semibold">
+                                                {stat.value}
+                                            </p>
                                         </div>
                                     </div>
                                     <Link
@@ -188,9 +203,15 @@ export default function ProjectShow({
                         description="Platform-only credentials and private values for this project."
                         secrets={secrets}
                         createHref={`/clients/${client.id}/projects/${project.id}/secrets/create`}
-                        editHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/edit`}
-                        deleteHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}`}
-                        revealHref={(secretId) => `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/reveal`}
+                        editHref={(secretId) =>
+                            `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/edit`
+                        }
+                        deleteHref={(secretId) =>
+                            `/clients/${client.id}/projects/${project.id}/secrets/${secretId}`
+                        }
+                        revealHref={(secretId) =>
+                            `/clients/${client.id}/projects/${project.id}/secrets/${secretId}/reveal`
+                        }
                     />
                 ) : null}
             </div>
@@ -210,7 +231,7 @@ function ProjectField({
     return (
         <div className={fullWidth ? 'sm:col-span-2' : ''}>
             <p className="text-sm font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 whitespace-pre-line text-sm text-foreground">
+            <p className="mt-1 text-sm whitespace-pre-line text-foreground">
                 {value}
             </p>
         </div>

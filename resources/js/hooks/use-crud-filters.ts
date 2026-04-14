@@ -1,5 +1,5 @@
-import { router } from '@inertiajs/react';
 import type { FormDataConvertible, VisitOptions } from '@inertiajs/core';
+import { router } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 

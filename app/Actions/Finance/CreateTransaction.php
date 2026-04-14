@@ -26,7 +26,7 @@ class CreateTransaction
             'amount' => $attributes['amount'],
             'occurred_date' => $attributes['occurred_date'],
             'category' => $attributes['category'] ?? null,
-            'currency' => $attributes['currency'] ?? 'USD',
+            'currency' => $attributes['currency'] ?? 'EGP',
         ]);
 
         AuditLog::query()->create([

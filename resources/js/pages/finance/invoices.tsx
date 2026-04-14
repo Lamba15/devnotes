@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -129,6 +129,18 @@ export default function FinanceInvoices({
     ];
 
     const bulkActions = [
+        {
+            label: 'Download PDF',
+            disabled: selectedInvoiceIds.length !== 1,
+            disabledReason: 'Select exactly one invoice to download.',
+            onClick: () => {
+                if (selectedInvoiceIds.length === 1) {
+                    window.location.assign(
+                        `/finance/invoices/${selectedInvoiceIds[0]}/pdf`,
+                    );
+                }
+            },
+        },
         {
             label: 'Edit',
             disabled: selectedInvoiceIds.length !== 1,

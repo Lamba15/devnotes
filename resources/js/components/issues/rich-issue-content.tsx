@@ -18,7 +18,7 @@ export function RichIssueContent({
     return (
         <div
             className={cn(
-                'prose prose-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-img:rounded-xl prose-img:border [&_a]:!text-primary prose-strong:text-foreground dark:prose-invert max-w-none',
+                'prose prose-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-img:rounded-xl prose-img:border prose-strong:text-foreground dark:prose-invert max-w-none [&_a]:!text-primary',
                 className,
             )}
             dangerouslySetInnerHTML={{ __html: sanitizedHtml }}

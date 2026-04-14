@@ -42,10 +42,14 @@ export default function ProjectsEdit({
     const handleImageUpload = (file: File) => {
         const formData = new FormData();
         formData.append('image', file);
-        router.post(`/clients/${client.id}/projects/${project.id}/image`, formData as any, {
-            preserveScroll: true,
-            forceFormData: true,
-        });
+        router.post(
+            `/clients/${client.id}/projects/${project.id}/image`,
+            formData as any,
+            {
+                preserveScroll: true,
+                forceFormData: true,
+            },
+        );
     };
 
     const handleImageRemove = () => {
@@ -117,7 +121,9 @@ export default function ProjectsEdit({
             >
                 <section className="mb-6 grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
                     <div className="space-y-2">
-                        <h3 className="text-base font-semibold">Project logo</h3>
+                        <h3 className="text-base font-semibold">
+                            Project logo
+                        </h3>
                         <p className="text-sm leading-6 text-muted-foreground">
                             Upload a logo or mark for this project.
                         </p>
@@ -160,7 +166,9 @@ export default function ProjectsEdit({
                                 onClick={() => imageInputRef.current?.click()}
                             >
                                 <Camera className="mr-1.5 size-3.5" />
-                                {project.image_path ? 'Change logo' : 'Upload logo'}
+                                {project.image_path
+                                    ? 'Change logo'
+                                    : 'Upload logo'}
                             </Button>
                             {project.image_path ? (
                                 <Button
@@ -187,10 +195,7 @@ export default function ProjectsEdit({
                         router.visit(`/clients/${client.id}/projects`)
                     }
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() =>
                         form.put(`/clients/${client.id}/projects/${project.id}`)

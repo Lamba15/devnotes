@@ -20,8 +20,8 @@ export default function SectionPlaceholder({
                     </div>
                     <h3 className="text-sm font-medium">Coming soon</h3>
                     <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                        This section is part of the product structure and will be
-                        built out in the next implementation slices.
+                        This section is part of the product structure and will
+                        be built out in the next implementation slices.
                     </p>
                 </section>
             </CrudPage>

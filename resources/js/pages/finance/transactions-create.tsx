@@ -6,12 +6,14 @@ import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceTransactionsCreate({
     projects,
+    category_options,
 }: {
     projects: Array<{
         id: number;
         name: string;
         client: { id: number; name: string };
     }>;
+    category_options: Array<{ label: string; value: string }>;
 }) {
     const form = useForm({
         project_id: '',
@@ -19,7 +21,7 @@ export default function FinanceTransactionsCreate({
         amount: '',
         occurred_date: '',
         category: '',
-        currency: 'USD',
+        currency: 'EGP',
     });
 
     const sections: DynamicFormSection[] = [
@@ -43,7 +45,7 @@ export default function FinanceTransactionsCreate({
                 {
                     name: 'description',
                     label: 'Description',
-                    type: 'text',
+                    type: 'textarea',
                     placeholder: 'Transaction description',
                     wide: true,
                 },
@@ -61,13 +63,17 @@ export default function FinanceTransactionsCreate({
                 {
                     name: 'category',
                     label: 'Category',
-                    type: 'text',
-                    placeholder: 'e.g. payment, expense, refund',
+                    type: 'select',
+                    placeholder: 'Select or create category',
+                    creatable: true,
+                    options: category_options,
                 },
                 {
                     name: 'currency',
                     label: 'Currency',
                     type: 'select',
+                    placeholder: 'Select or create currency',
+                    creatable: true,
                     options: [
                         { label: 'USD', value: 'USD' },
                         { label: 'EUR', value: 'EUR' },

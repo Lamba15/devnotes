@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowDownRight, ArrowUpRight, Plus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Download, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -18,7 +18,7 @@ import {
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatDateOnly } from '@/lib/datetime';
+import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = {
@@ -38,6 +38,7 @@ type Transaction = {
     amount: string;
     currency: string | null;
     occurred_date: string | null;
+    created_at: string | null;
     project: Project;
 };
 
@@ -176,9 +177,32 @@ export default function FinanceTransactions({
             sortKey: 'occurred_date',
             render: (transaction) => formatDateOnly(transaction.occurred_date),
         },
+        {
+            key: 'created_at',
+            header: 'Created',
+            sortable: true,
+            sortKey: 'created_at',
+            render: (transaction) =>
+                formatDetailedTimestamp(transaction.created_at),
+        },
     ];
 
     const bulkActions = [
+        {
+            label: 'Download PDF',
+            disabled: selectedTransactionIds.length !== 1,
+            disabledReason:
+                selectedTransactionIds.length > 1
+                    ? 'Select only 1 transaction to download.'
+                    : undefined,
+            onClick: () => {
+                if (selectedTransactionIds.length === 1) {
+                    window.location.assign(
+                        `/finance/transactions/${selectedTransactionIds[0]}/pdf`,
+                    );
+                }
+            },
+        },
         {
             label: 'Edit',
             disabled: selectedTransactionIds.length !== 1,

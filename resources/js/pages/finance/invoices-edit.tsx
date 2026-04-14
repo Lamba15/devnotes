@@ -132,10 +132,7 @@ export default function FinanceInvoicesEdit({
                     cancelLabel="Back to invoices"
                     onCancel={() => router.visit('/finance/invoices')}
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() => form.put(`/finance/invoices/${invoice.id}`)}
                 />

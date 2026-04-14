@@ -55,8 +55,8 @@ export default function Profile({
         const file = e.target.files?.[0];
 
         if (!file) {
-return;
-}
+            return;
+        }
 
         const formData = new FormData();
         formData.append('avatar', file);

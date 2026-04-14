@@ -33,7 +33,9 @@ export default function AISettings({
     activeSystemPromptSource,
     openRouterModels,
 }: Props) {
-    const { auth } = usePage<{ auth: { user: { ai_credits: number; ai_credits_used: number } } }>().props;
+    const { auth } = usePage<{
+        auth: { user: { ai_credits: number; ai_credits_used: number } };
+    }>().props;
     const credits = auth.user.ai_credits;
     const used = auth.user.ai_credits_used;
     const isUnlimited = credits === -1;
@@ -69,33 +71,46 @@ export default function AISettings({
                     <CardContent className="pb-5">
                         <div className="flex items-center gap-6">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">Allowance:</span>
+                                <span className="text-sm text-muted-foreground">
+                                    Allowance:
+                                </span>
                                 {isUnlimited ? (
                                     <span className="flex items-center gap-1 font-semibold text-emerald-600">
                                         <Infinity className="size-4" />
                                         Unlimited
                                     </span>
                                 ) : credits === 0 ? (
-                                    <span className="font-semibold text-red-500">No credits</span>
+                                    <span className="font-semibold text-red-500">
+                                        No credits
+                                    </span>
                                 ) : (
-                                    <span className="font-semibold">{credits}</span>
+                                    <span className="font-semibold">
+                                        {credits}
+                                    </span>
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">Used:</span>
+                                <span className="text-sm text-muted-foreground">
+                                    Used:
+                                </span>
                                 <span className="font-semibold">{used}</span>
                             </div>
                             {remaining !== null && (
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">Remaining:</span>
-                                    <span className={`font-semibold ${remaining === 0 ? 'text-red-500' : remaining < 10 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                                    <span className="text-sm text-muted-foreground">
+                                        Remaining:
+                                    </span>
+                                    <span
+                                        className={`font-semibold ${remaining === 0 ? 'text-red-500' : remaining < 10 ? 'text-amber-500' : 'text-emerald-600'}`}
+                                    >
                                         {remaining}
                                     </span>
                                 </div>
                             )}
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground">
-                            Each AI message consumes 1 credit. Credits are managed by the platform administrator.
+                            Each AI message consumes 1 credit. Credits are
+                            managed by the platform administrator.
                         </p>
                     </CardContent>
                 </Card>
@@ -222,15 +237,14 @@ export default function AISettings({
                                             placeholder="You are the devnotes agent..."
                                         />
                                         <p className="text-sm text-muted-foreground">
-                                            This controls how the agent
-                                            speaks, explains work, and behaves
-                                            for your account.
+                                            This controls how the agent speaks,
+                                            explains work, and behaves for your
+                                            account.
                                         </p>
                                         <p className="text-sm text-muted-foreground">
                                             Resetting to default removes your
-                                            custom override and makes the
-                                            agent use the built-in prompt
-                                            again.
+                                            custom override and makes the agent
+                                            use the built-in prompt again.
                                         </p>
                                         <InputError
                                             message={

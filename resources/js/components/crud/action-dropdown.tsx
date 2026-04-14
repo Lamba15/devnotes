@@ -51,7 +51,9 @@ export function ActionDropdown({
                     const menuItem = (
                         <DropdownMenuItem
                             key={item.label}
-                            variant={item.destructive ? 'destructive' : 'default'}
+                            variant={
+                                item.destructive ? 'destructive' : 'default'
+                            }
                             onClick={item.onClick}
                             disabled={item.disabled}
                         >

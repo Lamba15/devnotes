@@ -342,17 +342,14 @@ export function IssueQuickViewDialog({
 
         setDeletingIssue(true);
 
-        router.delete(
-            deleteIssueUrl,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    onDeleted?.(issueId);
-                    onOpenChange(false);
-                },
-                onFinish: () => setDeletingIssue(false),
+        router.delete(deleteIssueUrl, {
+            preserveScroll: true,
+            onSuccess: () => {
+                onDeleted?.(issueId);
+                onOpenChange(false);
             },
-        );
+            onFinish: () => setDeletingIssue(false),
+        });
     };
 
     return (
@@ -371,7 +368,12 @@ export function IssueQuickViewDialog({
                     <div className="px-4 py-5 sm:px-6 xl:overflow-y-auto">
                         <div className="space-y-5">
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button asChild type="button" variant="outline" size="sm">
+                                <Button
+                                    asChild
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                >
                                     <Link
                                         href={fullIssueUrl}
                                         className="inline-flex items-center gap-1"

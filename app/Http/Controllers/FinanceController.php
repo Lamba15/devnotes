@@ -18,6 +18,7 @@ class FinanceController extends Controller
 
         return Inertia::render('finance/transactions-create', [
             'projects' => $projects,
+            'category_options' => $this->transactionCategoryOptions($request),
         ]);
     }
 
@@ -103,6 +104,7 @@ class FinanceController extends Controller
                     'amount' => (string) $transaction->amount,
                     'currency' => $transaction->currency,
                     'occurred_date' => $transaction->occurred_date?->toDateString(),
+                    'created_at' => $transaction->created_at?->toISOString(),
                     'project' => [
                         'id' => $transaction->project?->id,
                         'name' => $transaction->project?->name,
@@ -249,6 +251,26 @@ class FinanceController extends Controller
         return [
             'projects' => $projects,
         ];
+    }
+
+    private function transactionCategoryOptions(Request $request): array
+    {
+        return Transaction::query()
+            ->when(
+                ! $request->user()->isPlatformOwner(),
+                fn ($query) => $query->whereHas(
+                    'project',
+                    fn ($projectQuery) => $request->user()->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
+                )
+            )
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category')
+            ->map(fn (string $category) => ['label' => $category, 'value' => $category])
+            ->values()
+            ->all();
     }
 
     private function normalizedFilterValues(Request $request, string $key): array

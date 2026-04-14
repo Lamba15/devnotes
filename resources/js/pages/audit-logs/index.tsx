@@ -113,16 +113,12 @@ export default function AuditLogsIndex({
     // Normalize server option formats into {label, value} for the hook
     const eventOpts = useMemo(
         () =>
-            event_options
-                .filter(Boolean)
-                .map((e) => ({ value: e, label: e })),
+            event_options.filter(Boolean).map((e) => ({ value: e, label: e })),
         [event_options],
     );
     const sourceOpts = useMemo(
         () =>
-            source_options
-                .filter(Boolean)
-                .map((s) => ({ value: s, label: s })),
+            source_options.filter(Boolean).map((s) => ({ value: s, label: s })),
         [source_options],
     );
     const userOpts = useMemo(

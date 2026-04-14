@@ -1,12 +1,13 @@
 import { ArrowDown, ArrowUp, ChevronsUpDown, Inbox } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-    type ReactNode,
+    
     useCallback,
     useEffect,
     useRef,
-    useState,
+    useState
 } from 'react';
+import type {ReactNode} from 'react';
 import { createPortal } from 'react-dom';
 import type { ActionDropdownItem } from '@/components/crud/action-dropdown';
 import { ActionDropdown } from '@/components/crud/action-dropdown';
@@ -73,14 +74,20 @@ function useElementRect(ref: React.RefObject<HTMLElement | null>) {
     );
 
     const update = useCallback(() => {
-        if (!ref.current) return;
+        if (!ref.current) {
+return;
+}
+
         const r = ref.current.getBoundingClientRect();
         setRect({ left: r.left, width: r.width });
     }, [ref]);
 
     useEffect(() => {
         const el = ref.current;
-        if (!el) return;
+
+        if (!el) {
+return;
+}
 
         update();
 

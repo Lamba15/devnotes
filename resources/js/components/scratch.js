@@ -5,31 +5,28 @@ const TaskList = require('@tiptap/extension-task-list');
 const Text = require('@tiptap/extension-text');
 const { generateHTML } = require('@tiptap/html');
 
-const html = generateHTML({
-  type: 'doc',
-  content: [
+const html = generateHTML(
     {
-      type: 'taskList',
-      content: [
-        {
-          type: 'taskItem',
-          attrs: { checked: true },
-          content: [
+        type: 'doc',
+        content: [
             {
-              type: 'paragraph',
-              content: [{ type: 'text', text: 'Task 1' }]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}, [
-  Document,
-  Paragraph,
-  Text,
-  TaskList,
-  TaskItem,
-]);
+                type: 'taskList',
+                content: [
+                    {
+                        type: 'taskItem',
+                        attrs: { checked: true },
+                        content: [
+                            {
+                                type: 'paragraph',
+                                content: [{ type: 'text', text: 'Task 1' }],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
+    [Document, Paragraph, Text, TaskList, TaskItem],
+);
 
 console.log(html);

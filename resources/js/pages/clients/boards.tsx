@@ -124,7 +124,8 @@ export default function ClientBoardsPage({
     const selectedBoards = boards.filter((board) =>
         selectedBoardIds.includes(board.id),
     );
-    const selectedBoard = selectedBoards.length === 1 ? selectedBoards[0] : null;
+    const selectedBoard =
+        selectedBoards.length === 1 ? selectedBoards[0] : null;
     const selectionIncludesReadOnlyBoard =
         selectedBoards.length > 0 &&
         selectedBoards.some((board) => !board.can_manage);
@@ -162,7 +163,9 @@ export default function ClientBoardsPage({
                   {
                       label: 'Delete',
                       destructive: true,
-                      disabled: selectedBoards.length === 0 || selectionIncludesReadOnlyBoard,
+                      disabled:
+                          selectedBoards.length === 0 ||
+                          selectionIncludesReadOnlyBoard,
                       disabledReason:
                           selectedBoards.length === 0
                               ? 'Select at least one board to delete.'

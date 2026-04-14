@@ -96,10 +96,7 @@ export default function ProjectsCreate({
                         router.visit(`/clients/${client.id}/projects`)
                     }
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() => form.post(`/clients/${client.id}/projects`)}
                 />

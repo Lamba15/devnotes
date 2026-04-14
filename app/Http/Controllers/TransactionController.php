@@ -7,10 +7,12 @@ use App\Actions\Finance\DeleteTransaction;
 use App\Actions\Finance\UpdateTransaction;
 use App\Models\Project;
 use App\Models\Transaction;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class TransactionController extends Controller
 {
@@ -29,6 +31,8 @@ class TransactionController extends Controller
                 'amount' => (string) $transaction->amount,
                 'currency' => $transaction->currency,
                 'occurred_date' => $transaction->occurred_date?->toDateString() ?? $transaction->occurred_date,
+                'category' => $transaction->category,
+                'created_at' => $transaction->created_at?->toISOString(),
                 'project' => [
                     'id' => $transaction->project->id,
                     'name' => $transaction->project->name,
@@ -60,6 +64,22 @@ class TransactionController extends Controller
                 )
                 ->orderBy('name')
                 ->get(),
+            'category_options' => Transaction::query()
+                ->when(
+                    ! $user->isPlatformOwner(),
+                    fn ($query) => $query->whereHas(
+                        'project',
+                        fn ($projectQuery) => $user->workspaceAccess()->scopeAccessibleFinanceProjects($projectQuery),
+                    )
+                )
+                ->whereNotNull('category')
+                ->where('category', '!=', '')
+                ->distinct()
+                ->orderBy('category')
+                ->pluck('category')
+                ->map(fn (string $category) => ['label' => $category, 'value' => $category])
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -103,5 +123,25 @@ class TransactionController extends Controller
         $deleteTransaction->handle($request->user(), $transaction);
 
         return to_route('finance.transactions.index');
+    }
+
+    public function exportPdf(Request $request, Transaction $transaction): HttpResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->canManageProjectFinance($transaction->project), 403);
+
+        $transaction->load('project.client');
+
+        $pdf = Pdf::loadView('pdf.transaction', [
+            'transaction' => $transaction,
+            'ownerName' => $user->isPlatformOwner() ? $user->name : config('app.name'),
+        ])->setOption('isRemoteEnabled', true);
+
+        $pdf->setPaper('a4');
+
+        $filename = 'transaction-'.$transaction->id.'-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
     }
 }

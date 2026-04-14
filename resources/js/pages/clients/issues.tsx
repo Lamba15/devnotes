@@ -334,6 +334,7 @@ export default function ClientIssuesPage({
                     const issue = issues.find(
                         (i) => i.id === selectedIssueIds[0],
                     );
+
                     if (issue?.project) {
                         window.location.assign(
                             `/clients/${client.id}/projects/${issue.project.id}/issues/${selectedIssueIds[0]}/edit`,
@@ -354,10 +355,13 @@ export default function ClientIssuesPage({
     ];
 
     const confirmDelete = async () => {
-        if (!deleteIds) return;
+        if (!deleteIds) {
+return;
+}
 
         for (const id of deleteIds) {
             const issue = issues.find((i) => i.id === id);
+
             if (issue?.project) {
                 await router.delete(
                     `/clients/${client.id}/projects/${issue.project.id}/issues/${id}`,
@@ -452,7 +456,9 @@ export default function ClientIssuesPage({
                 <Dialog
                     open={deleteIds !== null}
                     onOpenChange={(open) => {
-                        if (!open) setDeleteIds(null);
+                        if (!open) {
+setDeleteIds(null);
+}
                     }}
                 >
                     <DialogContent>

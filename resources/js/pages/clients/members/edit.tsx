@@ -70,10 +70,7 @@ export default function ClientMembersEdit({
                         router.visit(`/clients/${client.id}/members`)
                     }
                     onChange={(name, value) =>
-                        form.setData(
-                            name as 'name' | 'email' | 'role',
-                            value,
-                        )
+                        form.setData(name as 'name' | 'email' | 'role', value)
                     }
                     onSubmit={() =>
                         form.put(

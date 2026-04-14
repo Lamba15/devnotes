@@ -13,8 +13,11 @@ export function toUrl(url: NonNullable<InertiaLinkProps['href']>): string {
 
 export function stripHtml(html: string | null | undefined): string {
     if (!html) {
-return '';
-}
+        return '';
+    }
 
-    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    return html
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
 }

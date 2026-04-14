@@ -247,14 +247,11 @@ export default function IssueShow({
     const deleteIssue = () => {
         setDeletingIssue(true);
 
-        router.delete(
-            deleteIssueUrl,
-            {
-                preserveScroll: true,
-                onSuccess: () => setConfirmDeleteOpen(false),
-                onFinish: () => setDeletingIssue(false),
-            },
-        );
+        router.delete(deleteIssueUrl, {
+            preserveScroll: true,
+            onSuccess: () => setConfirmDeleteOpen(false),
+            onFinish: () => setDeletingIssue(false),
+        });
     };
 
     return (

@@ -159,10 +159,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('finance/transactions', [FinanceController::class, 'transactions'])->name('finance.transactions.index');
     Route::get('finance/transactions/{transaction}', [TransactionController::class, 'show'])->name('finance.transactions.show');
     Route::get('finance/transactions/{transaction}/edit', [TransactionController::class, 'edit'])->name('finance.transactions.edit');
+    Route::get('finance/transactions/{transaction}/pdf', [TransactionController::class, 'exportPdf'])->name('finance.transactions.pdf');
     Route::get('finance/invoices/create', [FinanceController::class, 'invoicesCreate'])->name('finance.invoices.create');
     Route::get('finance/invoices', [FinanceController::class, 'invoices'])->name('finance.invoices.index');
     Route::get('finance/invoices/{invoice}', [InvoiceController::class, 'show'])->name('finance.invoices.show');
     Route::get('finance/invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('finance.invoices.edit');
+    Route::get('finance/invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])->name('finance.invoices.pdf');
     Route::post('finance/transactions', [TransactionController::class, 'store'])->name('finance.transactions.store');
     Route::put('finance/transactions/{transaction}', [TransactionController::class, 'update'])->name('finance.transactions.update');
     Route::delete('finance/transactions/{transaction}', [TransactionController::class, 'destroy'])->name('finance.transactions.destroy');

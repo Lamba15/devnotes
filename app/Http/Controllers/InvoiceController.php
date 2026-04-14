@@ -7,10 +7,13 @@ use App\Actions\Finance\DeleteInvoice;
 use App\Actions\Finance\UpdateInvoice;
 use App\Models\Invoice;
 use App\Models\Project;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class InvoiceController extends Controller
 {
@@ -105,5 +108,26 @@ class InvoiceController extends Controller
         $deleteInvoice->handle($request->user(), $invoice);
 
         return to_route('finance.invoices.index');
+    }
+
+    public function exportPdf(Request $request, Invoice $invoice): HttpResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user->canManageProjectFinance($invoice->project), 403);
+
+        $invoice->load('project.client');
+
+        $pdf = Pdf::loadView('pdf.invoice', [
+            'invoice' => $invoice,
+            'ownerName' => $user->isPlatformOwner() ? $user->name : config('app.name'),
+        ])->setOption('isRemoteEnabled', true);
+
+        $pdf->setPaper('a4');
+
+        $slug = Str::slug($invoice->reference);
+        $filename = 'invoice-'.$slug.'-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->download($filename);
     }
 }
