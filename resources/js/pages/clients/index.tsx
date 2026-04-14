@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
@@ -64,11 +64,27 @@ export default function ClientsIndex({
     };
     can_create_clients: boolean;
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
+    const filterDefs: CrudFilterDefinition[] = useMemo(
+        () => [
+            {
+                key: 'search',
+                type: 'search',
+                placeholder: 'Search clients by name, email, or behavior',
+            },
+        ],
+        [],
     );
+
+    const crud = useCrudFilters({
+        url: '/clients',
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
+
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
@@ -97,26 +113,6 @@ export default function ClientsIndex({
             ? '0'
             : Number(summary.amount).toLocaleString();
     };
-
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                '/clients',
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [query, sortBy, sortDirection]);
 
     const columns: DataTableColumn<Client>[] = [
         {
@@ -187,31 +183,6 @@ export default function ClientsIndex({
                 </span>
             ),
         },
-        {
-            key: 'actions',
-            header: '',
-            render: (client) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Open workspace',
-                            onClick: () =>
-                                router.visit(`/clients/${client.id}`),
-                        },
-                        {
-                            label: 'Edit',
-                            onClick: () =>
-                                router.visit(`/clients/${client.id}/edit`),
-                        },
-                        {
-                            label: 'Delete',
-                            destructive: true,
-                            onClick: () => setDeleteIds([client.id]),
-                        },
-                    ]}
-                />
-            ),
-        },
     ];
 
     const bulkActions = [
@@ -258,26 +229,18 @@ export default function ClientsIndex({
             <CrudPage
                 title="Clients"
                 description="Manage clients as a real domain and enter each client workspace for their own members, projects, tracking, and finance."
-                actions={can_create_clients ? (
-                    <Button asChild>
-                        <Link href="/clients/create">
-                            <Plus className="mr-1.5 size-4" />
-                            Create client
-                        </Link>
-                    </Button>
-                ) : null}
+                actions={
+                    can_create_clients ? (
+                        <Button asChild>
+                            <Link href="/clients/create">
+                                <Plus className="mr-1.5 size-4" />
+                                Create client
+                            </Link>
+                        </Button>
+                    ) : null
+                }
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm flex-1">
-                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search clients by name, email, or behavior"
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
@@ -287,37 +250,10 @@ export default function ClientsIndex({
                     selectedRowIds={selectedClientIds}
                     onSelectedRowIdsChange={setSelectedClientIds}
                     bulkActions={bulkActions}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            '/clients',
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

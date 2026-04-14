@@ -12,14 +12,12 @@ import {
     Minus,
     Paperclip,
     Plus,
-    Search,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { useMemo, useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,7 +30,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { stripHtml } from '@/lib/utils';
 
@@ -106,6 +105,10 @@ export default function IssuesIndex({
     project,
     issues,
     can_manage_issues,
+    assignee_filter_options,
+    status_filter_options,
+    priority_filter_options,
+    type_filter_options,
     filters,
     pagination,
 }: {
@@ -113,7 +116,19 @@ export default function IssuesIndex({
     project: { id: number; name: string };
     issues: Issue[];
     can_manage_issues: boolean;
-    filters: { search: string; sort_by: string; sort_direction: string };
+    assignee_filter_options: Array<{ label: string; value: string }>;
+    status_filter_options: Array<{ label: string; value: string }>;
+    priority_filter_options: Array<{ label: string; value: string }>;
+    type_filter_options: Array<{ label: string; value: string }>;
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        assignee: string[];
+        status: string[];
+        priority: string[];
+        type: string[];
+    };
     pagination: {
         current_page: number;
         last_page: number;
@@ -121,11 +136,56 @@ export default function IssuesIndex({
         total: number;
     };
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
+    const filterDefs: CrudFilterDefinition[] = useMemo(
+        () => [
+            { key: 'search', type: 'search', placeholder: 'Search issues...' },
+            {
+                key: 'assignee',
+                type: 'select',
+                placeholder: 'Assignee',
+                options: assignee_filter_options,
+                className: 'lg:w-48',
+            },
+            {
+                key: 'status',
+                type: 'select',
+                placeholder: 'Status',
+                options: status_filter_options,
+                className: 'lg:w-40',
+            },
+            {
+                key: 'priority',
+                type: 'select',
+                placeholder: 'Priority',
+                options: priority_filter_options,
+                className: 'lg:w-40',
+            },
+            {
+                key: 'type',
+                type: 'select',
+                placeholder: 'Type',
+                options: type_filter_options,
+                className: 'lg:w-40',
+            },
+        ],
+        [
+            assignee_filter_options,
+            status_filter_options,
+            priority_filter_options,
+            type_filter_options,
+        ],
     );
+
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/projects/${project.id}/issues`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
+
     const [deleteMode, setDeleteMode] = useState<
         | { type: 'single'; ids: Array<string | number> }
         | { type: 'bulk'; ids: Array<string | number> }
@@ -139,26 +199,6 @@ export default function IssuesIndex({
     );
     const quickViewIssue =
         issues.find((issue) => issue.id === quickViewIssueId) ?? null;
-
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                `/clients/${client.id}/projects/${project.id}/issues`,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [client.id, project.id, query, sortBy, sortDirection]);
 
     const columns: DataTableColumn<Issue>[] = [
         {
@@ -279,39 +319,6 @@ export default function IssuesIndex({
                 </span>
             ),
         },
-        {
-            key: 'actions',
-            header: '',
-            render: (issue) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Open',
-                            onClick: () =>
-                                window.location.assign(
-                                    `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
-                                ),
-                        },
-                        {
-                            label: 'Edit',
-                            onClick: () =>
-                                window.location.assign(
-                                    `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/edit`,
-                                ),
-                        },
-                        {
-                            label: 'Delete',
-                            destructive: true,
-                            onClick: () =>
-                                setDeleteMode({
-                                    type: 'single',
-                                    ids: [issue.id],
-                                }),
-                        },
-                    ]}
-                />
-            ),
-        },
     ];
 
     const bulkActions = [
@@ -379,17 +386,11 @@ export default function IssuesIndex({
                     ) : undefined
                 }
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search issues..."
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters
+                    definitions={filterDefs}
+                    state={crud}
+                    meta={`${pagination.total} issue${pagination.total === 1 ? '' : 's'}`}
+                />
 
                 <DataTable
                     columns={columns}
@@ -399,37 +400,10 @@ export default function IssuesIndex({
                     selectedRowIds={selectedIssueIds}
                     onSelectedRowIdsChange={setSelectedIssueIds}
                     bulkActions={can_manage_issues ? bulkActions : []}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            `/clients/${client.id}/projects/${project.id}/issues`,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

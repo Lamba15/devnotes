@@ -19,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
@@ -674,16 +673,20 @@ export default function ClientMemberShow({
                                     <>
                                         <div className="space-y-2">
                                             <Label>Projects</Label>
-                                            <MultiSelect
-                                                values={projectsForm.data.project_ids.map(
+                                            <SearchableSelect
+                                                className="w-full"
+                                                isMulti
+                                                value={projectsForm.data.project_ids.map(
                                                     String,
                                                 )}
                                                 options={projectOptions}
                                                 placeholder="Select project access"
                                                 disabled={!can_manage_members}
-                                                onValuesChange={(values) =>
+                                                onValueChange={(values) =>
                                                     setProjectIds(
-                                                        values.map((value) =>
+                                                        (
+                                                            values as string[]
+                                                        ).map((value) =>
                                                             Number.parseInt(
                                                                 value,
                                                                 10,
@@ -738,21 +741,24 @@ export default function ClientMemberShow({
                                 <>
                                     <div className="space-y-2">
                                         <Label>Boards</Label>
-                                        <MultiSelect
-                                            values={boardsForm.data.board_ids.map(
+                                        <SearchableSelect
+                                            className="w-full"
+                                            isMulti
+                                            value={boardsForm.data.board_ids.map(
                                                 String,
                                             )}
                                             options={boardOptions}
                                             placeholder="Select board access"
                                             emptyMessage="No boards available."
                                             disabled={!can_manage_members}
-                                            onValuesChange={(values) =>
+                                            onValueChange={(values) =>
                                                 setBoardIds(
-                                                    values.map((value) =>
-                                                        Number.parseInt(
-                                                            value,
-                                                            10,
-                                                        ),
+                                                    (values as string[]).map(
+                                                        (value) =>
+                                                            Number.parseInt(
+                                                                value,
+                                                                10,
+                                                            ),
                                                     ),
                                                 )
                                             }

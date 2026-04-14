@@ -7,11 +7,15 @@ import {
     Receipt,
 } from 'lucide-react';
 import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
+import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
@@ -35,6 +39,7 @@ type InvoiceRow = {
 
 export default function ClientFinancePage({
     client,
+    filters,
     transactions,
     invoices,
 }: {
@@ -44,6 +49,7 @@ export default function ClientFinancePage({
         email?: string | null;
         behavior?: { id: number; name: string; slug: string } | null;
     };
+    filters: { search: string };
     transactions: TransactionRow[];
     invoices: InvoiceRow[];
 }) {
@@ -53,6 +59,18 @@ export default function ClientFinancePage({
     const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<
         Array<string | number>
     >([]);
+    const filterDefs: CrudFilterDefinition[] = [
+        {
+            key: 'search',
+            type: 'search',
+            placeholder: 'Search transactions and invoices...',
+        },
+    ];
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/finance`,
+        definitions: filterDefs,
+        initialFilters: filters,
+    });
 
     const transactionColumns: DataTableColumn<TransactionRow>[] = [
         {
@@ -73,9 +91,17 @@ export default function ClientFinancePage({
                 const isPositive = num >= 0;
 
                 return (
-                    <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                        {formatCurrencyAmount(num, row.currency, { absolute: true })}
+                    <span
+                        className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                    >
+                        {isPositive ? (
+                            <ArrowUpRight className="size-3" />
+                        ) : (
+                            <ArrowDownRight className="size-3" />
+                        )}
+                        {formatCurrencyAmount(num, row.currency, {
+                            absolute: true,
+                        })}
                     </span>
                 );
             },
@@ -104,13 +130,18 @@ export default function ClientFinancePage({
             render: (row) => {
                 const colors: Record<string, string> = {
                     paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                    pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-                    overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                    pending:
+                        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    overdue:
+                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
                     draft: 'bg-muted text-muted-foreground',
                 };
 
                 return (
-                    <Badge variant="outline" className={`capitalize ${colors[row.status] ?? ''}`}>
+                    <Badge
+                        variant="outline"
+                        className={`capitalize ${colors[row.status] ?? ''}`}
+                    >
                         {row.status}
                     </Badge>
                 );
@@ -120,7 +151,9 @@ export default function ClientFinancePage({
             key: 'amount',
             header: 'Amount',
             render: (row) => (
-                <span className="font-medium">{formatCurrencyAmount(row.amount, row.currency)}</span>
+                <span className="font-medium">
+                    {formatCurrencyAmount(row.amount, row.currency)}
+                </span>
             ),
         },
     ];
@@ -128,7 +161,10 @@ export default function ClientFinancePage({
     return (
         <>
             <Head title={`${client.name} Finance`} />
-            <div className="space-y-6">
+            <CrudPage
+                title={`${client.name} Finance`}
+                description="Transactions and invoices across the client projects you can access."
+            >
                 <Card className="shadow-none">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -157,6 +193,12 @@ export default function ClientFinancePage({
                         </div>
                     </CardContent>
                 </Card>
+
+                <CrudFilters
+                    definitions={filterDefs}
+                    state={crud}
+                    meta={`${transactions.length} transaction${transactions.length === 1 ? '' : 's'} · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'}`}
+                />
 
                 <div className="space-y-6">
                     <section className="space-y-3">
@@ -189,7 +231,7 @@ export default function ClientFinancePage({
                         />
                     </section>
                 </div>
-            </div>
+            </CrudPage>
         </>
     );
 }

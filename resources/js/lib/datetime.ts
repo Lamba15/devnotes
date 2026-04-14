@@ -81,6 +81,29 @@ function pad(value: number): string {
     return String(value).padStart(2, '0');
 }
 
+export function parseDateOnlyValue(value?: string | null): Date | null {
+    const parsed = parseDateOnly(value);
+
+    if (!parsed) {
+        return null;
+    }
+
+    // Use local noon so date-only values never drift because of timezone math.
+    return new Date(parsed.year, parsed.month - 1, parsed.day, 12);
+}
+
+export function toDateOnlyValue(value?: Date | null): string {
+    if (!value || !isValidDate(value)) {
+        return '';
+    }
+
+    return [
+        String(value.getFullYear()),
+        pad(value.getMonth() + 1),
+        pad(value.getDate()),
+    ].join('-');
+}
+
 export function isValidTimeZone(value?: string | null): value is string {
     if (!value) {
         return false;

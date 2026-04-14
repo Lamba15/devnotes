@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\ProjectStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -173,11 +174,20 @@ class ProjectController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
             'sort_by' => ['nullable', 'in:name,description,created_at'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
+            'status' => ['array'],
+            'status.*' => ['string', 'max:255'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $search = trim((string) ($validated['search'] ?? ''));
         $sortBy = $validated['sort_by'] ?? 'created_at';
         $sortDirection = $validated['sort_direction'] ?? 'desc';
+        $statusFilter = collect(Arr::wrap($request->input('status')))
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         abort_unless($user->canAccessClient($client), 403);
 
@@ -194,6 +204,10 @@ class ProjectController extends Controller
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%");
             });
+        }
+
+        if ($statusFilter !== []) {
+            $projects->whereHas('status', fn ($query) => $query->whereIn('slug', $statusFilter));
         }
 
         $paginatedProjects = $projects
@@ -225,11 +239,24 @@ class ProjectController extends Controller
                 })
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug']),
+            'status_filter_options' => ProjectStatus::query()
+                ->where(function ($query) use ($client): void {
+                    $query->whereNull('client_id')
+                        ->orWhere('client_id', $client->id);
+                })
+                ->orderBy('name')
+                ->get(['name', 'slug'])
+                ->map(fn (ProjectStatus $status) => [
+                    'label' => $status->name,
+                    'value' => $status->slug,
+                ])
+                ->all(),
             'can_create_projects' => $user->canManageClient($client),
             'filters' => [
                 'search' => $search,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
+                'status' => $statusFilter,
             ],
         ]);
     }

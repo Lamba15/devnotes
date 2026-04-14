@@ -180,6 +180,12 @@
 }
 
 @layer components {
+    .devnotes-date-popover {
+        box-shadow:
+            0 18px 60px oklch(0.15 0.02 306 / 0.18),
+            0 6px 20px oklch(0.15 0.02 306 / 0.1);
+    }
+
     /* ── Editor (Tiptap) checklist styling ──
        The nodeView renders: ul[data-type="taskList"] > li > (label + div)
        Note: the <li> does NOT get data-type="taskItem" from the nodeView,

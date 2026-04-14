@@ -129,6 +129,8 @@ test('client issues page exposes create links for projects where the member can 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('clients/issues')
+            ->has('project_filter_options', 2)
+            ->has('status_filter_options')
             ->where('creatable_projects', [
                 [
                     'id' => $readOnlyProject->id,
@@ -139,6 +141,115 @@ test('client issues page exposes create links for projects where the member can 
                     'name' => 'Writable Project',
                 ],
             ])
+        );
+});
+
+test('client issues page exposes pagination metadata for additional pages', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    foreach (range(1, 16) as $number) {
+        Issue::query()->create([
+            'project_id' => $project->id,
+            'title' => sprintf('Client Issue %02d', $number),
+            'status' => 'todo',
+            'priority' => 'medium',
+            'type' => 'task',
+            'creator_id' => $admin->id,
+        ]);
+    }
+
+    $this->actingAs($admin)
+        ->get(route('clients.issues.index', [
+            $client,
+            'page' => 2,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/issues')
+            ->has('issues', 8)
+            ->where('issues.0.title', 'Client Issue 08')
+            ->where('pagination.current_page', 2)
+            ->where('pagination.last_page', 2)
+            ->where('pagination.total', 16)
+        );
+});
+
+test('client issues page supports server backed search sorting and filters', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $alphaProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Alpha Project',
+    ]);
+    $betaProject = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Beta Project',
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    Issue::query()->create([
+        'project_id' => $alphaProject->id,
+        'title' => 'Find me',
+        'status' => 'todo',
+        'priority' => 'high',
+        'type' => 'bug',
+        'creator_id' => $admin->id,
+    ]);
+
+    Issue::query()->create([
+        'project_id' => $betaProject->id,
+        'title' => 'Ignore me',
+        'status' => 'done',
+        'priority' => 'low',
+        'type' => 'task',
+        'creator_id' => $admin->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('clients.issues.index', [
+            $client,
+            'search' => 'Find',
+            'project_id' => [(string) $alphaProject->id],
+            'status' => ['todo'],
+            'priority' => ['high'],
+            'type' => ['bug'],
+            'sort_by' => 'title',
+            'sort_direction' => 'asc',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/issues')
+            ->has('issues', 1)
+            ->where('issues.0.title', 'Find me')
+            ->where('filters.search', 'Find')
+            ->where('filters.project_id', [(string) $alphaProject->id])
+            ->where('filters.status', ['todo'])
+            ->where('filters.priority', ['high'])
+            ->where('filters.type', ['bug'])
+            ->where('filters.sort_by', 'title')
+            ->where('filters.sort_direction', 'asc')
         );
 });
 
@@ -1064,5 +1175,133 @@ test('issue index supports server backed search and sorting', function () {
             ->where('filters.search', 'issue')
             ->where('filters.sort_by', 'title')
             ->where('filters.sort_direction', 'desc')
+        );
+});
+
+test('issue index supports assignee priority type and status filters', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+    $assignee = User::factory()->create([
+        'name' => 'Filtered Assignee',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $assignee->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $assignee->id,
+    ]);
+
+    Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Matching issue',
+        'status' => 'todo',
+        'priority' => 'high',
+        'type' => 'bug',
+        'assignee_id' => $assignee->id,
+        'creator_id' => $admin->id,
+    ]);
+
+    Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Wrong status issue',
+        'status' => 'done',
+        'priority' => 'high',
+        'type' => 'bug',
+        'assignee_id' => $assignee->id,
+        'creator_id' => $admin->id,
+    ]);
+
+    Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Wrong assignee issue',
+        'status' => 'todo',
+        'priority' => 'high',
+        'type' => 'bug',
+        'creator_id' => $admin->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('clients.projects.issues.index', [
+            $client,
+            $project,
+            'assignee' => [(string) $assignee->id],
+            'status' => ['todo'],
+            'priority' => ['high'],
+            'type' => ['bug'],
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('issues/index')
+            ->has('issues', 1)
+            ->where('issues.0.title', 'Matching issue')
+            ->where('filters.assignee', [(string) $assignee->id])
+            ->where('filters.status', ['todo'])
+            ->where('filters.priority', ['high'])
+            ->where('filters.type', ['bug'])
+            ->where('assignee_filter_options.0.value', 'unassigned')
+            ->where('assignee_filter_options.1.label', 'Filtered Assignee')
+        );
+});
+
+test('issue index exposes pagination metadata for additional pages', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    foreach (range(1, 16) as $number) {
+        Issue::query()->create([
+            'project_id' => $project->id,
+            'title' => sprintf('Issue %02d', $number),
+            'status' => 'todo',
+            'priority' => 'medium',
+            'type' => 'task',
+            'creator_id' => $admin->id,
+        ]);
+    }
+
+    $this->actingAs($admin)
+        ->get(route('clients.projects.issues.index', [
+            $client,
+            $project,
+            'sort_by' => 'title',
+            'sort_direction' => 'asc',
+            'page' => 2,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('issues/index')
+            ->has('issues', 8)
+            ->where('issues.0.title', 'Issue 09')
+            ->where('pagination.current_page', 2)
+            ->where('pagination.last_page', 2)
+            ->where('pagination.total', 16)
         );
 });

@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type Status = {
@@ -39,13 +39,20 @@ export default function ProjectsIndex({
     client,
     projects,
     can_create_projects,
+    status_filter_options,
     filters,
     pagination,
 }: {
     client: { id: number; name: string };
     projects: Project[];
     can_create_projects: boolean;
-    filters: { search: string; sort_by: string; sort_direction: string };
+    status_filter_options: Array<{ label: string; value: string }>;
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        status: string[];
+    };
     pagination: {
         current_page: number;
         last_page: number;
@@ -53,37 +60,40 @@ export default function ProjectsIndex({
         total: number;
     };
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
+    const filterDefs: CrudFilterDefinition[] = useMemo(
+        () => [
+            {
+                key: 'search',
+                type: 'search',
+                placeholder: 'Search projects...',
+            },
+            {
+                key: 'status',
+                type: 'select',
+                placeholder: 'Status',
+                options: status_filter_options,
+                className: 'lg:w-44',
+            },
+        ],
+        [status_filter_options],
     );
+
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/projects`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
+
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
     const [selectedProjectIds, setSelectedProjectIds] = useState<
         Array<string | number>
     >([]);
-
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                `/clients/${client.id}/projects`,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [client.id, query, sortBy, sortDirection]);
 
     const columns: DataTableColumn<Project>[] = [
         {
@@ -131,28 +141,6 @@ export default function ProjectsIndex({
             sortable: true,
             sortKey: 'description',
             render: (project) => project.description ?? '—',
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (project) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Edit',
-                            onClick: () =>
-                                window.location.assign(
-                                    `/clients/${client.id}/projects/${project.id}/edit`,
-                                ),
-                        },
-                        {
-                            label: 'Delete',
-                            destructive: true,
-                            onClick: () => setDeleteIds([project.id]),
-                        },
-                    ]}
-                />
-            ),
         },
     ];
 
@@ -205,7 +193,9 @@ export default function ProjectsIndex({
                 actions={
                     can_create_projects ? (
                         <Button asChild>
-                            <Link href={`/clients/${client.id}/projects/create`}>
+                            <Link
+                                href={`/clients/${client.id}/projects/create`}
+                            >
                                 <Plus className="mr-1.5 size-4" />
                                 Create project
                             </Link>
@@ -213,17 +203,7 @@ export default function ProjectsIndex({
                     ) : undefined
                 }
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search projects..."
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
@@ -233,37 +213,10 @@ export default function ProjectsIndex({
                     selectedRowIds={selectedProjectIds}
                     onSelectedRowIdsChange={setSelectedProjectIds}
                     bulkActions={bulkActions}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            `/clients/${client.id}/projects`,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

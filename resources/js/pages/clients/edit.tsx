@@ -9,6 +9,7 @@ import {
 } from '@/components/forms/repeatable-editors';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -141,18 +142,22 @@ export default function ClientsEdit({
                                         const file = e.target.files?.[0];
 
                                         if (file) {
-handleImageUpload(file);
-}
+                                            handleImageUpload(file);
+                                        }
                                     }}
                                 />
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => imageInputRef.current?.click()}
+                                    onClick={() =>
+                                        imageInputRef.current?.click()
+                                    }
                                 >
                                     <Camera className="mr-1.5 size-3.5" />
-                                    {client.image_path ? 'Change photo' : 'Upload photo'}
+                                    {client.image_path
+                                        ? 'Change photo'
+                                        : 'Upload photo'}
                                 </Button>
                                 {client.image_path && (
                                     <Button
@@ -237,22 +242,20 @@ handleImageUpload(file);
                                 />
                             </Field>
                             <Field label="Birthday">
-                                <Input
-                                    type="date"
+                                <DateInput
                                     value={form.data.birthday}
-                                    onChange={(e) =>
-                                        form.setData('birthday', e.target.value)
+                                    onChange={(value) =>
+                                        form.setData('birthday', value)
                                     }
                                 />
                             </Field>
                             <Field label="First interaction">
-                                <Input
-                                    type="date"
+                                <DateInput
                                     value={form.data.date_of_first_interaction}
-                                    onChange={(e) =>
+                                    onChange={(value) =>
                                         form.setData(
                                             'date_of_first_interaction',
-                                            e.target.value,
+                                            value,
                                         )
                                     }
                                 />

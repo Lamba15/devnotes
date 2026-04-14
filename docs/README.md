@@ -57,7 +57,7 @@ This directory captures the current agreed shape of the system.
 - Projects now support logos stored on the public disk.
 - Transactions support category and currency fields.
 - Invoices support currency field and use a select for status (draft, pending, paid, overdue).
-- All date fields in forms use native date pickers via the DynamicForm date field type.
+- All date fields in forms use the shared non-native date picker and keep date-only values as `YYYY-MM-DD` with no timezone conversion.
 - All list pages have search icons in filter inputs, plus icons on create buttons, and colored badges for status/type columns.
 - Finance detail pages display amounts with color-coded formatting and use icons for metadata fields.
 - AI assistant has 37 tools covering client, project, issue, board, finance, and platform management.

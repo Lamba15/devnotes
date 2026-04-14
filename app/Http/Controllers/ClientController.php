@@ -21,6 +21,7 @@ use App\Support\ClientPermissionCatalog;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -359,28 +360,82 @@ class ClientController extends Controller
 
         abort_unless($user->canAccessClient($client), 403);
 
+        $validated = validator([
+            'search' => $request->input('search'),
+            'sort_by' => $request->input('sort_by'),
+            'sort_direction' => $request->input('sort_direction'),
+            'project_id' => $this->normalizedFilterValues($request, 'project_id'),
+            'status' => $this->normalizedFilterValues($request, 'status'),
+            'priority' => $this->normalizedFilterValues($request, 'priority'),
+            'type' => $this->normalizedFilterValues($request, 'type'),
+            'page' => $request->input('page'),
+        ], [
+            'search' => ['nullable', 'string', 'max:255'],
+            'sort_by' => ['nullable', 'in:title,status,priority,type,created_at'],
+            'sort_direction' => ['nullable', 'in:asc,desc'],
+            'project_id' => ['array'],
+            'project_id.*' => ['string', 'regex:/^\d+$/'],
+            'status' => ['array'],
+            'status.*' => ['string', 'max:255'],
+            'priority' => ['array'],
+            'priority.*' => ['string', 'max:255'],
+            'type' => ['array'],
+            'type.*' => ['string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ])->validate();
+
+        $search = trim((string) ($validated['search'] ?? ''));
+        $sortBy = $validated['sort_by'] ?? 'created_at';
+        $sortDirection = $validated['sort_direction'] ?? 'desc';
+
         $accessibleProjects = $this->accessibleProjectsQuery($user, $client)
             ->orderBy('name')
             ->get(['id', 'name', 'client_id']);
         $projectIds = $accessibleProjects->pluck('id');
+        $projectIdFilter = $this->cleanFilterValues($validated['project_id'] ?? []);
+        $statusFilter = $this->cleanFilterValues($validated['status'] ?? []);
+        $priorityFilter = $this->cleanFilterValues($validated['priority'] ?? []);
+        $typeFilter = $this->cleanFilterValues($validated['type'] ?? []);
         $creatableProjects = $accessibleProjects
             ->filter(fn (Project $project) => $user->canManageIssues($project))
             ->map(fn (Project $project) => $project->only(['id', 'name']))
             ->values()
             ->all();
 
+        $issues = Issue::query()
+            ->with([
+                'project:id,name,client_id',
+                'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+                'comments.user:id,name,avatar_path',
+                'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+            ])
+            ->whereIn('project_id', $projectIds)
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($issueQuery) use ($search): void {
+                    $issueQuery->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhere('status', 'like', "%{$search}%")
+                        ->orWhere('priority', 'like', "%{$search}%")
+                        ->orWhere('type', 'like', "%{$search}%")
+                        ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($projectIdFilter !== [], fn ($query) => $query->whereIn('project_id', array_map('intval', $projectIdFilter)))
+            ->when($statusFilter !== [], fn ($query) => $query->whereIn('status', $statusFilter))
+            ->when($priorityFilter !== [], fn ($query) => $query->whereIn('priority', $priorityFilter))
+            ->when($typeFilter !== [], fn ($query) => $query->whereIn('type', $typeFilter))
+            ->orderBy($sortBy, $sortDirection)
+            ->orderBy('id', $sortDirection)
+            ->paginate(8)
+            ->withQueryString();
+
+        $statusOptions = $this->serializeClientIssueClassificationFilterOptions($projectIds, 'status', ['todo', 'in_progress', 'done']);
+        $priorityOptions = $this->serializeClientIssueClassificationFilterOptions($projectIds, 'priority', ['low', 'medium', 'high']);
+        $typeOptions = $this->serializeClientIssueClassificationFilterOptions($projectIds, 'type', ['task', 'bug', 'feature']);
+
         return Inertia::render('clients/issues', [
             'client' => $this->serializeClientForWorkspace($client),
-            'issues' => Issue::query()
-                ->with([
-                    'project:id,name,client_id',
-                    'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
-                    'comments.user:id,name,avatar_path',
-                    'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
-                ])
-                ->whereIn('project_id', $projectIds)
-                ->latest('id')
-                ->get()
+            'issues' => collect($issues->items())
                 ->map(function (Issue $issue) use ($user) {
                     $attachments = $issue->attachments
                         ->sortBy('id')
@@ -421,8 +476,69 @@ class ClientController extends Controller
                     ];
                 })
                 ->all(),
+            'filters' => [
+                'search' => $search,
+                'sort_by' => $sortBy,
+                'sort_direction' => $sortDirection,
+                'project_id' => $projectIdFilter,
+                'status' => $statusFilter,
+                'priority' => $priorityFilter,
+                'type' => $typeFilter,
+            ],
+            'project_filter_options' => $accessibleProjects
+                ->map(fn (Project $project) => [
+                    'label' => $project->name,
+                    'value' => (string) $project->id,
+                ])
+                ->values()
+                ->all(),
+            'status_filter_options' => $statusOptions,
+            'priority_filter_options' => $priorityOptions,
+            'type_filter_options' => $typeOptions,
+            'pagination' => [
+                'current_page' => $issues->currentPage(),
+                'last_page' => $issues->lastPage(),
+                'per_page' => $issues->perPage(),
+                'total' => $issues->total(),
+            ],
             'creatable_projects' => $creatableProjects,
         ]);
+    }
+
+    private function normalizedFilterValues(Request $request, string $key): array
+    {
+        return Arr::wrap($request->input($key));
+    }
+
+    private function cleanFilterValues(array $values): array
+    {
+        return collect($values)
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function serializeClientIssueClassificationFilterOptions(Collection $projectIds, string $column, array $defaults): array
+    {
+        return Issue::query()
+            ->whereIn('project_id', $projectIds)
+            ->whereNotNull($column)
+            ->where($column, '!=', '')
+            ->distinct()
+            ->pluck($column)
+            ->map(fn ($value) => (string) $value)
+            ->merge($defaults)
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn (string $value) => [
+                'label' => str_replace('_', ' ', ucfirst($value)),
+                'value' => $value,
+            ])
+            ->all();
     }
 
     private function buildIssueCommentTree($comments, ?int $parentId): array
@@ -544,13 +660,27 @@ class ClientController extends Controller
 
         abort_unless($user->canAccessClientFinance($client), 403);
 
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+        $search = trim((string) ($validated['search'] ?? ''));
+
         $projectIds = $this->accessibleProjectsQuery($user, $client)->pluck('id');
 
         return Inertia::render('clients/finance', [
             'client' => $this->serializeClientForWorkspace($client),
+            'filters' => [
+                'search' => $search,
+            ],
             'transactions' => Transaction::query()
                 ->with('project:id,name,client_id')
                 ->whereIn('project_id', $projectIds)
+                ->when($search !== '', function ($query) use ($search): void {
+                    $query->where(function ($transactionQuery) use ($search): void {
+                        $transactionQuery->where('description', 'like', "%{$search}%")
+                            ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                    });
+                })
                 ->latest('occurred_at')
                 ->get()
                 ->map(fn (Transaction $transaction) => [
@@ -565,6 +695,13 @@ class ClientController extends Controller
             'invoices' => Invoice::query()
                 ->with('project:id,name,client_id')
                 ->whereIn('project_id', $projectIds)
+                ->when($search !== '', function ($query) use ($search): void {
+                    $query->where(function ($invoiceQuery) use ($search): void {
+                        $invoiceQuery->where('reference', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
+                    });
+                })
                 ->latest('id')
                 ->get()
                 ->map(fn (Invoice $invoice) => [

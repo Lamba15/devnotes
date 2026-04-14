@@ -7,19 +7,25 @@ use App\Models\Client;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 
 class AuditLogController extends Controller
 {
     public function index(Request $request)
     {
+        $event = $this->filterValues($request, 'event');
+        $source = $this->filterValues($request, 'source');
+        $userIds = $this->filterValues($request, 'user_id');
+        $subjectTypes = $this->filterValues($request, 'subject_type');
+        $clientIds = $this->filterValues($request, 'client_id');
         $query = AuditLog::query()
             ->with('user:id,name,email')
             ->orderByDesc('created_at');
 
         $this->applyFilters($query, $request);
 
-        $paginated = $query->paginate(25);
+        $paginated = $query->paginate(8);
         $logs = $paginated->items();
         $pagination = [
             'current_page' => $paginated->currentPage(),
@@ -33,11 +39,11 @@ class AuditLogController extends Controller
             'pagination' => $pagination,
             'filters' => [
                 'search' => $request->input('search', ''),
-                'event' => $request->input('event', ''),
-                'source' => $request->input('source', ''),
-                'user_id' => $request->input('user_id', ''),
-                'subject_type' => $request->input('subject_type', ''),
-                'client_id' => $request->input('client_id', ''),
+                'event' => $event,
+                'source' => $source,
+                'user_id' => $userIds,
+                'subject_type' => $subjectTypes,
+                'client_id' => $clientIds,
             ],
             'event_options' => $this->eventOptions($request),
             'source_options' => $this->sourceOptions($request),
@@ -61,28 +67,34 @@ class AuditLogController extends Controller
             });
         }
 
-        if ($exclude !== 'event' && ($event = $request->input('event'))) {
-            $query->where('event', $event);
+        if ($exclude !== 'event' && ($event = $this->filterValues($request, 'event')) !== []) {
+            $query->whereIn('event', $event);
         }
 
-        if ($exclude !== 'source' && ($source = $request->input('source'))) {
-            $query->where('source', $source);
+        if ($exclude !== 'source' && ($source = $this->filterValues($request, 'source')) !== []) {
+            $query->whereIn('source', $source);
         }
 
-        if ($exclude !== 'user_id' && ($userId = $request->input('user_id'))) {
-            $query->where('user_id', $userId);
+        if ($exclude !== 'user_id' && ($userIds = $this->filterValues($request, 'user_id')) !== []) {
+            $query->whereIn('user_id', array_map('intval', $userIds));
         }
 
-        if ($exclude !== 'subject_type' && ($subjectType = $request->input('subject_type'))) {
-            $query->where('subject_type', $subjectType);
+        if ($exclude !== 'subject_type' && ($subjectTypes = $this->filterValues($request, 'subject_type')) !== []) {
+            $query->whereIn('subject_type', $subjectTypes);
         }
 
-        if ($exclude !== 'client_id' && ($clientId = $request->input('client_id'))) {
-            $query->where(function ($q) use ($clientId) {
-                $q->where(function ($q2) use ($clientId) {
+        if ($exclude !== 'client_id' && ($clientIds = $this->filterValues($request, 'client_id')) !== []) {
+            $normalizedClientIds = array_map('intval', $clientIds);
+
+            $query->where(function ($q) use ($normalizedClientIds) {
+                $q->where(function ($q2) use ($normalizedClientIds) {
                     $q2->where('subject_type', Client::class)
-                        ->where('subject_id', $clientId);
-                })->orWhereJsonContains('metadata_json->client_id', (int) $clientId);
+                        ->whereIn('subject_id', $normalizedClientIds);
+                });
+
+                foreach ($normalizedClientIds as $clientId) {
+                    $q->orWhereJsonContains('metadata_json->client_id', $clientId);
+                }
             });
         }
     }
@@ -173,6 +185,17 @@ class AuditLogController extends Controller
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])
+            ->all();
+    }
+
+    private function filterValues(Request $request, string $key): array
+    {
+        return collect(Arr::wrap($request->input($key)))
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
             ->all();
     }
 }

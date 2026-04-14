@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Search, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { UserPlus } from 'lucide-react';
+import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +16,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDateOnly } from '@/lib/datetime';
 
@@ -63,37 +63,28 @@ export default function BoardMembersIndex({
     };
     can_manage_members: boolean;
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
-    );
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
     const [selectedIds, setSelectedIds] = useState<Array<string | number>>([]);
 
     const basePath = `/clients/${client.id}/boards/${board.id}/members`;
-
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                basePath,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [basePath, query, sortBy, sortDirection]);
+    const filterDefs: CrudFilterDefinition[] = [
+        {
+            key: 'search',
+            type: 'search',
+            placeholder: 'Search members by name or email',
+        },
+    ];
+    const crud = useCrudFilters({
+        url: basePath,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const columns: DataTableColumn<BoardMember>[] = [
         {
@@ -146,25 +137,6 @@ export default function BoardMembersIndex({
                 </span>
             ),
         },
-        ...(can_manage_members
-            ? [
-                  {
-                      key: 'actions',
-                      header: '',
-                      render: (member: BoardMember) => (
-                          <ActionDropdown
-                              items={[
-                                  {
-                                      label: 'Remove',
-                                      destructive: true,
-                                      onClick: () => setDeleteIds([member.id]),
-                                  },
-                              ]}
-                          />
-                      ),
-                  },
-              ]
-            : []),
     ];
 
     const bulkActions = can_manage_members
@@ -216,17 +188,7 @@ export default function BoardMembersIndex({
                     ) : undefined
                 }
             >
-                <FilterBar>
-                    <div className="relative flex-1 md:max-w-sm">
-                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search members by name or email"
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
@@ -242,37 +204,10 @@ export default function BoardMembersIndex({
                         can_manage_members ? setSelectedIds : undefined
                     }
                     bulkActions={bulkActions}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            basePath,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

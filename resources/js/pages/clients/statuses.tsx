@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Globe, Plus, Search, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { Globe, Plus, User } from 'lucide-react';
+import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,8 +16,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type StatusRow = {
@@ -52,37 +52,24 @@ export default function ClientStatusesPage({
     };
     can_manage_statuses: boolean;
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
-    );
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
     const [selectedStatusIds, setSelectedStatusIds] = useState<
         Array<string | number>
     >([]);
-
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                `/clients/${client.id}/statuses`,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [client.id, query, sortBy, sortDirection]);
+    const filterDefs: CrudFilterDefinition[] = [
+        { key: 'search', type: 'search', placeholder: 'Search statuses...' },
+    ];
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/statuses`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const columns: DataTableColumn<StatusRow>[] = [
         {
@@ -111,32 +98,6 @@ export default function ClientStatusesPage({
                     )}
                     {status.client_id ? 'Client' : 'System'}
                 </Badge>
-            ),
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (status) => (
-                <ActionDropdown
-                    items={
-                        status.client_id
-                            ? [
-                                  {
-                                      label: 'Edit',
-                                      onClick: () =>
-                                          router.visit(
-                                              `/clients/${client.id}/statuses/${status.id}/edit`,
-                                          ),
-                                  },
-                                  {
-                                      label: 'Delete',
-                                      destructive: true,
-                                      onClick: () => setDeleteIds([status.id]),
-                                  },
-                              ]
-                            : []
-                    }
-                />
             ),
         },
     ];
@@ -194,7 +155,9 @@ export default function ClientStatusesPage({
                 actions={
                     can_manage_statuses ? (
                         <Button asChild>
-                            <Link href={`/clients/${client.id}/statuses/create`}>
+                            <Link
+                                href={`/clients/${client.id}/statuses/create`}
+                            >
                                 <Plus className="mr-1.5 size-4" />
                                 Create status
                             </Link>
@@ -202,48 +165,45 @@ export default function ClientStatusesPage({
                     ) : undefined
                 }
             >
-                <FilterBar>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                        <div className="relative md:max-w-sm">
-                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                value={query}
-                                onChange={(event) =>
-                                    setQuery(event.target.value)
-                                }
-                                placeholder="Search statuses..."
-                                className="pl-9"
-                            />
-                        </div>
-                        <SearchableSelect
-                            className="md:w-40"
-                            size="lg"
-                            value={sortBy}
-                            isClearable={false}
-                            isSearchable={false}
-                            onValueChange={setSortBy}
-                            placeholder="Sort by"
-                            options={[
-                                { value: 'created_at', label: 'Newest' },
-                                { value: 'name', label: 'Name' },
-                                { value: 'slug', label: 'Slug' },
-                            ]}
-                        />
-                        <SearchableSelect
-                            className="md:w-32"
-                            size="lg"
-                            value={sortDirection}
-                            isClearable={false}
-                            isSearchable={false}
-                            onValueChange={setSortDirection}
-                            placeholder="Direction"
-                            options={[
-                                { value: 'desc', label: 'Desc' },
-                                { value: 'asc', label: 'Asc' },
-                            ]}
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud}>
+                    <SearchableSelect
+                        className="md:w-40"
+                        size="lg"
+                        value={crud.sort.sortBy}
+                        isClearable={false}
+                        isSearchable={false}
+                        onValueChange={(sortBy) =>
+                            crud.setSort({
+                                sortBy,
+                                sortDirection: crud.sort.sortDirection,
+                            })
+                        }
+                        placeholder="Sort by"
+                        options={[
+                            { value: 'created_at', label: 'Newest' },
+                            { value: 'name', label: 'Name' },
+                            { value: 'slug', label: 'Slug' },
+                        ]}
+                    />
+                    <SearchableSelect
+                        className="md:w-32"
+                        size="lg"
+                        value={crud.sort.sortDirection}
+                        isClearable={false}
+                        isSearchable={false}
+                        onValueChange={(sortDirection) =>
+                            crud.setSort({
+                                sortBy: crud.sort.sortBy,
+                                sortDirection: sortDirection as 'asc' | 'desc',
+                            })
+                        }
+                        placeholder="Direction"
+                        options={[
+                            { value: 'desc', label: 'Desc' },
+                            { value: 'asc', label: 'Asc' },
+                        ]}
+                    />
+                </CrudFilters>
 
                 <DataTable
                     columns={columns}
@@ -259,37 +219,10 @@ export default function ClientStatusesPage({
                         )
                     }
                     bulkActions={can_manage_statuses ? bulkActions : []}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            `/clients/${client.id}/statuses`,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

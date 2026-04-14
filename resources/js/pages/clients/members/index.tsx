@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Coins, Search, Shield, UserPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { Coins, UserPlus } from 'lucide-react';
+import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type Membership = {
@@ -66,11 +66,6 @@ export default function ClientMembersIndex({
     can_manage_members: boolean;
     can_open_member_profiles: boolean;
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
-    );
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
@@ -78,25 +73,22 @@ export default function ClientMembersIndex({
         Array<string | number>
     >([]);
 
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                `/clients/${client.id}/members`,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [client.id, query, sortBy, sortDirection]);
+    const filterDefs: CrudFilterDefinition[] = [
+        {
+            key: 'search',
+            type: 'search',
+            placeholder: 'Search members by name, email, or role',
+        },
+    ];
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/members`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const columns: DataTableColumn<Membership>[] = [
         {
@@ -168,15 +160,17 @@ export default function ClientMembersIndex({
                     <Badge variant="outline">Unrestricted</Badge>
                 ) : membership.permissions.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                        {membership.permissions.slice(0, 3).map((permission) => (
-                            <Badge
-                                key={permission}
-                                variant="outline"
-                                className="text-[10px]"
-                            >
-                                {permission}
-                            </Badge>
-                        ))}
+                        {membership.permissions
+                            .slice(0, 3)
+                            .map((permission) => (
+                                <Badge
+                                    key={permission}
+                                    variant="outline"
+                                    className="text-[10px]"
+                                >
+                                    {permission}
+                                </Badge>
+                            ))}
                         {membership.permissions.length > 3 ? (
                             <Badge variant="secondary" className="text-[10px]">
                                 +{membership.permissions.length - 3}
@@ -200,33 +194,13 @@ export default function ClientMembersIndex({
                     <div className="flex items-center gap-1.5 text-sm">
                         <Coins className="size-3.5 text-muted-foreground" />
                         <span>
-                            {credits === -1 ? 'Unlimited' : `${used}/${credits}`}
+                            {credits === -1
+                                ? 'Unlimited'
+                                : `${used}/${credits}`}
                         </span>
                     </div>
                 );
             },
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (membership) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Open profile',
-                            onClick: () =>
-                                router.visit(
-                                    `/clients/${client.id}/members/${membership.id}`,
-                                ),
-                        },
-                        {
-                            label: 'Remove',
-                            destructive: true,
-                            onClick: () => setDeleteIds([membership.id]),
-                        },
-                    ]}
-                />
-            ),
         },
     ];
 
@@ -287,22 +261,7 @@ export default function ClientMembersIndex({
                     ) : undefined
                 }
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm flex-1">
-                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search members by name, email, or role"
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
-
-                <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/70 px-4 py-3 text-sm text-muted-foreground">
-                    <Shield className="size-4" />
-                    Finance is now managed as a normal member permission. Owners and admins still have unrestricted client access.
-                </div>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
@@ -322,37 +281,10 @@ export default function ClientMembersIndex({
                             : undefined
                     }
                     bulkActions={can_manage_members ? bulkActions : []}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            `/clients/${client.id}/members`,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

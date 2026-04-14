@@ -1,5 +1,6 @@
 import { Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DateInput } from '@/components/ui/date-input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -217,15 +218,12 @@ function FormField({
             ) : null}
 
             {field.type === 'date' ? (
-                <Input
+                <DateInput
                     id={field.name}
                     name={field.name}
-                    type="date"
                     value={value}
-                    placeholder={field.placeholder}
-                    onChange={(event) =>
-                        onChange(field.name, event.target.value)
-                    }
+                    placeholderText={field.placeholder}
+                    onChange={(nextValue) => onChange(field.name, nextValue)}
                 />
             ) : null}
 

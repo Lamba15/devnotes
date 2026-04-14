@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Columns3, Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { Columns3, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +16,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type BoardRow = {
@@ -50,11 +50,6 @@ export default function ClientBoardsPage({
     };
     can_manage_boards: boolean;
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
-    );
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
@@ -62,25 +57,18 @@ export default function ClientBoardsPage({
         Array<string | number>
     >([]);
 
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                `/clients/${client.id}/boards`,
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [client.id, query, sortBy, sortDirection]);
+    const filterDefs: CrudFilterDefinition[] = [
+        { key: 'search', type: 'search', placeholder: 'Search boards...' },
+    ];
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/boards`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const visitBoard = (board: BoardRow) => {
         if (!board.project?.id) {
@@ -128,36 +116,6 @@ export default function ClientBoardsPage({
                     <Columns3 className="size-3 text-muted-foreground" />
                     {board.columns_count}
                 </Badge>
-            ),
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (board) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'View board',
-                            onClick: () => visitBoard(board),
-                        },
-                        ...(can_manage_boards
-                            ? [
-                                  {
-                                      label: 'Edit',
-                                      onClick: () =>
-                                          router.visit(
-                                              `/clients/${client.id}/boards/${board.id}/edit`,
-                                          ),
-                                  },
-                                  {
-                                      label: 'Delete',
-                                      destructive: true,
-                                      onClick: () => setDeleteIds([board.id]),
-                                  },
-                              ]
-                            : []),
-                    ]}
-                />
             ),
         },
     ];
@@ -235,19 +193,11 @@ export default function ClientBoardsPage({
                     ) : undefined
                 }
             >
-                <FilterBar
+                <CrudFilters
+                    definitions={filterDefs}
+                    state={crud}
                     meta={`${pagination.total} board${pagination.total === 1 ? '' : 's'}`}
-                >
-                    <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search boards..."
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                />
 
                 <DataTable
                     columns={columns}
@@ -257,37 +207,10 @@ export default function ClientBoardsPage({
                     selectedRowIds={selectedBoardIds}
                     onSelectedRowIdsChange={setSelectedBoardIds}
                     bulkActions={bulkActions}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            `/clients/${client.id}/boards`,
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

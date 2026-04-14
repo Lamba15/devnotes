@@ -149,6 +149,7 @@ export function IssueQuickViewDialog({
     const [workspaceIssue, setWorkspaceIssue] = useState<QuickViewIssue | null>(
         issue,
     );
+    const [activeProjectId, setActiveProjectId] = useState(projectId);
     const [descriptionDraft, setDescriptionDraft] = useState(
         issue?.description ?? '<p></p>',
     );
@@ -161,20 +162,25 @@ export function IssueQuickViewDialog({
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        if (!issue) {
+            return;
+        }
+
         setWorkspaceIssue(issue);
+        setActiveProjectId(projectId);
         setDescriptionDraft(issue?.description ?? '<p></p>');
         setEditingDescription(false);
         setDescriptionFiles([]);
         setCommentDraft('<p></p>');
         setCommentFiles([]);
-    }, [issue]);
+    }, [issue, projectId]);
 
     const workspaceUrl = useMemo(
         () =>
             workspaceIssue
-                ? `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}/workspace`
+                ? `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}/workspace`
                 : null,
-        [clientId, projectId, workspaceIssue],
+        [activeProjectId, clientId, workspaceIssue],
     );
     const mentionOptions = useMemo(
         () =>
@@ -188,7 +194,7 @@ export function IssueQuickViewDialog({
         return null;
     }
 
-    const fullIssueUrl = `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}${boardId ? `?board_id=${boardId}` : ''}`;
+    const fullIssueUrl = `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}${boardId ? `?board_id=${boardId}` : ''}`;
 
     const refreshWorkspace = async () => {
         if (!workspaceUrl) {
@@ -237,7 +243,7 @@ export function IssueQuickViewDialog({
             );
 
             const data = await sendJson<{ issue: QuickViewIssue }>(
-                `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}`,
+                `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}`,
                 'POST',
                 formData,
             );
@@ -262,7 +268,7 @@ export function IssueQuickViewDialog({
             );
 
             await sendJson(
-                `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}/comments`,
+                `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}/comments`,
                 'POST',
                 formData,
             );
@@ -282,7 +288,7 @@ export function IssueQuickViewDialog({
         files.forEach((file) => formData.append('attachments[]', file));
 
         await sendJson(
-            `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}/comments`,
+            `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}/comments`,
             'POST',
             formData,
         );
@@ -296,7 +302,7 @@ export function IssueQuickViewDialog({
         parentId?: number | null,
     ) => {
         await sendJson(
-            `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}/comments/${commentId}`,
+            `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}/comments/${commentId}`,
             'PUT',
             new URLSearchParams({
                 body,
@@ -309,7 +315,7 @@ export function IssueQuickViewDialog({
 
     const deleteComment = async (commentId: number) => {
         await sendJson(
-            `/clients/${clientId}/projects/${projectId}/issues/${workspaceIssue.id}/comments/${commentId}`,
+            `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}/comments/${commentId}`,
             'DELETE',
         );
 

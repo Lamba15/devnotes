@@ -1,14 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { useMemo } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 
 type Status = {
@@ -43,31 +42,26 @@ export default function AllProjectsIndex({
         total: number;
     };
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'created_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
+    const filterDefs: CrudFilterDefinition[] = useMemo(
+        () => [
+            {
+                key: 'search',
+                type: 'search',
+                placeholder: 'Search projects by name, description, or client',
+            },
+        ],
+        [],
     );
 
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                '/clients/projects',
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [query, sortBy, sortDirection]);
+    const crud = useCrudFilters({
+        url: '/clients/projects',
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const columns: DataTableColumn<Project>[] = [
         {
@@ -139,44 +133,6 @@ export default function AllProjectsIndex({
             sortKey: 'description',
             render: (project) => project.description ?? '—',
         },
-        {
-            key: 'actions',
-            header: '',
-            render: (project) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Open project',
-                            onClick: () => {
-                                if (project.client) {
-                                    router.visit(
-                                        `/clients/${project.client.id}/projects/${project.id}`,
-                                    );
-                                }
-                            },
-                        },
-                        {
-                            label: 'Open client',
-                            onClick: () => {
-                                if (project.client) {
-                                    router.visit(`/clients/${project.client.id}`);
-                                }
-                            },
-                        },
-                        {
-                            label: 'Edit',
-                            onClick: () => {
-                                if (project.client) {
-                                    router.visit(
-                                        `/clients/${project.client.id}/projects/${project.id}/edit`,
-                                    );
-                                }
-                            },
-                        },
-                    ]}
-                />
-            ),
-        },
     ];
 
     return (
@@ -186,57 +142,22 @@ export default function AllProjectsIndex({
                 title="Client Projects"
                 description="A platform-wide view of all projects that still belong to individual clients."
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm flex-1">
-                        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search projects by name, description, or client"
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
                     rows={projects}
                     emptyText="No projects yet."
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            '/clients/projects',
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
             </CrudPage>
         </>
     );
 }
 
-AllProjectsIndex.layout = (page: React.ReactNode) => <AppLayout>{page}</AppLayout>;
+AllProjectsIndex.layout = (page: React.ReactNode) => (
+    <AppLayout>{page}</AppLayout>
+);

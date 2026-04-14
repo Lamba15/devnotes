@@ -17,7 +17,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,18 +44,39 @@ class IssueController extends Controller
 
     public function index(Request $request, Client $client, Project $project): Response
     {
-        $validated = $request->validate([
+        abort_unless($project->client_id === $client->id, 404);
+        abort_unless($request->user()->hasProjectAccess($project), 403);
+
+        $validated = validator([
+            'search' => $request->input('search'),
+            'sort_by' => $request->input('sort_by'),
+            'sort_direction' => $request->input('sort_direction'),
+            'assignee' => $this->normalizeFilterValues($request, 'assignee'),
+            'status' => $this->normalizeFilterValues($request, 'status'),
+            'priority' => $this->normalizeFilterValues($request, 'priority'),
+            'type' => $this->normalizeFilterValues($request, 'type'),
+            'page' => $request->input('page'),
+        ], [
             'search' => ['nullable', 'string', 'max:255'],
             'sort_by' => ['nullable', 'in:title,status,priority,type,created_at'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
+            'assignee' => ['array'],
+            'assignee.*' => ['string', 'max:50', 'regex:/^(unassigned|\d+)$/'],
+            'status' => ['array'],
+            'status.*' => ['string', 'max:255'],
+            'priority' => ['array'],
+            'priority.*' => ['string', 'max:255'],
+            'type' => ['array'],
+            'type.*' => ['string', 'max:255'],
             'page' => ['nullable', 'integer', 'min:1'],
-        ]);
+        ])->validate();
         $search = trim((string) ($validated['search'] ?? ''));
         $sortBy = $validated['sort_by'] ?? 'created_at';
         $sortDirection = $validated['sort_direction'] ?? 'desc';
-
-        abort_unless($project->client_id === $client->id, 404);
-        abort_unless($request->user()->hasProjectAccess($project), 403);
+        $assignee = $this->cleanFilterValues($validated['assignee'] ?? []);
+        $status = $this->cleanFilterValues($validated['status'] ?? []);
+        $priority = $this->cleanFilterValues($validated['priority'] ?? []);
+        $type = $this->cleanFilterValues($validated['type'] ?? []);
 
         $issues = $project->issues()
             ->with([
@@ -71,8 +94,29 @@ class IssueController extends Controller
                         ->orWhereHas('assignee', fn (Builder $assigneeQuery) => $assigneeQuery->where('name', 'like', "%{$search}%"));
                 });
             })
+            ->when($assignee !== [], function (Builder $query) use ($assignee): void {
+                $assigneeIds = collect($assignee)
+                    ->filter(fn (string $value) => ctype_digit($value))
+                    ->map(fn (string $value) => (int) $value)
+                    ->values();
+                $includesUnassigned = in_array('unassigned', $assignee, true);
+
+                $query->where(function (Builder $assigneeQuery) use ($assigneeIds, $includesUnassigned): void {
+                    if ($includesUnassigned) {
+                        $assigneeQuery->whereNull('assignee_id');
+                    }
+
+                    if ($assigneeIds->isNotEmpty()) {
+                        $method = $includesUnassigned ? 'orWhereIn' : 'whereIn';
+                        $assigneeQuery->{$method}('assignee_id', $assigneeIds->all());
+                    }
+                });
+            })
+            ->when($status !== [], fn (Builder $query) => $query->whereIn('status', $status))
+            ->when($priority !== [], fn (Builder $query) => $query->whereIn('priority', $priority))
+            ->when($type !== [], fn (Builder $query) => $query->whereIn('type', $type))
             ->orderBy($sortBy, $sortDirection)
-            ->paginate(15)
+            ->paginate(8)
             ->withQueryString();
 
         return Inertia::render('issues/index', [
@@ -88,14 +132,33 @@ class IssueController extends Controller
                 'total' => $issues->total(),
             ],
             'can_manage_issues' => $request->user()->canManageIssues($project),
-            'assignee_options' => $this->serializeAssigneeOptions($project),
-            'status_options' => ['todo', 'in_progress', 'done'],
-            'priority_options' => ['low', 'medium', 'high'],
-            'type_options' => ['task', 'bug', 'feature'],
+            'assignee_filter_options' => $this->serializeIssueAssigneeFilterOptions($project),
+            'status_filter_options' => $this->serializeIssueClassificationFilterOptions(
+                $project,
+                'status',
+                ['todo', 'in_progress', 'done'],
+                $status,
+            ),
+            'priority_filter_options' => $this->serializeIssueClassificationFilterOptions(
+                $project,
+                'priority',
+                ['low', 'medium', 'high'],
+                $priority,
+            ),
+            'type_filter_options' => $this->serializeIssueClassificationFilterOptions(
+                $project,
+                'type',
+                ['task', 'bug', 'feature'],
+                $type,
+            ),
             'filters' => [
                 'search' => $search,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
+                'assignee' => $assignee,
+                'status' => $status,
+                'priority' => $priority,
+                'type' => $type,
             ],
         ]);
     }
@@ -392,6 +455,76 @@ class IssueController extends Controller
                 ])
                 ->all(),
         );
+    }
+
+    private function serializeIssueAssigneeFilterOptions(Project $project): array
+    {
+        $assigneeIds = $project->issues()
+            ->whereNotNull('assignee_id')
+            ->distinct()
+            ->pluck('assignee_id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $assignees = User::query()
+            ->whereIn('id', $assigneeIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return array_merge(
+            [['label' => 'Unassigned', 'value' => 'unassigned']],
+            $assignees
+                ->map(fn (User $user) => [
+                    'label' => $user->name,
+                    'value' => (string) $user->id,
+                ])
+                ->all(),
+        );
+    }
+
+    private function serializeIssueClassificationFilterOptions(
+        Project $project,
+        string $column,
+        array $defaults,
+        array $selectedValues = [],
+    ): array {
+        $values = collect($defaults)
+            ->merge(
+                $project->issues()
+                    ->whereNotNull($column)
+                    ->distinct()
+                    ->orderBy($column)
+                    ->pluck($column),
+            )
+            ->merge($selectedValues)
+            ->filter(fn ($value) => filled($value))
+            ->map(fn (string $value) => trim($value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $values
+            ->map(fn (string $value) => [
+                'label' => Str::headline(str_replace('_', ' ', $value)),
+                'value' => $value,
+            ])
+            ->all();
+    }
+
+    private function normalizeFilterValues(Request $request, string $key): array
+    {
+        return Arr::wrap($request->input($key));
+    }
+
+    private function cleanFilterValues(array $values): array
+    {
+        return collect($values)
+            ->filter(fn ($value) => is_scalar($value))
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function availableAssigneeIds(Project $project, ?Issue $issue = null): Collection

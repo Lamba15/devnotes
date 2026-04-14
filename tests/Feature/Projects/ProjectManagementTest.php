@@ -152,6 +152,41 @@ class ProjectManagementTest extends TestCase
             );
     }
 
+    public function test_projects_index_supports_status_filtering(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $activeStatus = ProjectStatus::query()->where('slug', 'active')->firstOrFail();
+        $archivedStatus = ProjectStatus::query()->where('slug', 'archived')->firstOrFail();
+
+        Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => $activeStatus->id,
+            'name' => 'Active Project',
+        ]);
+        Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => $archivedStatus->id,
+            'name' => 'Archived Project',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.index', [
+                'client' => $client,
+                'status' => ['archived'],
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/index')
+                ->has('projects', 1)
+                ->where('projects.0.name', 'Archived Project')
+                ->where('filters.status', ['archived'])
+                ->has('status_filter_options')
+            );
+    }
+
     public function test_platform_owner_can_visit_the_cross_client_projects_index(): void
     {
         $user = User::factory()->create();

@@ -8,6 +8,8 @@ import type {
     ControlProps,
     DropdownIndicatorProps,
     GroupBase,
+    MultiValue,
+    SingleValue,
 } from 'react-select';
 import { cn } from '@/lib/utils';
 
@@ -16,15 +18,12 @@ export type SearchableSelectOption = {
     label: string;
 };
 
-type SearchableSelectProps = {
+type SearchableSelectBaseProps = {
     id?: string;
     name?: string;
-    value?: string;
-    defaultValue?: string;
     placeholder?: string;
     options: SearchableSelectOption[];
     disabled?: boolean;
-    onValueChange?: (value: string) => void;
     className?: string;
     emptyMessage?: string;
     icon?: LucideIcon;
@@ -34,6 +33,24 @@ type SearchableSelectProps = {
     size?: 'sm' | 'default' | 'lg';
     'data-testid'?: string;
 };
+
+type SearchableSelectSingleProps = SearchableSelectBaseProps & {
+    value?: string;
+    defaultValue?: string;
+    onValueChange?: (value: string) => void;
+    isMulti?: false;
+};
+
+type SearchableSelectMultiProps = SearchableSelectBaseProps & {
+    value?: string[];
+    defaultValue?: string[];
+    onValueChange?: (value: string[]) => void;
+    isMulti: true;
+};
+
+type SearchableSelectProps =
+    | SearchableSelectSingleProps
+    | SearchableSelectMultiProps;
 
 const sizeClasses = {
     sm: {
@@ -71,31 +88,56 @@ export function SearchableSelect({
     isSearchable = true,
     isClearable = true,
     isCreatable = false,
+    isMulti = false,
     size = 'default',
     'data-testid': dataTestId,
 }: SearchableSelectProps) {
     const resolvedOptions = Array.isArray(options) ? options : [];
     const isControlled = value !== undefined;
-    const [internalValue, setInternalValue] = useState(defaultValue);
-    const selectedValue = isControlled ? value ?? '' : internalValue;
-    const selectedOption = selectedValue
-        ? resolvedOptions.find((option) => option.value === selectedValue) ?? {
-              value: selectedValue,
-              label: selectedValue,
-          }
+    const [internalValue, setInternalValue] = useState<string | string[]>(
+        defaultValue ?? (isMulti ? [] : ''),
+    );
+    const selectedValue = isControlled
+        ? value ?? (isMulti ? [] : '')
+        : internalValue;
+    const selectedValues = isMulti
+        ? Array.isArray(selectedValue)
+            ? selectedValue
+            : selectedValue
+              ? [selectedValue]
+              : []
+        : [];
+    const selectedOption = !isMulti
+        ? typeof selectedValue === 'string' && selectedValue
+            ? resolvedOptions.find((option) => option.value === selectedValue) ?? {
+                  value: selectedValue,
+                  label: selectedValue,
+              }
+            : null
         : null;
-    const normalizedOptions =
-        selectedOption &&
-        !resolvedOptions.some((option) => option.value === selectedOption.value)
-            ? [selectedOption, ...resolvedOptions]
-            : resolvedOptions;
+    const selectedOptions = isMulti
+        ? selectedValues.map(
+              (selectedItem) =>
+                  resolvedOptions.find((option) => option.value === selectedItem) ?? {
+                      value: selectedItem,
+                      label: selectedItem,
+                  },
+          )
+        : [];
+    const normalizedOptions = Array.from(
+        new Map(
+            [...selectedOptions, ...(selectedOption ? [selectedOption] : []), ...resolvedOptions].map(
+                (option) => [option.value, option],
+            ),
+        ).values(),
+    );
     const sizing = sizeClasses[size];
 
     const selectComponents = useMemo(
         () => ({
             IndicatorSeparator: () => null,
             Control: (
-                props: ControlProps<SearchableSelectOption, false, GroupBase<SearchableSelectOption>>,
+                props: ControlProps<SearchableSelectOption, boolean, GroupBase<SearchableSelectOption>>,
             ) => (
                 <components.Control
                     {...props}
@@ -113,6 +155,7 @@ export function SearchableSelect({
                         <Icon
                             className={cn(
                                 'shrink-0 text-muted-foreground',
+                                isMulti && selectedValues.length > 0 && 'self-start mt-2',
                                 sizing.icon,
                             )}
                         />
@@ -123,7 +166,7 @@ export function SearchableSelect({
             DropdownIndicator: (
                 props: DropdownIndicatorProps<
                     SearchableSelectOption,
-                    false,
+                    boolean,
                     GroupBase<SearchableSelectOption>
                 >,
             ) => (
@@ -139,7 +182,7 @@ export function SearchableSelect({
             ClearIndicator: (
                 props: ClearIndicatorProps<
                     SearchableSelectOption,
-                    false,
+                    boolean,
                     GroupBase<SearchableSelectOption>
                 >,
             ) => (
@@ -148,7 +191,7 @@ export function SearchableSelect({
                 </components.ClearIndicator>
             ),
         }),
-        [Icon, dataTestId, sizing.icon],
+        [Icon, dataTestId, isMulti, selectedValues.length, sizing.icon],
     );
 
     const sharedProps = {
@@ -156,12 +199,13 @@ export function SearchableSelect({
         inputId: id,
         instanceId: id ?? name ?? placeholder,
         name,
-        value: selectedOption,
+        value: isMulti ? selectedOptions : selectedOption,
         options: normalizedOptions,
         placeholder,
         isDisabled: disabled,
         isSearchable,
         isClearable,
+        isMulti,
         noOptionsMessage: () => emptyMessage,
         menuPortalTarget:
             typeof window === 'undefined' ? undefined : document.body,
@@ -169,12 +213,15 @@ export function SearchableSelect({
         menuShouldBlockScroll: false,
         closeMenuOnScroll: true,
         captureMenuScroll: false,
+        closeMenuOnSelect: !isMulti,
+        hideSelectedOptions: false,
         className,
         classNames: {
             control: (state: { isFocused: boolean; isDisabled: boolean }) =>
                 cn(
                     'border-input bg-transparent text-sm shadow-xs transition-[color,box-shadow] outline-none',
                     'flex w-full items-center gap-2 rounded-md border',
+                    isMulti && 'py-0.5',
                     sizing.control,
                     state.isFocused && 'border-ring ring-ring/50 ring-[3px]',
                     state.isDisabled &&
@@ -183,6 +230,11 @@ export function SearchableSelect({
             valueContainer: () => cn('gap-2 text-sm', sizing.valueContainer),
             placeholder: () => 'm-0 text-sm text-muted-foreground',
             singleValue: () => 'm-0 text-sm text-foreground',
+            multiValue: () =>
+                'm-0 items-center gap-1 rounded bg-accent px-1.5 py-0.5 text-accent-foreground',
+            multiValueLabel: () => 'px-0 py-0 text-xs font-medium',
+            multiValueRemove: () =>
+                'rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground',
             input: () => 'm-0 p-0 text-sm text-foreground',
             indicatorsContainer: () => 'self-stretch',
             clearIndicator: () =>
@@ -219,20 +271,38 @@ export function SearchableSelect({
             }),
         },
         components: selectComponents,
-        onChange: (nextOption: SearchableSelectOption | null) => {
-            const nextValue = nextOption?.value ?? '';
+        onChange: (
+            nextOption:
+                | MultiValue<SearchableSelectOption>
+                | SingleValue<SearchableSelectOption>,
+        ) => {
+            const nextValue = isMulti
+                ? (nextOption as MultiValue<SearchableSelectOption>).map(
+                      (option) => option.value,
+                  )
+                : ((nextOption as SingleValue<SearchableSelectOption>)?.value ?? '');
 
             if (!isControlled) {
                 setInternalValue(nextValue);
             }
 
-            onValueChange?.(nextValue);
+            if (isMulti) {
+                (onValueChange as ((value: string[]) => void) | undefined)?.(
+                    nextValue as string[],
+                );
+
+                return;
+            }
+
+            (onValueChange as ((value: string) => void) | undefined)?.(
+                nextValue as string,
+            );
         },
     };
 
     if (isCreatable) {
         return (
-            <CreatableReactSelect<SearchableSelectOption, false>
+            <CreatableReactSelect<SearchableSelectOption, boolean>
                 {...sharedProps}
                 formatCreateLabel={(inputValue) => `Create "${inputValue}"`}
             />
@@ -240,7 +310,7 @@ export function SearchableSelect({
     }
 
     return (
-        <ReactSelect<SearchableSelectOption, false>
+        <ReactSelect<SearchableSelectOption, boolean>
             {...sharedProps}
         />
     );

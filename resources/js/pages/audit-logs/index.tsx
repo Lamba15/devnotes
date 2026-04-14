@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bot,
@@ -6,19 +6,18 @@ import {
     Clock,
     Globe,
     Layers,
-    Search,
     User,
     Users,
-    X,
     Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { SearchableSelect } from '@/components/ui/searchable-select';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
@@ -97,11 +96,11 @@ export default function AuditLogsIndex({
     };
     filters: {
         search: string;
-        event: string;
-        source: string;
-        user_id: string;
-        subject_type: string;
-        client_id: string;
+        event: string[];
+        source: string[];
+        user_id: string[];
+        subject_type: string[];
+        client_id: string[];
     };
     event_options: string[];
     source_options: string[];
@@ -110,58 +109,94 @@ export default function AuditLogsIndex({
     client_options: FilterOption[];
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [event, setEvent] = useState(filters.event ?? '');
-    const [source, setSource] = useState(filters.source ?? '');
-    const [userId, setUserId] = useState(filters.user_id ?? '');
-    const [subjectType, setSubjectType] = useState(filters.subject_type ?? '');
-    const [clientId, setClientId] = useState(filters.client_id ?? '');
 
-    const activeFilterCount = [
-        event,
-        source,
-        userId,
-        subjectType,
-        clientId,
-    ].filter(Boolean).length;
+    // Normalize server option formats into {label, value} for the hook
+    const eventOpts = useMemo(
+        () =>
+            event_options
+                .filter(Boolean)
+                .map((e) => ({ value: e, label: e })),
+        [event_options],
+    );
+    const sourceOpts = useMemo(
+        () =>
+            source_options
+                .filter(Boolean)
+                .map((s) => ({ value: s, label: s })),
+        [source_options],
+    );
+    const userOpts = useMemo(
+        () =>
+            user_options.map((u) => ({
+                value: String(u.id),
+                label: u.name,
+            })),
+        [user_options],
+    );
+    const subjectTypeOpts = useMemo(
+        () =>
+            subject_type_options.map((t) => ({
+                value: t.value,
+                label: t.label,
+            })),
+        [subject_type_options],
+    );
+    const clientOpts = useMemo(
+        () =>
+            client_options.map((c) => ({
+                value: String(c.id),
+                label: c.name,
+            })),
+        [client_options],
+    );
 
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                '/audit-logs',
-                {
-                    search: query || undefined,
-                    event: event || undefined,
-                    source: source || undefined,
-                    user_id: userId || undefined,
-                    subject_type: subjectType || undefined,
-                    client_id: clientId || undefined,
-                },
-                { preserveState: true, preserveScroll: true, replace: true },
-            );
-        }, 250);
+    const filterDefs: CrudFilterDefinition[] = useMemo(
+        () => [
+            { key: 'search', type: 'search', placeholder: 'Search logs...' },
+            {
+                key: 'user_id',
+                type: 'select',
+                placeholder: 'All users',
+                options: userOpts,
+                icon: Users,
+            },
+            {
+                key: 'client_id',
+                type: 'select',
+                placeholder: 'All clients',
+                options: clientOpts,
+                icon: Boxes,
+            },
+            {
+                key: 'event',
+                type: 'select',
+                placeholder: 'All actions',
+                options: eventOpts,
+                icon: Zap,
+            },
+            {
+                key: 'source',
+                type: 'select',
+                placeholder: 'All sources',
+                options: sourceOpts,
+                icon: Globe,
+            },
+            {
+                key: 'subject_type',
+                type: 'select',
+                placeholder: 'All entity types',
+                options: subjectTypeOpts,
+                icon: Layers,
+            },
+        ],
+        [userOpts, clientOpts, eventOpts, sourceOpts, subjectTypeOpts],
+    );
 
-        return () => window.clearTimeout(timeout);
-    }, [query, event, source, userId, subjectType, clientId]);
-
-    const eventOpts = event_options
-        .filter(Boolean)
-        .map((e) => ({ value: e, label: e }));
-    const sourceOpts = source_options
-        .filter(Boolean)
-        .map((s) => ({ value: s, label: s }));
-    const userOpts = user_options.map((u) => ({
-        value: String(u.id),
-        label: u.name,
-    }));
-    const subjectTypeOpts = subject_type_options.map((t) => ({
-        value: t.value,
-        label: t.label,
-    }));
-    const clientOpts = client_options.map((c) => ({
-        value: String(c.id),
-        label: c.name,
-    }));
+    const crud = useCrudFilters({
+        url: '/audit-logs',
+        definitions: filterDefs,
+        initialFilters: filters,
+    });
 
     return (
         <>
@@ -170,88 +205,11 @@ export default function AuditLogsIndex({
                 title="Audit Logs"
                 description="Track all user and system actions across the platform."
             >
-                {/* Search + count */}
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-1">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search logs..."
-                            className="pl-9 md:max-w-sm"
-                        />
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        {activeFilterCount > 0 && (
-                            <Badge variant="secondary" className="tabular-nums">
-                                {activeFilterCount} filter
-                                {activeFilterCount !== 1 ? 's' : ''}
-                            </Badge>
-                        )}
-                        <span className="tabular-nums">
-                            {pagination.total} result
-                            {pagination.total !== 1 ? 's' : ''}
-                        </span>
-                    </div>
-                </div>
-
-                {/* Drill-down filters */}
-                <div className="flex items-center gap-3">
-                    <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                        <SearchableSelect
-                            value={userId}
-                            onValueChange={setUserId}
-                            options={userOpts}
-                            placeholder="All users"
-                            icon={Users}
-                        />
-                        <SearchableSelect
-                            value={clientId}
-                            onValueChange={setClientId}
-                            options={clientOpts}
-                            placeholder="All clients"
-                            icon={Boxes}
-                        />
-                        <SearchableSelect
-                            value={event}
-                            onValueChange={setEvent}
-                            options={eventOpts}
-                            placeholder="All actions"
-                            icon={Zap}
-                        />
-                        <SearchableSelect
-                            value={source}
-                            onValueChange={setSource}
-                            options={sourceOpts}
-                            placeholder="All sources"
-                            icon={Globe}
-                        />
-                        <SearchableSelect
-                            value={subjectType}
-                            onValueChange={setSubjectType}
-                            options={subjectTypeOpts}
-                            placeholder="All entity types"
-                            icon={Layers}
-                        />
-                    </div>
-                    {activeFilterCount > 0 && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="shrink-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                                setEvent('');
-                                setSource('');
-                                setUserId('');
-                                setSubjectType('');
-                                setClientId('');
-                            }}
-                        >
-                            <X className="mr-1 size-3.5" />
-                            Clear filters
-                        </Button>
-                    )}
-                </div>
+                <CrudFilters
+                    definitions={filterDefs}
+                    state={crud}
+                    meta={`${pagination.total} result${pagination.total !== 1 ? 's' : ''}`}
+                />
 
                 {/* Log entries */}
                 <div className="space-y-2">
@@ -334,23 +292,7 @@ export default function AuditLogsIndex({
                                 type="button"
                                 disabled={pagination.current_page <= 1}
                                 onClick={() =>
-                                    router.get(
-                                        '/audit-logs',
-                                        {
-                                            page: pagination.current_page - 1,
-                                            search: query || undefined,
-                                            event: event || undefined,
-                                            source: source || undefined,
-                                            user_id: userId || undefined,
-                                            subject_type:
-                                                subjectType || undefined,
-                                            client_id: clientId || undefined,
-                                        },
-                                        {
-                                            preserveState: true,
-                                            preserveScroll: true,
-                                        },
-                                    )
+                                    crud.visitPage(pagination.current_page - 1)
                                 }
                                 className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
                             >
@@ -363,23 +305,7 @@ export default function AuditLogsIndex({
                                     pagination.last_page
                                 }
                                 onClick={() =>
-                                    router.get(
-                                        '/audit-logs',
-                                        {
-                                            page: pagination.current_page + 1,
-                                            search: query || undefined,
-                                            event: event || undefined,
-                                            source: source || undefined,
-                                            user_id: userId || undefined,
-                                            subject_type:
-                                                subjectType || undefined,
-                                            client_id: clientId || undefined,
-                                        },
-                                        {
-                                            preserveState: true,
-                                            preserveScroll: true,
-                                        },
-                                    )
+                                    crud.visitPage(pagination.current_page + 1)
                                 }
                                 className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
                             >

@@ -1,11 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowDownRight, ArrowUpRight, Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
+import { ArrowDownRight, ArrowUpRight, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { FilterBar } from '@/components/crud/filter-bar';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -16,7 +15,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
@@ -54,11 +54,6 @@ export default function FinanceTransactions({
         total: number;
     };
 }) {
-    const [query, setQuery] = useState(filters.search ?? '');
-    const [sortBy, setSortBy] = useState(filters.sort_by ?? 'occurred_at');
-    const [sortDirection, setSortDirection] = useState(
-        filters.sort_direction ?? 'desc',
-    );
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
@@ -66,25 +61,22 @@ export default function FinanceTransactions({
         Array<string | number>
     >([]);
 
-    useEffect(() => {
-        const timeout = window.setTimeout(() => {
-            router.get(
-                '/finance/transactions',
-                {
-                    search: query || undefined,
-                    sort_by: sortBy,
-                    sort_direction: sortDirection,
-                },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 250);
-
-        return () => window.clearTimeout(timeout);
-    }, [query, sortBy, sortDirection]);
+    const filterDefs: CrudFilterDefinition[] = [
+        {
+            key: 'search',
+            type: 'search',
+            placeholder: 'Search transactions...',
+        },
+    ];
+    const crud = useCrudFilters({
+        url: '/finance/transactions',
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'occurred_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
 
     const columns: DataTableColumn<Transaction>[] = [
         {
@@ -117,9 +109,17 @@ export default function FinanceTransactions({
                 const isPositive = num >= 0;
 
                 return (
-                    <span className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {isPositive ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                        {formatCurrencyAmount(num, transaction.currency, { absolute: true })}
+                    <span
+                        className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                    >
+                        {isPositive ? (
+                            <ArrowUpRight className="size-3" />
+                        ) : (
+                            <ArrowDownRight className="size-3" />
+                        )}
+                        {formatCurrencyAmount(num, transaction.currency, {
+                            absolute: true,
+                        })}
                     </span>
                 );
             },
@@ -130,35 +130,6 @@ export default function FinanceTransactions({
             sortable: true,
             sortKey: 'occurred_at',
             render: (transaction) => transaction.occurred_at,
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (transaction) => (
-                <ActionDropdown
-                    items={[
-                        {
-                            label: 'Open',
-                            onClick: () =>
-                                window.location.assign(
-                                    `/finance/transactions/${transaction.id}`,
-                                ),
-                        },
-                        {
-                            label: 'Edit',
-                            onClick: () =>
-                                window.location.assign(
-                                    `/finance/transactions/${transaction.id}/edit`,
-                                ),
-                        },
-                        {
-                            label: 'Delete',
-                            destructive: true,
-                            onClick: () => setDeleteIds([transaction.id]),
-                        },
-                    ]}
-                />
-            ),
         },
     ];
 
@@ -217,17 +188,7 @@ export default function FinanceTransactions({
                     </Button>
                 }
             >
-                <FilterBar>
-                    <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Search transactions..."
-                            className="pl-9"
-                        />
-                    </div>
-                </FilterBar>
+                <CrudFilters definitions={filterDefs} state={crud} />
 
                 <DataTable
                     columns={columns}
@@ -237,37 +198,10 @@ export default function FinanceTransactions({
                     selectedRowIds={selectedTransactionIds}
                     onSelectedRowIdsChange={setSelectedTransactionIds}
                     bulkActions={bulkActions}
-                    currentSort={{
-                        sortBy,
-                        sortDirection: sortDirection as 'asc' | 'desc',
-                    }}
-                    onSortChange={(nextSortBy) => {
-                        if (sortBy === nextSortBy) {
-                            setSortDirection((current) =>
-                                current === 'asc' ? 'desc' : 'asc',
-                            );
-                        } else {
-                            setSortBy(nextSortBy);
-                            setSortDirection('asc');
-                        }
-                    }}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
                     pagination={pagination}
-                    onPageChange={(page) =>
-                        router.get(
-                            '/finance/transactions',
-                            {
-                                search: query || undefined,
-                                sort_by: sortBy,
-                                sort_direction: sortDirection,
-                                page,
-                            },
-                            {
-                                preserveState: true,
-                                preserveScroll: true,
-                                replace: true,
-                            },
-                        )
-                    }
+                    onPageChange={crud.visitPage}
                 />
 
                 <Dialog

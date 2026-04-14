@@ -1,4 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import {
     AlertTriangle,
     Bug,
@@ -15,12 +16,16 @@ import {
     Ticket,
 } from 'lucide-react';
 import { useState } from 'react';
+import { CrudFilters } from '@/components/crud/crud-filters';
+import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
+import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { stripHtml } from '@/lib/utils';
 
@@ -72,6 +77,12 @@ type IssueRow = {
 export default function ClientIssuesPage({
     client,
     issues,
+    filters,
+    project_filter_options,
+    status_filter_options,
+    priority_filter_options,
+    type_filter_options,
+    pagination,
     creatable_projects,
 }: {
     client: {
@@ -81,6 +92,25 @@ export default function ClientIssuesPage({
         behavior?: { id: number; name: string; slug: string } | null;
     };
     issues: IssueRow[];
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        project_id: string[];
+        status: string[];
+        priority: string[];
+        type: string[];
+    };
+    project_filter_options: Array<{ label: string; value: string }>;
+    status_filter_options: Array<{ label: string; value: string }>;
+    priority_filter_options: Array<{ label: string; value: string }>;
+    type_filter_options: Array<{ label: string; value: string }>;
+    pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+    };
     creatable_projects: Array<{ id: number; name: string }>;
 }) {
     const [selectedIssueIds, setSelectedIssueIds] = useState<
@@ -92,10 +122,54 @@ export default function ClientIssuesPage({
     const quickViewIssue =
         issues.find((issue) => issue.id === quickViewIssueId) ?? null;
 
+    const filterDefs: CrudFilterDefinition[] = [
+        { key: 'search', type: 'search', placeholder: 'Search issues...' },
+        {
+            key: 'project_id',
+            type: 'select',
+            placeholder: 'Project',
+            options: project_filter_options,
+            className: 'lg:w-48',
+        },
+        {
+            key: 'status',
+            type: 'select',
+            placeholder: 'Status',
+            options: status_filter_options,
+            className: 'lg:w-40',
+        },
+        {
+            key: 'priority',
+            type: 'select',
+            placeholder: 'Priority',
+            options: priority_filter_options,
+            className: 'lg:w-40',
+        },
+        {
+            key: 'type',
+            type: 'select',
+            placeholder: 'Type',
+            options: type_filter_options,
+            className: 'lg:w-40',
+        },
+    ];
+
+    const crud = useCrudFilters({
+        url: `/clients/${client.id}/issues`,
+        definitions: filterDefs,
+        initialFilters: filters,
+        initialSort: {
+            sortBy: filters.sort_by ?? 'created_at',
+            sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
+        },
+    });
+
     const columns: DataTableColumn<IssueRow>[] = [
         {
             key: 'title',
             header: 'Title',
+            sortable: true,
+            sortKey: 'title',
             render: (issue) => (
                 <button
                     type="button"
@@ -162,6 +236,8 @@ export default function ClientIssuesPage({
         {
             key: 'status',
             header: 'Status',
+            sortable: true,
+            sortKey: 'status',
             render: (issue) => {
                 const cfg: Record<
                     string,
@@ -185,6 +261,8 @@ export default function ClientIssuesPage({
         {
             key: 'priority',
             header: 'Priority',
+            sortable: true,
+            sortKey: 'priority',
             render: (issue) => {
                 const cfg: Record<
                     string,
@@ -208,6 +286,8 @@ export default function ClientIssuesPage({
         {
             key: 'type',
             header: 'Type',
+            sortable: true,
+            sortKey: 'type',
             render: (issue) => {
                 const cfg: Record<
                     string,
@@ -233,7 +313,10 @@ export default function ClientIssuesPage({
     return (
         <>
             <Head title={`${client.name} Issues`} />
-            <div className="space-y-6">
+            <CrudPage
+                title={`${client.name} Issues`}
+                description="Issues across the client workspace. Project-specific issue detail and discussion still live inside each project."
+            >
                 <Card className="shadow-none">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -281,6 +364,12 @@ export default function ClientIssuesPage({
                     </Card>
                 ) : null}
 
+                <CrudFilters
+                    definitions={filterDefs}
+                    state={crud}
+                    meta={`${pagination.total} issue${pagination.total === 1 ? '' : 's'}`}
+                />
+
                 <DataTable
                     columns={columns}
                     rows={issues}
@@ -288,8 +377,12 @@ export default function ClientIssuesPage({
                     getRowId={(issue) => issue.id}
                     selectedRowIds={selectedIssueIds}
                     onSelectedRowIdsChange={setSelectedIssueIds}
+                    currentSort={crud.sort}
+                    onSortChange={crud.handleSortChange}
+                    pagination={pagination}
+                    onPageChange={crud.visitPage}
                 />
-            </div>
+            </CrudPage>
             <IssueQuickViewDialog
                 issue={quickViewIssue}
                 open={quickViewIssue !== null}
