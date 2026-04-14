@@ -11,7 +11,6 @@ import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
@@ -32,7 +31,6 @@ type TransactionRow = {
 type InvoiceRow = {
     id: number;
     reference: string;
-    status: string;
     amount: string;
     currency: string | null;
     project?: { id: number; name: string } | null;
@@ -124,29 +122,6 @@ export default function ClientFinancePage({
             key: 'project',
             header: 'Project',
             render: (row) => row.project?.name ?? '—',
-        },
-        {
-            key: 'status',
-            header: 'Status',
-            render: (row) => {
-                const colors: Record<string, string> = {
-                    paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                    pending:
-                        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-                    overdue:
-                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-                    draft: 'bg-muted text-muted-foreground',
-                };
-
-                return (
-                    <Badge
-                        variant="outline"
-                        className={`capitalize ${colors[row.status] ?? ''}`}
-                    >
-                        {row.status}
-                    </Badge>
-                );
-            },
         },
         {
             key: 'amount',

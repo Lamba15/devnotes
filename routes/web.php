@@ -17,6 +17,7 @@ use App\Http\Controllers\IssueCommentController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSecretController;
+use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserCreditsController;
 use App\Models\AuditLog;
@@ -31,7 +32,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::redirect('favicon.ico', '/branding/my-logo.svg');
+Route::redirect('favicon.svg', '/branding/my-logo.svg');
+Route::redirect('apple-touch-icon.png', '/branding/my-logo.svg');
 Route::inertia('/', 'welcome')->name('home');
+Route::get('invoices/{publicInvoiceId}', [PublicInvoiceController::class, 'show'])->name('invoices.public.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('overview', function (Request $request) {

@@ -16,17 +16,17 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 
 ### Database Fields
 
-| Field       | Type                | Notes                                                        |
-| ----------- | ------------------- | ------------------------------------------------------------ |
-| id          | auto-increment      | Primary key                                                  |
-| project_id  | FK to projects      | Required. The owning project                                 |
-| description | string, max 255     | Required. What the transaction is for                        |
-| amount      | decimal(10,2)       | Required. Positive = income, negative = expense              |
-| occurred_date | date, nullable    | When the transaction took place                              |
-| category    | string, nullable    | Freeform category label (e.g. "hosting", "design", "salary") |
-| currency    | string(3), nullable | ISO 4217 currency code (e.g. USD, EUR, EGP)                  |
-| created_at  | timestamp           | Record creation                                              |
-| updated_at  | timestamp           | Last modification                                            |
+| Field         | Type                | Notes                                                        |
+| ------------- | ------------------- | ------------------------------------------------------------ |
+| id            | auto-increment      | Primary key                                                  |
+| project_id    | FK to projects      | Required. The owning project                                 |
+| description   | string, max 255     | Required. What the transaction is for                        |
+| amount        | decimal(10,2)       | Required. Positive = income, negative = expense              |
+| occurred_date | date, nullable      | When the transaction took place                              |
+| category      | string, nullable    | Freeform category label (e.g. "hosting", "design", "salary") |
+| currency      | string(3), nullable | ISO 4217 currency code (e.g. USD, EUR, EGP)                  |
+| created_at    | timestamp           | Record creation                                              |
+| updated_at    | timestamp           | Last modification                                            |
 
 ### Relationships
 
@@ -45,26 +45,59 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 
 ### Database Fields
 
-| Field      | Type                | Notes                                           |
-| ---------- | ------------------- | ----------------------------------------------- |
-| id         | auto-increment      | Primary key                                     |
-| project_id | FK to projects      | Required. The owning project                    |
-| reference  | string, max 255     | Required. Invoice reference number              |
-| status     | string, max 255     | Required. One of: draft, pending, paid, overdue |
-| amount     | decimal(10,2)       | Required. Invoice total                         |
-| currency   | string(3), nullable | ISO 4217 currency code                          |
-| issued_at  | date, nullable      | When the invoice was sent                       |
-| due_at     | date, nullable      | Payment deadline                                |
-| paid_at    | date, nullable      | When payment was received                       |
-| notes      | text, nullable      | Optional notes                                  |
-| created_at | timestamp           | Record creation                                 |
-| updated_at | timestamp           | Last modification                               |
+| Field                   | Type                | Notes                                                         |
+| ----------------------- | ------------------- | ------------------------------------------------------------- |
+| id                      | auto-increment      | Primary key                                                   |
+| project_id              | FK to projects      | Required. The owning project                                  |
+| reference               | string, max 255     | Required. Invoice reference number                            |
+| status                  | string, max 255     | Required. One of: draft, pending, paid, overdue               |
+| currency                | string(3), nullable | Required at the invoice level. All items and discounts use it |
+| subtotal_amount         | decimal(12,2)       | Computed sum of invoice item base amounts before discounts    |
+| discount_total_amount   | decimal(12,2)       | Computed total of all applied discounts                       |
+| amount                  | decimal(12,2)       | Computed final total after all item and invoice discounts     |
+| issued_at               | date, nullable      | When the invoice was sent                                     |
+| due_at                  | date, nullable      | Payment deadline                                              |
+| paid_at                 | date, nullable      | When payment was received                                     |
+| notes                   | text, nullable      | Optional notes                                                |
+| public_id               | string, unique      | Stable public document id used in the verification URL        |
+| public_pdf_path         | string, nullable    | Stored generated PDF path for the public invoice document     |
+| public_pdf_generated_at | timestamp, nullable | When the stored PDF was last regenerated                      |
+| created_at              | timestamp           | Record creation                                               |
+| updated_at              | timestamp           | Last modification                                             |
+
+### Invoice Item Fields
+
+| Field       | Type                    | Notes                                                 |
+| ----------- | ----------------------- | ----------------------------------------------------- |
+| id          | auto-increment          | Primary key                                           |
+| invoice_id  | FK to invoices          | Required. Owning invoice                              |
+| position    | integer                 | Stable visual order inside the invoice                |
+| description | string                  | Required line-item description                        |
+| hours       | decimal(12,2), nullable | Optional. Used when the item is billed by hours       |
+| rate        | decimal(12,2), nullable | Optional. Required with hours for hourly items        |
+| base_amount | decimal(12,2)           | Computed pre-discount amount for the item             |
+| amount      | decimal(12,2)           | Computed final item amount after item-level discounts |
+
+### Invoice Discount Fields
+
+| Field           | Type                          | Notes                                                   |
+| --------------- | ----------------------------- | ------------------------------------------------------- |
+| id              | auto-increment                | Primary key                                             |
+| invoice_id      | FK to invoices                | Required. Owning invoice                                |
+| invoice_item_id | FK to invoice_items, nullable | Null means invoice-level discount; otherwise item-level |
+| position        | integer                       | Stable order within its target                          |
+| label           | string, nullable              | Optional label shown in the document                    |
+| type            | string                        | Required. One of: fixed, percent                        |
+| value           | decimal(12,4)                 | Raw entered discount value                              |
+| amount          | decimal(12,2)                 | Computed discount amount actually applied               |
 
 ### Relationships
 
-| Relation | Type      | Target  | Notes              |
-| -------- | --------- | ------- | ------------------ |
-| project  | belongsTo | Project | The owning project |
+| Relation  | Type      | Target          | Notes                                          |
+| --------- | --------- | --------------- | ---------------------------------------------- |
+| project   | belongsTo | Project         | The owning project                             |
+| items     | hasMany   | InvoiceItem     | Ordered invoice line items                     |
+| discounts | hasMany   | InvoiceDiscount | Ordered item-level and invoice-level discounts |
 
 ### Status Lifecycle
 
@@ -76,9 +109,35 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 ### UI Behavior
 
 - Status is rendered as a colored badge: emerald (paid), amber (pending), red (overdue), muted (draft)
-- Amount displayed with currency and DollarSign icon
+- Amount displayed with invoice currency and reflects the computed final total
 - Date fields use the shared non-native date picker in forms while preserving date-only `YYYY-MM-DD` values.
 - Status uses a select dropdown rather than free text
+- Invoice editing is itemized rather than flat. Each invoice contains one or more line items.
+- Item rows support either hourly billing (`hours * rate`) or a flat line amount.
+- The invoice table uses `Hours`, not `Hours/Qty`.
+- Discounts may target a single item, the whole invoice, or both.
+- Discounts stack sequentially against the remaining amount on their target.
+- `subtotal_amount`, `discount_total_amount`, and `amount` are always computed from the invoice structure and are not directly entered by the user.
+
+### Calculation Rules
+
+- Every invoice must use a single currency.
+- For an hourly line item, `base_amount = hours * rate`.
+- For a flat line item, `base_amount` is the entered line amount and `hours` and `rate` stay empty.
+- Item-level discounts apply first and stack in their saved order against the remaining amount for that item.
+- Invoice-level discounts apply after all item-level discounts and stack in their saved order against the remaining invoice amount.
+- `subtotal_amount` is the sum of all item `base_amount` values.
+- `discount_total_amount` is the sum of every applied discount amount.
+- `amount` is the final total after all discounts.
+
+### Document Surfaces
+
+- The invoice PDF is the canonical invoice document.
+- The internal invoice show route presents that same document inside the authenticated app shell.
+- The public verification route presents that same document without auth and without CRM shell framing.
+- The public verification URL uses the stable pattern `/invoices/{public_id}`.
+- The verification URL is printed inside the invoice document itself.
+- The stored public PDF is regenerated automatically whenever the invoice changes.
 
 ## AI Tools
 

@@ -5,7 +5,6 @@ import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -19,6 +18,7 @@ import {
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
+import { formatDateOnly } from '@/lib/datetime';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = { id: number; name: string };
@@ -91,29 +91,11 @@ export default function FinanceInvoices({
                 `${invoice.project.client.name} / ${invoice.project.name}`,
         },
         {
-            key: 'status',
-            header: 'Status',
+            key: 'issued_at',
+            header: 'Issued',
             sortable: true,
-            sortKey: 'status',
-            render: (invoice) => {
-                const colors: Record<string, string> = {
-                    paid: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-                    pending:
-                        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-                    overdue:
-                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-                    draft: 'bg-muted text-muted-foreground',
-                };
-
-                return (
-                    <Badge
-                        variant="outline"
-                        className={`capitalize ${colors[invoice.status] ?? ''}`}
-                    >
-                        {invoice.status}
-                    </Badge>
-                );
-            },
+            sortKey: 'issued_at',
+            render: (invoice) => formatDateOnly(invoice.issued_at),
         },
         {
             key: 'amount',
@@ -135,8 +117,10 @@ export default function FinanceInvoices({
             disabledReason: 'Select exactly one invoice to download.',
             onClick: () => {
                 if (selectedInvoiceIds.length === 1) {
-                    window.location.assign(
+                    window.open(
                         `/finance/invoices/${selectedInvoiceIds[0]}/pdf`,
+                        '_blank',
+                        'noopener,noreferrer',
                     );
                 }
             },

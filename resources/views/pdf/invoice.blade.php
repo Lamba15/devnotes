@@ -33,8 +33,8 @@
         <!-- Top Light Wave -->
         <path d="M 0 0 L 794 0 L 794 30 L 450 30 C 300 30 300 130 150 130 L 0 130 Z" fill="#9767b8"/>
         
-        <!-- Perfect smooth hollow circles -->
-        <circle cx="0" cy="300" r="40" fill="none" stroke="#9767b8" stroke-width="30"/>
+        <!-- Top mirrored semicircle drawn as one arc to avoid seam artifacts -->
+        <path d="M 0 233 A 40 40 0 0 1 0 313" fill="none" stroke="#9767b8" stroke-width="30" stroke-linecap="round"/>
         <circle cx="794" cy="850" r="40" fill="none" stroke="#9767b8" stroke-width="30"/>
 
         <!-- Bottom Dark Echo -->
@@ -69,6 +69,21 @@
     }
     $slashesSvg .= '</svg>';
     $slashesSvgEnc = base64_encode($slashesSvg);
+
+    $currency = strtoupper($invoice->currency ?? 'EGP');
+    $formatMoney = function ($amount) use ($currency) {
+        $value = number_format((float) $amount, 2, '.', ',');
+
+        return match ($currency) {
+            'USD' => '$'.$value,
+            'EUR' => 'EUR '.$value,
+            'GBP' => 'GBP '.$value,
+            default => $value.' '.$currency,
+        };
+    };
+
+    $renderedRowCount = $invoice->items->sum(fn ($item) => 1 + $item->discounts->count());
+    $hasDiscount = (float) $invoice->discount_total_amount > 0;
     @endphp
 
     <img src="data:image/svg+xml;base64,{{ $bgSvgEnc }}" style="position: absolute; top:0; left:0; width:794px; height:1123px; z-index: -100;" />
@@ -96,7 +111,7 @@
         <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
                 <td width="50%" align="center" style="font-weight: 600; color: #ffffff;">Invoice: {{ $invoice->reference }}</td>
-                <td width="50%" align="center" style="font-weight: 600; color: #ffffff;">Date: {{ $invoice->issued_at?->format('d/m/Y') ?? 'N/A' }}</td>
+                <td width="50%" align="center" style="font-weight: 600; color: #ffffff;">Date: {{ $invoice->issued_at ? strtoupper($invoice->issued_at->format('d M Y')) : 'N/A' }}</td>
             </tr>
         </table>
     </div>
@@ -117,7 +132,7 @@
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                     <td width="55%" style="padding-left:0;">Description</td>
-                    <td width="15%" align="left">Hours/Qty</td>
+                    <td width="15%" align="left">Hours</td>
                     <td width="15%" align="left">Rate</td>
                     <td width="15%" align="left">Amount</td>
                 </tr>
@@ -125,21 +140,33 @@
         </div>
 
         <table class="data-table" cellpadding="0" cellspacing="0">
+            @foreach($invoice->items as $item)
             <tr>
                 <td width="55%" style="padding-top: 30px;">
-                    {{ $invoice->project->name }}<br>
-                    <span style="font-size: 11px; color:#555;">{{ $invoice->notes ?: 'Services rendered' }}</span>
+                    {{ $item->description }}
                 </td>
-                <td width="15%" align="left" style="padding-top: 30px;">1</td>
-                @php
-                    $amount = (float) $invoice->amount;
-                    $currency = strtoupper($invoice->currency ?? 'EGP');
-                    if(in_array($currency, ['USD'])) { $amountTpl = '$'.number_format($amount); } else { $amountTpl = $amount.' '.$currency; }
-                @endphp
-                <td width="15%" align="left" style="padding-top: 30px;">{{ $amountTpl }}</td>
-                <td width="15%" align="left" style="padding-top: 30px;">{{ $amountTpl }}</td>
+                <td width="15%" align="left" style="padding-top: 30px;">
+                    {{ $item->hours !== null ? rtrim(rtrim(number_format((float) $item->hours, 2, '.', ''), '0'), '.') : '' }}
+                </td>
+                <td width="15%" align="left" style="padding-top: 30px;">
+                    {{ $item->rate !== null ? $formatMoney($item->rate) : '' }}
+                </td>
+                <td width="15%" align="left" style="padding-top: 30px;">{{ $formatMoney($item->base_amount) }}</td>
             </tr>
-            @for($i=0; $i<5; $i++)
+            @foreach($item->discounts as $discount)
+            <tr>
+                <td width="55%" style="padding-top: 8px; color:#5b377a; font-size: 12px; padding-left: 36px;">
+                    {{ $discount->label ?: 'Item discount' }}
+                </td>
+                <td width="15%" align="left" style="padding-top: 8px;"></td>
+                <td width="15%" align="left" style="padding-top: 8px; color:#5b377a; font-size: 12px;">
+                    -{{ $discount->type === 'percent' ? rtrim(rtrim(number_format((float) $discount->value, 2, '.', ''), '0'), '.').'%' : $formatMoney($discount->value) }}
+                </td>
+                <td width="15%" align="left" style="padding-top: 8px; color:#5b377a; font-size: 12px;">-{{ $formatMoney($discount->amount) }}</td>
+            </tr>
+            @endforeach
+            @endforeach
+            @for($i=0; $i<max(0, 5 - $renderedRowCount); $i++)
             <tr class="empty-row">
                 <td colspan="4">&nbsp;</td>
             </tr>
@@ -151,11 +178,23 @@
             <tr>
                 <td width="65%" valign="top">
                     <div style="font-size:12px; color:#444; margin-bottom:5px; font-weight: bold;">Invoice URL :</div>
-                    <div style="font-size:12px; color:#5b377a; padding-left: 20px;">{{ url('/finance/invoices/'.$invoice->id) }}</div>
+                    <div style="font-size:12px; color:#5b377a; padding-left: 20px;">{{ $publicUrl }}</div>
                 </td>
                 <td width="35%" valign="top" style="padding-left: 30px;">
-                    <div style="font-size:13px; color:#444; margin-bottom:5px;">Total:</div>
-                    <div style="font-size:14px; font-weight: bold; color:#5b377a;">{{ $amountTpl }}</div>
+                    <div style="font-size:11px; color:#444; margin-bottom:4px; font-weight: bold;">Total</div>
+                    @if($hasDiscount)
+                    <div style="white-space: nowrap; margin-bottom: 4px;">
+                    @else
+                    <div style="white-space: nowrap; margin-bottom: 0;">
+                    @endif
+                        <span style="font-size:17px; font-weight: bold; color:#5b377a;">{{ $formatMoney($invoice->amount) }}</span>
+                        @if($hasDiscount)
+                        <span style="font-size:12px; color:#7f7f7f; text-decoration: line-through; margin-left: 8px;">{{ $formatMoney($invoice->subtotal_amount) }}</span>
+                        @endif
+                    </div>
+                    @if($hasDiscount)
+                    <div style="font-size:11px; font-weight: bold; color:#c23b4b;">Save {{ $formatMoney($invoice->discount_total_amount) }}</div>
+                    @endif
                 </td>
             </tr>
         </table>

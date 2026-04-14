@@ -1,7 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import {
+    createEmptyInvoiceItem,
+    InvoiceFormEditor,
+    type InvoiceFormData,
+} from '@/components/finance/invoice-form-editor';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceInvoicesCreate({
@@ -13,116 +16,33 @@ export default function FinanceInvoicesCreate({
         client: { id: number; name: string };
     }>;
 }) {
-    const form = useForm({
+    const form = useForm<InvoiceFormData>({
         project_id: '',
         reference: '',
-        status: '',
-        amount: '',
-        currency: 'USD',
+        currency: 'EGP',
         issued_at: '',
-        due_at: '',
-        paid_at: '',
         notes: '',
+        items: [createEmptyInvoiceItem()],
+        discounts: [],
     });
-
-    const sections: DynamicFormSection[] = [
-        {
-            name: 'invoice',
-            title: 'Create invoice',
-            description:
-                'Create a project-linked invoice with a clear billing state and reference.',
-            fields: [
-                {
-                    name: 'project_id',
-                    label: 'Project',
-                    type: 'select',
-                    placeholder: 'Select project',
-                    options: projects.map((project) => ({
-                        label: `${project.client.name} / ${project.name}`,
-                        value: project.id,
-                    })),
-                    wide: true,
-                },
-                {
-                    name: 'reference',
-                    label: 'Reference',
-                    type: 'text',
-                    placeholder: 'Invoice reference',
-                },
-                {
-                    name: 'status',
-                    label: 'Status',
-                    type: 'select',
-                    options: [
-                        { label: 'Draft', value: 'draft' },
-                        { label: 'Pending', value: 'pending' },
-                        { label: 'Paid', value: 'paid' },
-                        { label: 'Overdue', value: 'overdue' },
-                    ],
-                },
-                {
-                    name: 'amount',
-                    label: 'Amount',
-                    type: 'text',
-                    placeholder: '0.00',
-                },
-                {
-                    name: 'currency',
-                    label: 'Currency',
-                    type: 'select',
-                    options: [
-                        { label: 'USD', value: 'USD' },
-                        { label: 'EUR', value: 'EUR' },
-                        { label: 'GBP', value: 'GBP' },
-                        { label: 'EGP', value: 'EGP' },
-                        { label: 'SAR', value: 'SAR' },
-                        { label: 'AED', value: 'AED' },
-                    ],
-                },
-                {
-                    name: 'issued_at',
-                    label: 'Issued at',
-                    type: 'date',
-                },
-                {
-                    name: 'due_at',
-                    label: 'Due at',
-                    type: 'date',
-                },
-                {
-                    name: 'paid_at',
-                    label: 'Paid at',
-                    type: 'date',
-                },
-                {
-                    name: 'notes',
-                    label: 'Notes',
-                    type: 'textarea',
-                    placeholder: 'Optional notes',
-                    wide: true,
-                },
-            ],
-        },
-    ];
 
     return (
         <>
             <Head title="Create Invoice" />
             <CrudPage
                 title="Create Invoice"
-                description="Create a project-linked invoice."
+                description="Create a project-linked invoice with real line items and stacked discounts."
             >
-                <DynamicForm
-                    sections={sections}
+                <InvoiceFormEditor
+                    title="Create invoice"
+                    description="Build the invoice as a document. Totals are calculated from the items and discounts you enter."
                     data={form.data}
                     errors={form.errors}
                     processing={form.processing}
                     submitLabel="Create invoice"
-                    cancelLabel="Back to invoices"
+                    projects={projects}
                     onCancel={() => router.visit('/finance/invoices')}
-                    onChange={(name, value) =>
-                        form.setData(name as keyof typeof form.data, value)
-                    }
+                    onChange={(data) => form.setData(data)}
                     onSubmit={() => form.post('/finance/invoices')}
                 />
             </CrudPage>

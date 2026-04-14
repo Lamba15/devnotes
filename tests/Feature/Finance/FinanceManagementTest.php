@@ -298,7 +298,7 @@ test('invoices are linked to projects and audited', function () {
             'amount' => '5000.00',
             'issued_at' => '2026-04-05',
         ])
-        ->assertRedirect(route('finance.index'));
+        ->assertRedirect(route('finance.invoices.index'));
 
     $invoice = Invoice::query()->where('reference', 'INV-001')->firstOrFail();
 
@@ -311,6 +311,70 @@ test('invoices are linked to projects and audited', function () {
         'subject_type' => Invoice::class,
         'subject_id' => $invoice->id,
     ]);
+});
+
+test('itemized invoices calculate totals and expose a public pdf route', function () {
+    $user = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('finance.invoices.store'), [
+            'project_id' => $project->id,
+            'reference' => 'INV-STACKED-001',
+            'status' => 'draft',
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-05',
+            'items' => [
+                [
+                    'description' => 'Discovery and planning',
+                    'amount' => '1000.00',
+                ],
+                [
+                    'description' => 'Implementation hours',
+                    'hours' => '10',
+                    'rate' => '100',
+                ],
+            ],
+            'discounts' => [
+                [
+                    'label' => 'Discovery reduction',
+                    'type' => 'fixed',
+                    'value' => '200',
+                    'target_type' => 'item',
+                    'target_item_index' => '0',
+                ],
+                [
+                    'label' => 'Invoice percentage discount',
+                    'type' => 'percent',
+                    'value' => '10',
+                    'target_type' => 'invoice',
+                ],
+            ],
+        ])
+        ->assertRedirect(route('finance.invoices.index'));
+
+    $invoice = Invoice::query()
+        ->where('reference', 'INV-STACKED-001')
+        ->with(['items.discounts', 'discounts'])
+        ->firstOrFail();
+
+    expect((float) $invoice->subtotal_amount)->toBe(2000.0)
+        ->and((float) $invoice->discount_total_amount)->toBe(380.0)
+        ->and((float) $invoice->amount)->toBe(1620.0)
+        ->and($invoice->items)->toHaveCount(2)
+        ->and($invoice->discounts)->toHaveCount(2)
+        ->and($invoice->public_id)->not->toBeNull()
+        ->and($invoice->public_pdf_path)->not->toBeNull();
+
+    $this->get(route('invoices.public.show', $invoice->public_id))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
 });
 
 test('transactions can be deleted and deletion is audited', function () {

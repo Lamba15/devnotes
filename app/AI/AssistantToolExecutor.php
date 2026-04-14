@@ -9,6 +9,8 @@ use App\Actions\Clients\CreateClient;
 use App\Actions\Clients\UpdateClient;
 use App\Actions\Finance\CreateInvoice;
 use App\Actions\Finance\CreateTransaction;
+use App\Actions\Finance\DeleteInvoice;
+use App\Actions\Finance\UpdateInvoice;
 use App\Actions\Projects\CreateProject;
 use App\Actions\Projects\DeleteProject;
 use App\Actions\Tracking\CreateIssue;
@@ -22,6 +24,8 @@ use App\Models\BoardColumn;
 use App\Models\BoardIssuePlacement;
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\InvoiceDiscount;
+use App\Models\InvoiceItem;
 use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Project;
@@ -1189,18 +1193,35 @@ class AssistantToolExecutor
 
         abort_unless($user->canManageProjectFinance($invoice->project), 403);
 
-        $updateData = [];
-        if (isset($payload['status'])) {
-            $updateData['status'] = $payload['status'];
-        }
-        if (isset($payload['amount'])) {
-            $updateData['amount'] = $payload['amount'];
-        }
-        if (array_key_exists('notes', $payload)) {
-            $updateData['notes'] = $payload['notes'];
-        }
+        $invoice = app(UpdateInvoice::class)->handle($user, $invoice, $invoice->project, [
+            'reference' => $payload['reference'] ?? $invoice->reference,
+            'status' => $payload['status'] ?? $invoice->status,
+            'currency' => $payload['currency'] ?? $invoice->currency ?? 'USD',
+            'issued_at' => array_key_exists('issued_at', $payload) ? $payload['issued_at'] : $invoice->issued_at?->toDateString(),
+            'due_at' => array_key_exists('due_at', $payload) ? $payload['due_at'] : $invoice->due_at?->toDateString(),
+            'paid_at' => array_key_exists('paid_at', $payload) ? $payload['paid_at'] : $invoice->paid_at?->toDateString(),
+            'notes' => array_key_exists('notes', $payload) ? $payload['notes'] : $invoice->notes,
+            'items' => $payload['items'] ?? $invoice->items->map(fn (InvoiceItem $item) => [
+                'description' => $item->description,
+                'hours' => $item->hours,
+                'rate' => $item->rate,
+                'amount' => $item->hours !== null && $item->rate !== null ? null : $item->base_amount,
+            ])->values()->all(),
+            'discounts' => $payload['discounts'] ?? $invoice->discounts->map(function (InvoiceDiscount $discount) use ($invoice) {
+                $itemIndex = $discount->invoice_item_id
+                    ? $invoice->items->search(fn (InvoiceItem $item) => $item->id === $discount->invoice_item_id)
+                    : null;
 
-        $invoice->update($updateData);
+                return [
+                    'label' => $discount->label,
+                    'type' => $discount->type,
+                    'value' => $discount->value,
+                    'target_type' => $discount->invoice_item_id ? 'item' : 'invoice',
+                    'target_item_index' => $itemIndex !== false ? $itemIndex : null,
+                ];
+            })->values()->all(),
+            'amount' => $payload['amount'] ?? (string) $invoice->amount,
+        ], 'ai_assistant');
 
         return [
             'type' => 'invoice',
@@ -1208,6 +1229,7 @@ class AssistantToolExecutor
             'reference' => $invoice->reference,
             'status' => $invoice->status,
             'amount' => (string) $invoice->amount,
+            'currency' => $invoice->currency,
             'confirmation_id' => $confirmation?->id,
         ];
     }
@@ -1297,11 +1319,11 @@ class AssistantToolExecutor
     {
         $invoice = Invoice::findOrFail($payload['invoice_id']);
 
-        abort_unless($user->canAccessProjectFinance($invoice->project), 403);
+        abort_unless($user->canManageProjectFinance($invoice->project), 403);
 
         $invoiceId = $invoice->id;
         $reference = $invoice->reference;
-        $invoice->delete();
+        app(DeleteInvoice::class)->handle($user, $invoice, 'ai_assistant');
 
         return [
             'type' => 'invoice_deleted',

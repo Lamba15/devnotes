@@ -199,11 +199,26 @@ export function formatDateOnly(
 ): string {
     const parsed = parseDateOnly(value);
 
-    if (!parsed) {
+    if (parsed) {
+        return `${pad(parsed.day)} ${buildMonthLabel(parsed.month)} ${parsed.year}`;
+    }
+
+    const instant = parseInstant(value);
+
+    if (!instant) {
         return options.fallback ?? '—';
     }
 
-    return `${pad(parsed.day)} ${buildMonthLabel(parsed.month)} ${parsed.year}`;
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'UTC',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).formatToParts(instant);
+
+    const map = new Map(parts.map((part) => [part.type, part.value]));
+
+    return `${map.get('day')} ${map.get('month')?.toUpperCase()} ${map.get('year')}`;
 }
 
 export function formatRelativeInstant(

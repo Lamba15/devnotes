@@ -181,7 +181,7 @@ class FinanceController extends Controller
         ['projects' => $projects] = $this->financeScope($request);
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'sort_by' => ['nullable', 'in:reference,status,amount,issued_at,due_at,created_at'],
+            'sort_by' => ['nullable', 'in:reference,amount,issued_at,created_at'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
@@ -201,7 +201,6 @@ class FinanceController extends Controller
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($invoiceQuery) use ($search): void {
                     $invoiceQuery->where('reference', 'like', "%{$search}%")
-                        ->orWhere('status', 'like', "%{$search}%")
                         ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%")->orWhereHas('client', fn ($clientQuery) => $clientQuery->where('name', 'like', "%{$search}%")));
                 });
             })

@@ -9,6 +9,8 @@ use Illuminate\Auth\Access\AuthorizationException;
 
 class DeleteInvoice
 {
+    public function __construct(private readonly GenerateInvoicePdf $generateInvoicePdf) {}
+
     public function handle(User $actor, Invoice $invoice, string $source = 'manual_ui'): void
     {
         if (! $actor->canManageProjectFinance($invoice->project)) {
@@ -23,6 +25,7 @@ class DeleteInvoice
             'subject_id' => $invoice->id,
         ]);
 
+        $this->generateInvoicePdf->deleteStored($invoice);
         $invoice->delete();
     }
 }
