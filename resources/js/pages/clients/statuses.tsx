@@ -104,7 +104,9 @@ export default function ClientStatusesPage({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Edit',
+            disabled: selectedStatusIds.length !== 1,
+            disabledReason: 'Select exactly one status to edit.',
             onClick: () => {
                 if (selectedStatusIds.length === 1) {
                     router.visit(
@@ -114,7 +116,7 @@ export default function ClientStatusesPage({
             },
         },
         {
-            label: 'Delete selected',
+            label: 'Delete',
             destructive: true,
             onClick: () => {
                 if (selectedStatusIds.length > 0) {

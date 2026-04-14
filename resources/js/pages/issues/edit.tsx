@@ -57,17 +57,23 @@ export default function IssuesEdit({
         label: issue.label ?? '',
     });
 
+    const goBack = () => {
+        if (window.history.length > 1) {
+            window.history.back();
+        } else {
+            router.visit(
+                `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
+            );
+        }
+    };
+
     return (
         <>
             <Head title={`Edit ${issue.title}`} />
             <CrudPage
                 title={`Edit ${issue.title}`}
                 description={`${client.name} / ${project.name}`}
-                onBack={() =>
-                    router.visit(
-                        `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
-                    )
-                }
+                onBack={goBack}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
                     <IssueDetailsForm
@@ -76,11 +82,7 @@ export default function IssuesEdit({
                         processing={form.processing}
                         submitLabel="Save issue"
                         cancelLabel="Back to issue"
-                        onCancel={() =>
-                            router.visit(
-                                `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
-                            )
-                        }
+                        onCancel={goBack}
                         onChange={(name, value) => form.setData(name, value)}
                         assigneeOptions={assignee_options}
                         statusOptions={status_options}

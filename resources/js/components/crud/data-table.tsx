@@ -157,7 +157,7 @@ export function DataTable<T>({
     const rect = useElementRect(tableContainerRef);
 
     return (
-        <div className={`space-y-4${showSelectionBar ? 'pb-24' : ''}`}>
+        <div className="space-y-4">
             <div
                 ref={tableContainerRef}
                 className="overflow-hidden rounded-xl bg-card shadow-sm"
@@ -296,8 +296,6 @@ export function DataTable<T>({
                 </table>
             </div>
 
-            {showSelectionBar ? <div aria-hidden className="h-24" /> : null}
-
             {/* Fixed bulk-action bar, portaled to body so it's viewport-relative */}
             {createPortal(
                 <AnimatePresence>
@@ -405,6 +403,8 @@ export function DataTable<T>({
                     </div>
                 </div>
             ) : null}
+
+            {showSelectionBar ? <div aria-hidden className="h-24" /> : null}
         </div>
     );
 }

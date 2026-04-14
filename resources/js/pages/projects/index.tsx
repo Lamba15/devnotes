@@ -146,7 +146,9 @@ export default function ProjectsIndex({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Edit',
+            disabled: selectedProjectIds.length !== 1,
+            disabledReason: 'Select exactly one project to edit.',
             onClick: () => {
                 if (selectedProjectIds.length === 1) {
                     window.location.assign(
@@ -156,7 +158,7 @@ export default function ProjectsIndex({
             },
         },
         {
-            label: 'Delete selected',
+            label: 'Delete',
             destructive: true,
             onClick: () => {
                 if (selectedProjectIds.length > 0) {

@@ -187,7 +187,9 @@ export default function ClientsIndex({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Edit',
+            disabled: selectedClientIds.length !== 1,
+            disabledReason: 'Select exactly one client to edit.',
             onClick: () => {
                 if (selectedClientIds.length === 1) {
                     router.visit(`/clients/${selectedClientIds[0]}/edit`);
@@ -195,7 +197,7 @@ export default function ClientsIndex({
             },
         },
         {
-            label: 'Delete selected',
+            label: 'Delete',
             destructive: true,
             onClick: () => {
                 if (selectedClientIds.length > 0) {

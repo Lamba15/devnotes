@@ -21,9 +21,19 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
+import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
@@ -119,6 +129,10 @@ export default function ClientIssuesPage({
     const [quickViewIssueId, setQuickViewIssueId] = useState<number | null>(
         null,
     );
+    const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
+        null,
+    );
+
     const quickViewIssue =
         issues.find((issue) => issue.id === quickViewIssueId) ?? null;
 
@@ -308,7 +322,88 @@ export default function ClientIssuesPage({
                 );
             },
         },
+        {
+            key: 'actions',
+            header: '',
+            render: (issue) => (
+                <div className="flex justify-end">
+                    <ActionDropdown
+                        items={[
+                            {
+                                label: 'Edit',
+                                onClick: () => {
+                                    if (issue.project) {
+                                        window.location.assign(
+                                            `/clients/${client.id}/projects/${issue.project.id}/issues/${issue.id}/edit`,
+                                        );
+                                    }
+                                },
+                            },
+                            {
+                                label: 'Delete',
+                                destructive: true,
+                                onClick: () => {
+                                    setDeleteIds([issue.id]);
+                                },
+                            },
+                        ]}
+                        variant="ghost"
+                    />
+                </div>
+            ),
+        },
     ];
+
+    const bulkActions = [
+        {
+            label: 'Edit',
+            disabled: selectedIssueIds.length !== 1,
+            disabledReason: 'Select exactly one issue to edit.',
+            onClick: () => {
+                if (selectedIssueIds.length === 1) {
+                    const issue = issues.find(
+                        (i) => i.id === selectedIssueIds[0],
+                    );
+                    if (issue?.project) {
+                        window.location.assign(
+                            `/clients/${client.id}/projects/${issue.project.id}/issues/${selectedIssueIds[0]}/edit`,
+                        );
+                    }
+                }
+            },
+        },
+        {
+            label: 'Delete',
+            destructive: true,
+            onClick: () => {
+                if (selectedIssueIds.length > 0) {
+                    setDeleteIds(selectedIssueIds);
+                }
+            },
+        },
+    ];
+
+    const confirmDelete = async () => {
+        if (!deleteIds) return;
+
+        for (const id of deleteIds) {
+            const issue = issues.find((i) => i.id === id);
+            if (issue?.project) {
+                await router.delete(
+                    `/clients/${client.id}/projects/${issue.project.id}/issues/${id}`,
+                    {
+                        preserveScroll: true,
+                        preserveState: true,
+                    },
+                );
+            }
+        }
+
+        setSelectedIssueIds((current) =>
+            current.filter((id) => !deleteIds.includes(id)),
+        );
+        setDeleteIds(null);
+    };
 
     return (
         <>
@@ -377,11 +472,41 @@ export default function ClientIssuesPage({
                     getRowId={(issue) => issue.id}
                     selectedRowIds={selectedIssueIds}
                     onSelectedRowIdsChange={setSelectedIssueIds}
+                    bulkActions={bulkActions}
                     currentSort={crud.sort}
                     onSortChange={crud.handleSortChange}
                     pagination={pagination}
                     onPageChange={crud.visitPage}
                 />
+
+                <Dialog
+                    open={deleteIds !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setDeleteIds(null);
+                    }}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>
+                                Delete issue{deleteIds?.length === 1 ? '' : 's'}?
+                            </DialogTitle>
+                            <DialogDescription>
+                                This will permanently remove {deleteIds?.length ?? 0} issue{deleteIds?.length === 1 ? '' : 's'} from this workspace.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button
+                                variant="destructive"
+                                onClick={() => void confirmDelete()}
+                            >
+                                Delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </CrudPage>
             <IssueQuickViewDialog
                 issue={quickViewIssue}

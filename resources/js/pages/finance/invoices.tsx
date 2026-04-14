@@ -130,7 +130,9 @@ export default function FinanceInvoices({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Edit',
+            disabled: selectedInvoiceIds.length !== 1,
+            disabledReason: 'Select exactly one invoice to edit.',
             onClick: () => {
                 if (selectedInvoiceIds.length === 1) {
                     window.location.assign(
@@ -140,7 +142,7 @@ export default function FinanceInvoices({
             },
         },
         {
-            label: 'Delete selected',
+            label: 'Delete',
             destructive: true,
             onClick: () => {
                 if (selectedInvoiceIds.length > 0) {

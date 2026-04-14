@@ -6,11 +6,19 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export type ActionDropdownItem = {
     label: string;
     onClick: () => void;
     destructive?: boolean;
+    disabled?: boolean;
+    disabledReason?: string;
 };
 
 export function ActionDropdown({
@@ -39,15 +47,35 @@ export function ActionDropdown({
                 )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side={side}>
-                {items.map((item) => (
-                    <DropdownMenuItem
-                        key={item.label}
-                        variant={item.destructive ? 'destructive' : 'default'}
-                        onClick={item.onClick}
-                    >
-                        {item.label}
-                    </DropdownMenuItem>
-                ))}
+                {items.map((item) => {
+                    const menuItem = (
+                        <DropdownMenuItem
+                            key={item.label}
+                            variant={item.destructive ? 'destructive' : 'default'}
+                            onClick={item.onClick}
+                            disabled={item.disabled}
+                        >
+                            {item.label}
+                        </DropdownMenuItem>
+                    );
+
+                    if (item.disabledReason) {
+                        return (
+                            <TooltipProvider key={item.label}>
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                        <div className="w-full">{menuItem}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left">
+                                        <p>{item.disabledReason}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    }
+
+                    return menuItem;
+                })}
             </DropdownMenuContent>
         </DropdownMenu>
     );

@@ -135,7 +135,9 @@ export default function FinanceTransactions({
 
     const bulkActions = [
         {
-            label: 'Edit selected',
+            label: 'Edit',
+            disabled: selectedTransactionIds.length !== 1,
+            disabledReason: 'Select exactly one transaction to edit.',
             onClick: () => {
                 if (selectedTransactionIds.length === 1) {
                     window.location.assign(
@@ -145,7 +147,7 @@ export default function FinanceTransactions({
             },
         },
         {
-            label: 'Delete selected',
+            label: 'Delete',
             destructive: true,
             onClick: () => {
                 if (selectedTransactionIds.length > 0) {

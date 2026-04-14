@@ -126,7 +126,9 @@ export default function ClientBoardsPage({
 
     const bulkActions = [
         {
-            label: 'Open selected',
+            label: 'Open',
+            disabled: selectedBoards.length !== 1,
+            disabledReason: 'Select exactly one board to open.',
             onClick: () => {
                 if (selectedBoards.length === 1) {
                     visitBoard(selectedBoards[0]);
@@ -136,7 +138,9 @@ export default function ClientBoardsPage({
         ...(can_manage_boards
             ? [
                   {
-                      label: 'Edit selected',
+                      label: 'Edit',
+                      disabled: selectedBoardIds.length !== 1,
+                      disabledReason: 'Select exactly one board to edit.',
                       onClick: () => {
                           if (selectedBoardIds.length === 1) {
                               router.visit(
@@ -146,7 +150,7 @@ export default function ClientBoardsPage({
                       },
                   },
                   {
-                      label: 'Delete selected',
+                      label: 'Delete',
                       destructive: true,
                       onClick: () => {
                           if (selectedBoardIds.length > 0) {
