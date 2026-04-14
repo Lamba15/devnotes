@@ -2,7 +2,10 @@
 
 namespace App\AI;
 
+use App\Models\ClientMembership;
+use App\Models\Project;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 
 class AssistantToolRegistry
 {
@@ -440,9 +443,9 @@ class AssistantToolRegistry
                         'project_id' => ['type' => 'integer'],
                         'description' => ['type' => 'string'],
                         'amount' => ['type' => ['number', 'string']],
-                        'occurred_at' => ['type' => 'string'],
+                        'occurred_date' => ['type' => 'string'],
                     ],
-                    'required' => ['project_id', 'description', 'amount', 'occurred_at'],
+                    'required' => ['project_id', 'description', 'amount', 'occurred_date'],
                     'additionalProperties' => false,
                 ],
             ],
@@ -751,7 +754,7 @@ class AssistantToolRegistry
         }
 
         return $user->workspaceAccess()
-            ->scopeAccessibleFinanceProjects(\App\Models\Project::query())
+            ->scopeAccessibleFinanceProjects(Project::query())
             ->exists();
     }
 
@@ -764,9 +767,9 @@ class AssistantToolRegistry
         return $user->clientMemberships()
             ->with('permissions')
             ->get()
-            ->contains(function (\App\Models\ClientMembership $membership): bool {
+            ->contains(function (ClientMembership $membership): bool {
                 return in_array($membership->normalizedRole(), ['owner', 'admin'], true)
-                    || in_array(\App\Support\ClientPermissionCatalog::FINANCE_WRITE, $membership->permissionNames(), true);
+                    || in_array(ClientPermissionCatalog::FINANCE_WRITE, $membership->permissionNames(), true);
             });
     }
 }

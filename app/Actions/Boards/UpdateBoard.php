@@ -18,7 +18,7 @@ class UpdateBoard
     {
         $board->loadMissing('project.client');
 
-        if (! $actor->canManageClient($board->project->client)) {
+        if (! $actor->canManageBoard($board)) {
             throw new AuthorizationException('You are not allowed to update boards for this client.');
         }
 

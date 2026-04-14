@@ -13,7 +13,7 @@ export default function FinanceTransactionsEdit({
         project_id: number;
         description: string;
         amount: string;
-        occurred_at: string;
+        occurred_date: string;
         category: string | null;
         currency: string | null;
     };
@@ -27,7 +27,7 @@ export default function FinanceTransactionsEdit({
         project_id: String(transaction.project_id),
         description: transaction.description ?? '',
         amount: String(transaction.amount ?? ''),
-        occurred_at: transaction.occurred_at ?? '',
+        occurred_date: transaction.occurred_date ?? '',
         category: transaction.category ?? '',
         currency: transaction.currency ?? 'USD',
     });
@@ -62,8 +62,8 @@ export default function FinanceTransactionsEdit({
                     placeholder: '0.00',
                 },
                 {
-                    name: 'occurred_at',
-                    label: 'Occurred at',
+                    name: 'occurred_date',
+                    label: 'Occurred on',
                     type: 'date',
                 },
                 {
@@ -105,10 +105,7 @@ export default function FinanceTransactionsEdit({
                     cancelLabel="Back to transactions"
                     onCancel={() => router.visit('/finance/transactions')}
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() =>
                         form.put(`/finance/transactions/${transaction.id}`)

@@ -139,7 +139,10 @@ class WorkspaceAccess
 
     public function canManageBoard(Board $board): bool
     {
-        $project = $board->project()->with('client')->firstOrFail();
+        $project = $board->relationLoaded('project') && $board->project !== null
+            ? $board->project
+            : $board->project()->with('client')->firstOrFail();
+        $project->loadMissing('client');
 
         return $this->canManageClient($project->client)
             || ($this->hasProjectMembership($project)
@@ -245,7 +248,10 @@ class WorkspaceAccess
 
     public function canAccessBoard(Board $board): bool
     {
-        $project = $board->project()->with('client')->firstOrFail();
+        $project = $board->relationLoaded('project') && $board->project !== null
+            ? $board->project
+            : $board->project()->with('client')->firstOrFail();
+        $project->loadMissing('client');
 
         if ($this->canManageClient($project->client)) {
             return true;

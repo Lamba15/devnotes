@@ -18,6 +18,7 @@ import {
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
+import { formatDateOnly } from '@/lib/datetime';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = {
@@ -36,17 +37,33 @@ type Transaction = {
     description: string;
     amount: string;
     currency: string | null;
-    occurred_at: string;
+    occurred_date: string | null;
     project: Project;
 };
 
 export default function FinanceTransactions({
     transactions,
+    project_filter_options,
+    category_filter_options,
+    currency_filter_options,
+    direction_filter_options,
     filters,
     pagination,
 }: {
     transactions: Transaction[];
-    filters: { search: string; sort_by: string; sort_direction: string };
+    project_filter_options: Array<{ label: string; value: string }>;
+    category_filter_options: Array<{ label: string; value: string }>;
+    currency_filter_options: Array<{ label: string; value: string }>;
+    direction_filter_options: Array<{ label: string; value: string }>;
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        project_id: string[];
+        category: string[];
+        currency: string[];
+        direction: string[];
+    };
     pagination: {
         current_page: number;
         last_page: number;
@@ -67,13 +84,41 @@ export default function FinanceTransactions({
             type: 'search',
             placeholder: 'Search transactions...',
         },
+        {
+            key: 'project_id',
+            type: 'select',
+            placeholder: 'Project',
+            options: project_filter_options,
+            className: 'lg:w-56',
+        },
+        {
+            key: 'category',
+            type: 'select',
+            placeholder: 'Category',
+            options: category_filter_options,
+            className: 'lg:w-44',
+        },
+        {
+            key: 'currency',
+            type: 'select',
+            placeholder: 'Currency',
+            options: currency_filter_options,
+            className: 'lg:w-36',
+        },
+        {
+            key: 'direction',
+            type: 'select',
+            placeholder: 'Direction',
+            options: direction_filter_options,
+            className: 'lg:w-36',
+        },
     ];
     const crud = useCrudFilters({
         url: '/finance/transactions',
         definitions: filterDefs,
         initialFilters: filters,
         initialSort: {
-            sortBy: filters.sort_by ?? 'occurred_at',
+            sortBy: filters.sort_by ?? 'occurred_date',
             sortDirection: (filters.sort_direction ?? 'desc') as 'asc' | 'desc',
         },
     });
@@ -87,7 +132,7 @@ export default function FinanceTransactions({
             render: (transaction) => (
                 <Link
                     href={`/finance/transactions/${transaction.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
+                    className="cursor-pointer font-medium underline-offset-4 hover:underline"
                 >
                     {transaction.description}
                 </Link>
@@ -125,11 +170,11 @@ export default function FinanceTransactions({
             },
         },
         {
-            key: 'occurred_at',
+            key: 'occurred_date',
             header: 'Occurred',
             sortable: true,
-            sortKey: 'occurred_at',
-            render: (transaction) => transaction.occurred_at,
+            sortKey: 'occurred_date',
+            render: (transaction) => formatDateOnly(transaction.occurred_date),
         },
     ];
 
@@ -137,7 +182,10 @@ export default function FinanceTransactions({
         {
             label: 'Edit',
             disabled: selectedTransactionIds.length !== 1,
-            disabledReason: 'Select exactly one transaction to edit.',
+            disabledReason:
+                selectedTransactionIds.length > 1
+                    ? 'Select only 1 transaction to edit.'
+                    : undefined,
             onClick: () => {
                 if (selectedTransactionIds.length === 1) {
                     window.location.assign(

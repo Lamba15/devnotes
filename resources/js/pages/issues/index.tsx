@@ -16,7 +16,6 @@ import {
 import { useMemo, useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
@@ -320,41 +319,6 @@ export default function IssuesIndex({
                 </span>
             ),
         },
-        ...(can_manage_issues
-            ? [
-                  {
-                      key: 'actions',
-                      header: '',
-                      render: (issue: Issue) => (
-                          <div className="flex justify-end">
-                              <ActionDropdown
-                                  items={[
-                                      {
-                                          label: 'Edit',
-                                          onClick: () => {
-                                              window.location.assign(
-                                                  `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/edit`,
-                                              );
-                                          },
-                                      },
-                                      {
-                                          label: 'Delete',
-                                          destructive: true,
-                                          onClick: () => {
-                                              setDeleteMode({
-                                                  type: 'single',
-                                                  ids: [issue.id],
-                                              });
-                                          },
-                                      },
-                                  ]}
-                                  variant="ghost"
-                              />
-                          </div>
-                      ),
-                  },
-              ]
-            : []),
     ];
 
     const bulkActions = [
@@ -489,6 +453,7 @@ export default function IssuesIndex({
                 }}
                 clientId={client.id}
                 projectId={project.id}
+                canManageIssue={can_manage_issues}
             />
         </>
     );

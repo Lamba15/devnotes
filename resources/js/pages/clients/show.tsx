@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatDateOnly } from '@/lib/datetime';
 
 type ClientShape = {
     id: number;
@@ -59,7 +60,12 @@ export default function ClientShow({
     recent_members: Array<{
         id: number;
         role: string;
-        user: { id: number; name: string; email: string; avatar_path?: string | null };
+        user: {
+            id: number;
+            name: string;
+            email: string;
+            avatar_path?: string | null;
+        };
     }>;
     secrets: Array<{
         id: number;
@@ -79,23 +85,54 @@ export default function ClientShow({
             <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     {[
-                        { label: 'Members', value: summary.members_count, icon: Users, color: 'text-blue-600 dark:text-blue-400' },
-                        { label: 'Projects', value: summary.projects_count, icon: FolderKanban, color: 'text-violet-600 dark:text-violet-400' },
-                        { label: 'Issues', value: summary.issues_count, icon: Ticket, color: 'text-amber-600 dark:text-amber-400' },
-                        { label: 'Boards', value: summary.boards_count, icon: LayoutGrid, color: 'text-emerald-600 dark:text-emerald-400' },
-                        { label: 'Statuses', value: summary.statuses_count, icon: ListChecks, color: 'text-pink-600 dark:text-pink-400' },
+                        {
+                            label: 'Members',
+                            value: summary.members_count,
+                            icon: Users,
+                            color: 'text-blue-600 dark:text-blue-400',
+                        },
+                        {
+                            label: 'Projects',
+                            value: summary.projects_count,
+                            icon: FolderKanban,
+                            color: 'text-violet-600 dark:text-violet-400',
+                        },
+                        {
+                            label: 'Issues',
+                            value: summary.issues_count,
+                            icon: Ticket,
+                            color: 'text-amber-600 dark:text-amber-400',
+                        },
+                        {
+                            label: 'Boards',
+                            value: summary.boards_count,
+                            icon: LayoutGrid,
+                            color: 'text-emerald-600 dark:text-emerald-400',
+                        },
+                        {
+                            label: 'Statuses',
+                            value: summary.statuses_count,
+                            icon: ListChecks,
+                            color: 'text-pink-600 dark:text-pink-400',
+                        },
                     ].map((stat) => {
                         const Icon = stat.icon;
 
                         return (
                             <Card key={stat.label} className="shadow-none">
                                 <CardContent className="flex items-center gap-3 p-4">
-                                    <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}>
+                                    <div
+                                        className={`flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted ${stat.color}`}
+                                    >
                                         <Icon className="size-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                        <p className="text-2xl font-semibold">{stat.value}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {stat.label}
+                                        </p>
+                                        <p className="text-2xl font-semibold">
+                                            {stat.value}
+                                        </p>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -157,11 +194,13 @@ export default function ClientShow({
                                     />
                                     <ProfileField
                                         label="First met"
-                                        value={client.date_of_first_interaction}
+                                        value={formatDateOnly(
+                                            client.date_of_first_interaction,
+                                        )}
                                     />
                                     <ProfileField
                                         label="Birthday"
-                                        value={client.birthday}
+                                        value={formatDateOnly(client.birthday)}
                                     />
                                     <ProfileField
                                         label="Origin"
@@ -231,7 +270,8 @@ export default function ClientShow({
                                     </p>
                                 ) : (
                                     recent_members.map((membership) => {
-                                        const avatarSrc = membership.user.avatar_path
+                                        const avatarSrc = membership.user
+                                            .avatar_path
                                             ? `/storage/${membership.user.avatar_path}`
                                             : null;
 
@@ -244,13 +284,19 @@ export default function ClientShow({
                                                     {avatarSrc && (
                                                         <AvatarImage
                                                             src={avatarSrc}
-                                                            alt={membership.user.name}
+                                                            alt={
+                                                                membership.user
+                                                                    .name
+                                                            }
                                                         />
                                                     )}
                                                     <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                                                         {membership.user.name
                                                             .split(' ')
-                                                            .map((p: string) => p[0])
+                                                            .map(
+                                                                (p: string) =>
+                                                                    p[0],
+                                                            )
                                                             .slice(0, 2)
                                                             .join('')
                                                             .toUpperCase()}
@@ -262,16 +308,26 @@ export default function ClientShow({
                                                             href={`/clients/${client.id}/members/${membership.id}`}
                                                             className="font-medium underline-offset-4 hover:underline"
                                                         >
-                                                            {membership.user.name}
+                                                            {
+                                                                membership.user
+                                                                    .name
+                                                            }
                                                         </Link>
                                                     ) : (
                                                         <p className="font-medium">
-                                                            {membership.user.name}
+                                                            {
+                                                                membership.user
+                                                                    .name
+                                                            }
                                                         </p>
                                                     )}
                                                     <p className="text-sm text-muted-foreground">
-                                                        {membership.user.email} ·{' '}
-                                                        <Badge variant="outline" className="text-[10px] capitalize">
+                                                        {membership.user.email}{' '}
+                                                        ·{' '}
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-[10px] capitalize"
+                                                        >
                                                             {membership.role}
                                                         </Badge>
                                                     </p>
@@ -333,9 +389,15 @@ export default function ClientShow({
                         description="Platform-only credentials and private values for this client."
                         secrets={secrets}
                         createHref={`/clients/${client.id}/secrets/create`}
-                        editHref={(secretId) => `/clients/${client.id}/secrets/${secretId}/edit`}
-                        deleteHref={(secretId) => `/clients/${client.id}/secrets/${secretId}`}
-                        revealHref={(secretId) => `/clients/${client.id}/secrets/${secretId}/reveal`}
+                        editHref={(secretId) =>
+                            `/clients/${client.id}/secrets/${secretId}/edit`
+                        }
+                        deleteHref={(secretId) =>
+                            `/clients/${client.id}/secrets/${secretId}`
+                        }
+                        revealHref={(secretId) =>
+                            `/clients/${client.id}/secrets/${secretId}/reveal`
+                        }
                     />
                 ) : null}
             </div>

@@ -303,7 +303,13 @@ class IssueController extends Controller
             404,
         );
 
+        $returnTarget = $this->resolveReturnTarget($request, $client, $project);
+
         $deleteIssue->handle($request->user(), $issue);
+
+        if ($returnTarget) {
+            return redirect()->to($returnTarget['href']);
+        }
 
         return to_route('clients.projects.issues.index', [$client, $project]);
     }

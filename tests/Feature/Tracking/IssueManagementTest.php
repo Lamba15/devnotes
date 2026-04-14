@@ -807,6 +807,39 @@ test('issue detail exposes a board return target when opened from a board', func
         );
 });
 
+test('issue deletion redirects back to the board when requested from board context', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $admin = User::factory()->create();
+    $issue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Board delete issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $admin->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Operations board',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $admin->id,
+        'role' => 'admin',
+    ]);
+
+    $this->actingAs($admin)
+        ->delete(route('clients.projects.issues.destroy', [$client, $project, $issue], false).'?board_id='.$board->id)
+        ->assertRedirect(route('clients.projects.boards.show', [$client, $project, $board]));
+});
+
 test('client admins can update issues and issue update is audited', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

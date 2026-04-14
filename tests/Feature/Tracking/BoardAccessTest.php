@@ -893,6 +893,129 @@ test('client admins can create update and delete boards through dedicated pages'
     ]);
 });
 
+test('member with boards write permission can create and manage assigned boards', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Delivery project',
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Assigned board',
+    ]);
+    $column = BoardColumn::query()->create([
+        'board_id' => $board->id,
+        'name' => 'Doing',
+        'position' => 1,
+        'updates_status' => true,
+        'mapped_status' => 'in_progress',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.boards.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/boards')
+            ->where('can_create_boards', true)
+            ->where('boards.0.id', $board->id)
+            ->where('boards.0.can_manage', true)
+        );
+
+    $this->actingAs($member)
+        ->get(route('clients.boards.create', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('boards/create'));
+
+    $this->actingAs($member)
+        ->post(route('clients.boards.store', $client), [
+            'project_id' => $project->id,
+            'name' => 'Member-created board',
+            'columns' => [
+                [
+                    'name' => 'Ideas',
+                    'updates_status' => false,
+                    'mapped_status' => null,
+                ],
+            ],
+        ])
+        ->assertRedirect(route('clients.boards.index', $client));
+
+    $createdBoard = Board::query()->where('name', 'Member-created board')->firstOrFail();
+
+    $this->assertDatabaseHas('audit_logs', [
+        'user_id' => $member->id,
+        'event' => 'board.created',
+        'source' => 'manual_ui',
+        'subject_type' => Board::class,
+        'subject_id' => $createdBoard->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.boards.edit', [$client, $board]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->component('boards/edit'));
+
+    $this->actingAs($member)
+        ->put(route('clients.boards.update', [$client, $board]), [
+            'name' => 'Renamed assigned board',
+            'project_id' => $project->id,
+            'columns' => [
+                [
+                    'id' => $column->id,
+                    'name' => 'Active work',
+                    'updates_status' => true,
+                    'mapped_status' => 'in_progress',
+                ],
+            ],
+        ])
+        ->assertRedirect(route('clients.boards.index', $client));
+
+    expect($board->fresh()->name)->toBe('Renamed assigned board');
+
+    $this->actingAs($member)
+        ->post(route('clients.boards.columns.store', [$client, $board]), [
+            'name' => 'QA',
+            'updates_status' => false,
+            'mapped_status' => null,
+        ])
+        ->assertRedirect(route('clients.projects.boards.show', [$client, $project, $board]));
+
+    $this->assertDatabaseHas('board_columns', [
+        'board_id' => $board->id,
+        'name' => 'QA',
+    ]);
+
+    $this->actingAs($member)
+        ->delete(route('clients.boards.destroy', [$client, $board]))
+        ->assertRedirect(route('clients.boards.index', $client));
+
+    $this->assertDatabaseMissing('boards', ['id' => $board->id]);
+});
+
 test('client admins can add columns directly from the board page', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

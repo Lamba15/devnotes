@@ -549,14 +549,14 @@ class AssistantFlowTest extends TestCase
             'project_id' => $allowedProject->id,
             'description' => 'Allowed Transaction',
             'amount' => 1200,
-            'occurred_at' => '2026-04-05',
+            'occurred_date' => '2026-04-05',
         ]);
 
         Transaction::query()->create([
             'project_id' => $blockedProject->id,
             'description' => 'Blocked Transaction',
             'amount' => 900,
-            'occurred_at' => '2026-04-05',
+            'occurred_date' => '2026-04-05',
         ]);
 
         $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
@@ -606,7 +606,7 @@ class AssistantFlowTest extends TestCase
                     'project_id' => $project->id,
                     'description' => 'Forbidden Transaction',
                     'amount' => '500.00',
-                    'occurred_at' => '2026-04-05',
+                    'occurred_date' => '2026-04-05',
                 ],
             ]],
         ]));
@@ -1399,7 +1399,7 @@ class AssistantFlowTest extends TestCase
         $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
             'content' => 'Here are the member boards.',
             'tool_calls' => [[
-                    'id' => 'call_board_list_member',
+                'id' => 'call_board_list_member',
                 'name' => 'list_accessible_boards',
                 'arguments' => [],
             ]],
@@ -1449,7 +1449,7 @@ class AssistantFlowTest extends TestCase
                     'project_id' => $project->id,
                     'description' => 'Member Allowed Transaction',
                     'amount' => '500.00',
-                    'occurred_at' => '2026-04-05',
+                    'occurred_date' => '2026-04-05',
                 ],
             ]],
         ]));
@@ -2048,13 +2048,13 @@ class AssistantFlowTest extends TestCase
             'project_id' => $project->id,
             'description' => 'Alpha deposit',
             'amount' => 100,
-            'occurred_at' => '2026-04-01',
+            'occurred_date' => '2026-04-01',
         ]);
         Transaction::query()->create([
             'project_id' => $project->id,
             'description' => 'Zulu deposit',
             'amount' => 200,
-            'occurred_at' => '2026-04-02',
+            'occurred_date' => '2026-04-02',
         ]);
 
         Invoice::query()->create([

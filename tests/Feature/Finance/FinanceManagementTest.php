@@ -114,13 +114,13 @@ test('client members with finance permission can visit finance pages in their pr
         'project_id' => $allowedProject->id,
         'description' => 'Allowed transaction',
         'amount' => 200,
-        'occurred_at' => '2026-04-05',
+        'occurred_date' => '2026-04-05',
     ]);
     Transaction::query()->create([
         'project_id' => $blockedProject->id,
         'description' => 'Blocked transaction',
         'amount' => 400,
-        'occurred_at' => '2026-04-05',
+        'occurred_date' => '2026-04-05',
     ]);
 
     $this->actingAs($member)
@@ -169,7 +169,7 @@ test('client members with finance write permission can create transactions', fun
             'project_id' => $project->id,
             'description' => 'Member finance transaction',
             'amount' => '250.00',
-            'occurred_at' => '2026-04-05',
+            'occurred_date' => '2026-04-05',
         ])
         ->assertRedirect(route('finance.index'));
 
@@ -193,7 +193,7 @@ test('authenticated users can open transaction and invoice details pages', funct
         'project_id' => $project->id,
         'description' => 'Discovery session',
         'amount' => 1200,
-        'occurred_at' => '2026-04-05',
+        'occurred_date' => '2026-04-05',
     ]);
     $invoice = Invoice::query()->create([
         'project_id' => $project->id,
@@ -231,7 +231,7 @@ test('transactions require a linked project', function () {
         ->post(route('finance.transactions.store'), [
             'description' => 'Discovery session',
             'amount' => '1200.00',
-            'occurred_at' => '2026-04-05',
+            'occurred_date' => '2026-04-05',
         ])
         ->assertSessionHasErrors(['project_id']);
 });
@@ -251,7 +251,7 @@ test('transactions are linked to projects and audited', function () {
             'project_id' => $project->id,
             'description' => 'Discovery session',
             'amount' => '1200.00',
-            'occurred_at' => '2026-04-05',
+            'occurred_date' => '2026-04-05',
         ])
         ->assertRedirect(route('finance.index'));
 
@@ -326,7 +326,7 @@ test('transactions can be deleted and deletion is audited', function () {
         'project_id' => $project->id,
         'description' => 'Delete transaction',
         'amount' => 250,
-        'occurred_at' => '2026-04-05',
+        'occurred_date' => '2026-04-05',
     ]);
 
     $this->actingAs($user)
@@ -388,7 +388,7 @@ test('finance transactions page includes project linked transactions', function 
         'project_id' => $project->id,
         'description' => 'Discovery session',
         'amount' => 1200,
-        'occurred_at' => '2026-04-05',
+        'occurred_date' => '2026-04-05',
     ]);
 
     Invoice::query()->create([
@@ -453,13 +453,13 @@ test('finance transactions index supports server backed search and sorting', fun
         'project_id' => $project->id,
         'description' => 'Alpha payment',
         'amount' => 100,
-        'occurred_at' => '2026-04-01',
+        'occurred_date' => '2026-04-01',
     ]);
     Transaction::query()->create([
         'project_id' => $project->id,
         'description' => 'Zulu payment',
         'amount' => 200,
-        'occurred_at' => '2026-04-02',
+        'occurred_date' => '2026-04-02',
     ]);
 
     $this->actingAs($user)
@@ -476,5 +476,70 @@ test('finance transactions index supports server backed search and sorting', fun
             ->where('filters.search', 'payment')
             ->where('filters.sort_by', 'description')
             ->where('filters.sort_direction', 'desc')
+        );
+});
+
+test('finance transactions index supports project category currency and direction filters', function () {
+    $user = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $activeStatus = ProjectStatus::query()->where('slug', 'active')->firstOrFail();
+    $projectAlpha = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => $activeStatus->id,
+        'name' => 'Alpha Project',
+    ]);
+    $projectBeta = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => $activeStatus->id,
+        'name' => 'Beta Project',
+    ]);
+
+    Transaction::query()->create([
+        'project_id' => $projectAlpha->id,
+        'description' => 'Hosting income',
+        'amount' => 100,
+        'category' => 'hosting',
+        'currency' => 'USD',
+        'occurred_date' => '2026-04-01',
+    ]);
+    Transaction::query()->create([
+        'project_id' => $projectAlpha->id,
+        'description' => 'Hosting expense',
+        'amount' => -50,
+        'category' => 'hosting',
+        'currency' => 'USD',
+        'occurred_date' => '2026-04-02',
+    ]);
+    Transaction::query()->create([
+        'project_id' => $projectBeta->id,
+        'description' => 'Design income',
+        'amount' => 200,
+        'category' => 'design',
+        'currency' => 'EUR',
+        'occurred_date' => '2026-04-03',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('finance.transactions.index', [
+            'project_id' => [(string) $projectAlpha->id],
+            'category' => ['hosting'],
+            'currency' => ['USD'],
+            'direction' => ['expense'],
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('finance/transactions')
+            ->has('transactions', 1)
+            ->where('transactions.0.description', 'Hosting expense')
+            ->where('filters.project_id', [(string) $projectAlpha->id])
+            ->where('filters.category', ['hosting'])
+            ->where('filters.currency', ['USD'])
+            ->where('filters.direction', ['expense'])
+            ->where('project_filter_options.0.label', "{$client->name} / Alpha Project")
+            ->where('category_filter_options.0.value', 'design')
+            ->where('currency_filter_options.0.value', 'EUR')
+            ->where('direction_filter_options.0.value', 'income')
         );
 });

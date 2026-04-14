@@ -20,10 +20,6 @@ class CreateBoard
         array $attributes,
         string $source = 'manual_ui',
     ): Board {
-        if (! $actor->canManageClient($client)) {
-            throw new AuthorizationException('You are not allowed to create boards for this client.');
-        }
-
         $project = Project::query()
             ->whereKey($attributes['project_id'])
             ->where('client_id', $client->id)
@@ -33,6 +29,10 @@ class CreateBoard
             throw ValidationException::withMessages([
                 'project_id' => 'The selected project is invalid for this client workspace.',
             ]);
+        }
+
+        if (! $actor->canCreateBoard($project)) {
+            throw new AuthorizationException('You are not allowed to create boards for this project.');
         }
 
         $board = Board::query()->create([

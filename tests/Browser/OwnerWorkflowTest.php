@@ -35,7 +35,7 @@ function clickDomElement(Browser $browser, string $selector): void
     $browser->script(
         "const element = document.querySelector({$encodedSelector});".
         "if (!element) { throw new Error('Unable to find DOM element to click'); }".
-        "element.click();"
+        'element.click();'
     );
 }
 
@@ -49,7 +49,7 @@ function selectSearchableOption(Browser $browser, string $selector, string $opti
     $browser->script(
         "const element = document.querySelector({$encodedSelector});".
         "if (!element) { throw new Error('Unable to find searchable select control'); }".
-        "element.click();"
+        'element.click();'
     );
 
     $browser->waitUsing(20, 100, function () use ($browser, $encodedLabel) {
@@ -61,7 +61,7 @@ function selectSearchableOption(Browser $browser, string $selector, string $opti
     $browser->script(
         "const option = [...document.querySelectorAll('[role=\"option\"]')].find((node) => node.textContent?.trim() === {$encodedLabel});".
         "if (!option) { throw new Error('Unable to find searchable select option'); }".
-        "option.click();"
+        'option.click();'
     );
 }
 
@@ -168,7 +168,7 @@ test('owner can create a project linked transaction through the browser', functi
         'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
     ]);
 
-    $this->browse(function (Browser $browser) use ($owner, $project) {
+    $this->browse(function (Browser $browser) use ($owner) {
         $browser->driver->manage()->deleteAllCookies();
 
         $browser->loginAs($owner)
@@ -183,7 +183,7 @@ test('owner can create a project linked transaction through the browser', functi
 
         setNativeInputValue($browser, "input[name='description']", 'Discovery session');
         setNativeInputValue($browser, "input[name='amount']", '1200.00');
-        setNativeInputValue($browser, "input[name='occurred_at']", '2026-04-05');
+        setNativeInputValue($browser, "input[name='occurred_date']", '2026-04-05');
 
         $browser->waitFor("[data-testid='dynamic-form-submit']", 20);
 

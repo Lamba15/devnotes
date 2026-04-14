@@ -30,6 +30,8 @@ Rules:
 - If the issue status changes somewhere else and the current board placement becomes invalid, the issue should fall back out of the board placement and return to that board's backlog.
 - If a column is non-status-updating, moving an issue there does not change the issue status.
 - Board cards stay compact; exact issue timestamps live in quick view and issue detail rather than on every card.
+- A board lane mapped to `done`, or clearly named as a done/completed lane, may use a denser overlapping card-stack presentation than active work lanes.
+- That done-lane compaction is a UI choice only. Completed issues should remain directly visible on the board and still support the same quick-view and move interactions as other board cards.
 
 ## AI Tooling
 

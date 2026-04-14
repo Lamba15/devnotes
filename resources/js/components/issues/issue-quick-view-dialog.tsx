@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Calendar,
     Clock,
@@ -7,6 +7,7 @@ import {
     Images,
     MessageSquare,
     Tag,
+    Trash2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { IssueAttachmentsSection } from '@/components/issues/issue-attachments';
@@ -137,6 +138,8 @@ export function IssueQuickViewDialog({
     clientId,
     projectId,
     boardId,
+    canManageIssue = false,
+    onDeleted,
 }: {
     issue: QuickViewIssue | null;
     open: boolean;
@@ -144,6 +147,8 @@ export function IssueQuickViewDialog({
     clientId: number;
     projectId: number;
     boardId?: number;
+    canManageIssue?: boolean;
+    onDeleted?: (issueId: number) => void;
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const [workspaceIssue, setWorkspaceIssue] = useState<QuickViewIssue | null>(
@@ -159,6 +164,7 @@ export function IssueQuickViewDialog({
     const [commentFiles, setCommentFiles] = useState<File[]>([]);
     const [savingDescription, setSavingDescription] = useState(false);
     const [savingComment, setSavingComment] = useState(false);
+    const [deletingIssue, setDeletingIssue] = useState(false);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -195,6 +201,7 @@ export function IssueQuickViewDialog({
     }
 
     const fullIssueUrl = `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}${boardId ? `?board_id=${boardId}` : ''}`;
+    const deleteIssueUrl = `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}${boardId ? `?board_id=${boardId}` : ''}`;
 
     const refreshWorkspace = async () => {
         if (!workspaceUrl) {
@@ -322,18 +329,37 @@ export function IssueQuickViewDialog({
         await refreshWorkspace();
     };
 
+    const deleteIssue = () => {
+        const issueId = workspaceIssue.id;
+
+        if (
+            !window.confirm(
+                `Delete "${workspaceIssue.title}"? This will permanently remove it from this project.`,
+            )
+        ) {
+            return;
+        }
+
+        setDeletingIssue(true);
+
+        router.delete(
+            deleteIssueUrl,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    onDeleted?.(issueId);
+                    onOpenChange(false);
+                },
+                onFinish: () => setDeletingIssue(false),
+            },
+        );
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[92vh] overflow-hidden p-0 sm:max-w-6xl">
                 <DialogHeader className="border-b px-4 pt-4 pr-14 pb-3 sm:px-6 sm:pt-6 sm:pr-14 sm:pb-4">
-                    <div className="flex flex-col items-start gap-1 pb-1">
-                        <Link
-                            href={fullIssueUrl}
-                            className="mb-1 inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
-                        >
-                            <ExternalLink className="size-3.5" />
-                            Open full issue
-                        </Link>
+                    <div className="pb-1">
                         <DialogTitle className="text-xl leading-tight">
                             {workspaceIssue.title}
                         </DialogTitle>
@@ -344,6 +370,32 @@ export function IssueQuickViewDialog({
                 <div className="flex h-[calc(92vh-100px)] flex-col overflow-y-auto xl:grid xl:h-[calc(92vh-115px)] xl:grid-cols-[minmax(0,0.92fr)_430px] xl:overflow-hidden">
                     <div className="px-4 py-5 sm:px-6 xl:overflow-y-auto">
                         <div className="space-y-5">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button asChild type="button" variant="outline" size="sm">
+                                    <Link
+                                        href={fullIssueUrl}
+                                        className="inline-flex items-center gap-1"
+                                    >
+                                        <ExternalLink className="size-3.5" />
+                                        Open full issue
+                                    </Link>
+                                </Button>
+                                {canManageIssue ? (
+                                    <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={deletingIssue}
+                                        onClick={deleteIssue}
+                                    >
+                                        <Trash2 className="size-4" />
+                                        {deletingIssue
+                                            ? 'Deleting...'
+                                            : 'Delete issue'}
+                                    </Button>
+                                ) : null}
+                            </div>
+
                             <div className="flex flex-wrap gap-2">
                                 <Badge variant="outline" className="capitalize">
                                     {workspaceIssue.status.replace('_', ' ')}

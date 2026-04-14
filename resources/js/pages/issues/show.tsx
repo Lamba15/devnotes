@@ -8,6 +8,7 @@ import {
     Paperclip,
     Send,
     Tag,
+    Trash2,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -19,6 +20,15 @@ import { RichIssueContent } from '@/components/issues/rich-issue-content';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
@@ -135,11 +145,14 @@ export default function IssueShow({
     const [commentDraft, setCommentDraft] = useState('<p></p>');
     const [commentFiles, setCommentFiles] = useState<File[]>([]);
     const [savingComment, setSavingComment] = useState(false);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [deletingIssue, setDeletingIssue] = useState(false);
 
     const { auth } = usePage<{ auth: Auth }>().props;
 
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
     const fallbackIssuesUrl = `/clients/${client.id}/projects/${project.id}/issues`;
+    const deleteIssueUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}${return_to?.href ? `?return_to=${encodeURIComponent(return_to.href)}` : ''}`;
 
     const mentionOptions = useMemo(
         () => collectMentionOptions(comments, auth.user),
@@ -231,6 +244,19 @@ export default function IssueShow({
         });
     };
 
+    const deleteIssue = () => {
+        setDeletingIssue(true);
+
+        router.delete(
+            deleteIssueUrl,
+            {
+                preserveScroll: true,
+                onSuccess: () => setConfirmDeleteOpen(false),
+                onFinish: () => setDeletingIssue(false),
+            },
+        );
+    };
+
     return (
         <>
             <Head title={issue.title} />
@@ -250,6 +276,18 @@ export default function IssueShow({
                 }
                 description={`${client.name} / ${project.name}`}
                 onBack={goBack}
+                actions={
+                    can_manage_issue ? (
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => setConfirmDeleteOpen(true)}
+                        >
+                            <Trash2 className="mr-1.5 size-4" />
+                            Delete issue
+                        </Button>
+                    ) : undefined
+                }
             >
                 <div className="w-full max-w-[1400px] space-y-8">
                     {/* Top Section: Form or Static Badges */}
@@ -480,6 +518,33 @@ export default function IssueShow({
                     </section>
                 </div>
             </CrudPage>
+
+            <Dialog
+                open={confirmDeleteOpen}
+                onOpenChange={setConfirmDeleteOpen}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete issue?</DialogTitle>
+                        <DialogDescription>
+                            This will permanently remove "{issue.title}" from
+                            this project.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            disabled={deletingIssue}
+                            onClick={deleteIssue}
+                        >
+                            {deletingIssue ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

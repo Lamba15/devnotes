@@ -22,7 +22,7 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 | project_id  | FK to projects      | Required. The owning project                                 |
 | description | string, max 255     | Required. What the transaction is for                        |
 | amount      | decimal(10,2)       | Required. Positive = income, negative = expense              |
-| occurred_at | date, nullable      | When the transaction took place                              |
+| occurred_date | date, nullable    | When the transaction took place                              |
 | category    | string, nullable    | Freeform category label (e.g. "hosting", "design", "salary") |
 | currency    | string(3), nullable | ISO 4217 currency code (e.g. USD, EUR, EGP)                  |
 | created_at  | timestamp           | Record creation                                              |

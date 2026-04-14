@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatDateOnly } from '@/lib/datetime';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type TransactionRow = {
@@ -24,7 +25,7 @@ type TransactionRow = {
     description: string;
     amount: string;
     currency: string | null;
-    occurred_at: string | null;
+    occurred_date: string | null;
     project?: { id: number; name: string } | null;
 };
 
@@ -107,9 +108,9 @@ export default function ClientFinancePage({
             },
         },
         {
-            key: 'occurred_at',
+            key: 'occurred_date',
             header: 'Occurred',
-            render: (row) => row.occurred_at ?? '—',
+            render: (row) => formatDateOnly(row.occurred_date),
         },
     ];
 

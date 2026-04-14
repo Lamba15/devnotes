@@ -473,6 +473,7 @@ class ClientController extends Controller
                         'comments' => $this->buildIssueCommentTree($issue->comments, null),
                         'comments_count' => $issue->comments->count(),
                         'can_comment' => $user->canCommentOnIssue($issue),
+                        'can_manage_issue' => $user->canManageIssues($issue->project),
                     ];
                 })
                 ->all(),
@@ -585,7 +586,7 @@ class ClientController extends Controller
         abort_unless($user->canAccessClient($client), 403);
 
         $boards = $user->workspaceAccess()->scopeAccessibleBoards(
-            Board::query()->with(['project:id,name,client_id'])->withCount('columns'),
+            Board::query()->with(['project:id,name,client_id', 'project.client:id'])->withCount('columns'),
             $client,
         );
 
@@ -620,6 +621,7 @@ class ClientController extends Controller
                     'name' => $board->name,
                     'project' => $board->project?->only(['id', 'name']),
                     'columns_count' => $board->columns_count,
+                    'can_manage' => $user->canManageBoard($board),
                 ])
                 ->all(),
             'pagination' => [
@@ -628,7 +630,9 @@ class ClientController extends Controller
                 'per_page' => $paginatedBoards->perPage(),
                 'total' => $paginatedBoards->total(),
             ],
-            'can_manage_boards' => $user->canManageClient($client),
+            'can_create_boards' => $this->accessibleProjectsQuery($user, $client)
+                ->get(['id', 'client_id'])
+                ->contains(fn (Project $project) => $user->canCreateBoard($project)),
             'filters' => [
                 'search' => $search,
                 'sort_by' => $sortBy,
@@ -681,14 +685,14 @@ class ClientController extends Controller
                             ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
                     });
                 })
-                ->latest('occurred_at')
+                ->latest('occurred_date')
                 ->get()
                 ->map(fn (Transaction $transaction) => [
                     'id' => $transaction->id,
                     'description' => $transaction->description,
                     'amount' => $transaction->amount,
                     'currency' => $transaction->currency,
-                    'occurred_at' => $transaction->occurred_at?->toDateString(),
+                    'occurred_date' => $transaction->occurred_date?->toDateString(),
                     'project' => $transaction->project?->only(['id', 'name']),
                 ])
                 ->all(),

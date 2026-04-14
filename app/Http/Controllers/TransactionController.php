@@ -28,7 +28,7 @@ class TransactionController extends Controller
                 'description' => $transaction->description,
                 'amount' => (string) $transaction->amount,
                 'currency' => $transaction->currency,
-                'occurred_at' => $transaction->occurred_at?->toDateString() ?? $transaction->occurred_at,
+                'occurred_date' => $transaction->occurred_date?->toDateString() ?? $transaction->occurred_date,
                 'project' => [
                     'id' => $transaction->project->id,
                     'name' => $transaction->project->name,
@@ -46,7 +46,11 @@ class TransactionController extends Controller
 
         return Inertia::render('finance/transactions-edit', [
             'transaction' => [
-                ...$transaction->only(['id', 'project_id', 'description', 'amount', 'occurred_at']),
+                'id' => $transaction->id,
+                'project_id' => $transaction->project_id,
+                'description' => $transaction->description,
+                'amount' => (string) $transaction->amount,
+                'occurred_date' => $transaction->occurred_date?->toDateString(),
                 'category' => $transaction->category,
                 'currency' => $transaction->currency,
             ],
@@ -65,7 +69,7 @@ class TransactionController extends Controller
             'project_id' => ['required', 'integer', 'exists:projects,id'],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric'],
-            'occurred_at' => ['required', 'date'],
+            'occurred_date' => ['required', 'date'],
             'category' => ['nullable', 'string', 'max:255'],
             'currency' => ['nullable', 'string', 'size:3'],
         ]);
@@ -83,7 +87,7 @@ class TransactionController extends Controller
             'project_id' => ['required', 'integer', 'exists:projects,id'],
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric'],
-            'occurred_at' => ['required', 'date'],
+            'occurred_date' => ['required', 'date'],
             'category' => ['nullable', 'string', 'max:255'],
             'currency' => ['nullable', 'string', 'size:3'],
         ]);

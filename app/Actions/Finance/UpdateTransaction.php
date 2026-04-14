@@ -20,7 +20,7 @@ class UpdateTransaction
             'project_id' => $project->id,
             'description' => $attributes['description'],
             'amount' => $attributes['amount'],
-            'occurred_at' => $attributes['occurred_at'],
+            'occurred_date' => $attributes['occurred_date'],
             'category' => $attributes['category'] ?? null,
             'currency' => $attributes['currency'] ?? 'USD',
         ]);

@@ -117,7 +117,7 @@ export default function ClientMembersIndex({
                         {can_open_member_profiles ? (
                             <Link
                                 href={`/clients/${client.id}/members/${membership.id}`}
-                                className="font-medium underline-offset-4 hover:underline"
+                                className="cursor-pointer font-medium underline-offset-4 hover:underline"
                             >
                                 {membership.user.name}
                             </Link>

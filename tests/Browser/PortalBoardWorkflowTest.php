@@ -270,6 +270,108 @@ test('viewer can open backlog but cannot move issues', function () {
     });
 });
 
+test('done column keeps completed tickets visible in a compact overlapping deck and still lets members move them back', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+        'name' => 'Done Client',
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Done Project',
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Done Board',
+    ]);
+    $doneColumn = BoardColumn::query()->create([
+        'board_id' => $board->id,
+        'name' => 'Done',
+        'position' => 1,
+        'updates_status' => true,
+        'mapped_status' => 'done',
+    ]);
+    $member = User::factory()->create([
+        'password' => 'password',
+    ]);
+
+    $firstIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Release landing page',
+        'status' => 'done',
+        'priority' => 'high',
+        'type' => 'feature',
+        'creator_id' => $member->id,
+    ]);
+    $secondIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Fix export bug',
+        'status' => 'done',
+        'priority' => 'critical',
+        'type' => 'bug',
+        'creator_id' => $member->id,
+    ]);
+    $thirdIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Archive old notes',
+        'status' => 'done',
+        'priority' => 'low',
+        'type' => 'task',
+        'creator_id' => $member->id,
+    ]);
+
+    foreach ([$firstIssue, $secondIssue, $thirdIssue] as $index => $issue) {
+        BoardIssuePlacement::query()->create([
+            'board_id' => $board->id,
+            'issue_id' => $issue->id,
+            'column_id' => $doneColumn->id,
+            'position' => $index + 1,
+        ]);
+    }
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+    grantClientPermissions($membership, [
+        ClientPermissionCatalog::PROJECTS_READ,
+        ClientPermissionCatalog::BOARDS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    BoardMembership::query()->create([
+        'board_id' => $board->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->browse(function (Browser $browser) use ($member, $client, $project, $board, $doneColumn, $secondIssue, $thirdIssue) {
+        $browser->driver->manage()->deleteAllCookies();
+
+        $browser->loginAs($member)
+            ->visit('/overview')
+            ->waitForText($client->name, 20)
+            ->visit(route('clients.projects.boards.show', [$client, $project, $board], false))
+            ->waitFor("[data-testid='done-lane-deck-{$doneColumn->id}']", 20)
+            ->assertSee('Release landing page')
+            ->assertSee('Fix export bug')
+            ->assertSee('Archive old notes')
+            ->click("[data-testid='backlog-toggle']")
+            ->waitFor("[data-testid='backlog-drawer']", 20)
+            ->drag(
+                "[data-testid='issue-drag-handle-{$secondIssue->id}']",
+                "[data-testid='backlog-dropzone']",
+            )
+            ->waitForTextIn("[data-testid='backlog-toggle']", '1', 20)
+            ->waitForText('Fix export bug', 20)
+            ->assertPresent("[data-testid='board-issue-{$thirdIssue->id}']");
+    });
+});
+
 test('board quick view shows issue created timestamp in the saved user timezone', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

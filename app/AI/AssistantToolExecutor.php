@@ -10,11 +10,13 @@ use App\Actions\Clients\UpdateClient;
 use App\Actions\Finance\CreateInvoice;
 use App\Actions\Finance\CreateTransaction;
 use App\Actions\Projects\CreateProject;
+use App\Actions\Projects\DeleteProject;
 use App\Actions\Tracking\CreateIssue;
 use App\Actions\Tracking\CreateIssueComment;
 use App\Actions\Tracking\MoveIssueOnBoard;
 use App\Actions\Tracking\UpdateIssue;
 use App\Models\AssistantActionConfirmation;
+use App\Models\AuditLog;
 use App\Models\Board;
 use App\Models\BoardColumn;
 use App\Models\BoardIssuePlacement;
@@ -261,7 +263,7 @@ class AssistantToolExecutor
         $limit = (int) ($payload['limit'] ?? 10);
         $limit = max(1, min($limit, 50));
         $search = trim((string) ($payload['search'] ?? ''));
-        $sortBy = $this->normalizeSortBy($payload['sort_by'] ?? null, ['id', 'description', 'amount', 'occurred_at', 'created_at'], 'id');
+        $sortBy = $this->normalizeSortBy($payload['sort_by'] ?? null, ['id', 'description', 'amount', 'occurred_date', 'created_at'], 'id');
         $sortDirection = $this->normalizeSortDirection($payload['sort_direction'] ?? null);
 
         $transactions = Transaction::query()
@@ -288,7 +290,7 @@ class AssistantToolExecutor
                 'id' => $transaction->id,
                 'description' => $transaction->description,
                 'amount' => $transaction->amount,
-                'occurred_at' => $transaction->occurred_at?->toDateString(),
+                'occurred_date' => $transaction->occurred_date?->toDateString(),
                 'project' => [
                     'id' => $transaction->project?->id,
                     'name' => $transaction->project?->name,
@@ -1031,7 +1033,7 @@ class AssistantToolExecutor
     {
         abort_unless($user->isPlatformOwner(), 403);
 
-        $query = \App\Models\AuditLog::query()
+        $query = AuditLog::query()
             ->with('user:id,name,email')
             ->orderByDesc('created_at');
 
@@ -1219,7 +1221,7 @@ class AssistantToolExecutor
         $name = $project->name;
         $id = $project->id;
 
-        app(\App\Actions\Projects\DeleteProject::class)->handle($user, $project);
+        app(DeleteProject::class)->handle($user, $project);
 
         return [
             'type' => 'project_deleted',

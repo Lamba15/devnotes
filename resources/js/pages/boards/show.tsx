@@ -161,6 +161,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const BACKLOG_LANE_ID = 'lane-backlog';
+const DONE_LANE_NAMES = new Set(['done', 'complete', 'completed', 'closed']);
 const ISSUE_CARD_CLASS =
     'group w-full rounded-xl bg-card p-3.5 shadow-sm transition-[transform,opacity,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:shadow-md';
 
@@ -181,6 +182,54 @@ function buildLanes(boardColumns: Column[]): Lane[] {
         mapped_status: column.mapped_status,
         updates_status: column.updates_status,
     }));
+}
+
+function normalizeBoardTerm(value: string | null | undefined) {
+    return (value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+}
+
+function isDoneLane(lane: Pick<Lane, 'name' | 'mapped_status'>) {
+    const normalizedStatus = normalizeBoardTerm(lane.mapped_status);
+
+    if (normalizedStatus === 'done') {
+        return true;
+    }
+
+    return DONE_LANE_NAMES.has(normalizeBoardTerm(lane.name));
+}
+
+function getDoneDeckRotation(index: number) {
+    const rotations = [-1.4, 0.9, -0.7, 1.1, -0.5, 0.6];
+
+    return rotations[index % rotations.length];
+}
+
+function getIssueSearchText(issue: Issue) {
+    return [issue.title, stripHtml(issue.description ?? '')]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+}
+
+function buildIssueSelectOptions(
+    issues: Issue[],
+    getValue: (issue: Issue) => string | null | undefined,
+) {
+    return Array.from(
+        new Set(
+            issues
+                .map((issue) => getValue(issue)?.trim())
+                .filter((value): value is string => Boolean(value)),
+        ),
+    )
+        .sort((left, right) => left.localeCompare(right))
+        .map((value) => ({
+            value,
+            label: value,
+        }));
 }
 
 function findIssueLocation(
@@ -289,6 +338,29 @@ function moveIssueInBoardData(
     return {
         backlogIssues: nextBacklog,
         boardColumns: nextColumns,
+    };
+}
+
+function removeIssueFromBoardData(
+    issueId: number,
+    boardData: BoardData,
+): BoardData {
+    const backlogIssues = boardData.backlogIssues.filter(
+        (issue) => issue.id !== issueId,
+    );
+    const boardColumns = boardData.boardColumns.map((column) => {
+        const issues = column.issues.filter((issue) => issue.id !== issueId);
+
+        return {
+            ...column,
+            issues,
+            issues_count: issues.length,
+        };
+    });
+
+    return {
+        backlogIssues,
+        boardColumns,
     };
 }
 
@@ -664,6 +736,21 @@ export default function BoardShow({
         });
     };
 
+    const handleIssueDeleted = (issueId: number) => {
+        setQuickViewIssueId((current) =>
+            current === issueId ? null : current,
+        );
+        setBoardDataOverride((current) =>
+            removeIssueFromBoardData(
+                issueId,
+                current ?? {
+                    backlogIssues: backlog,
+                    boardColumns: columns,
+                },
+            ),
+        );
+    };
+
     return (
         <>
             <Head title={board.name} />
@@ -891,6 +978,8 @@ export default function BoardShow({
                     clientId={client.id}
                     projectId={project.id}
                     boardId={board.id}
+                    canManageIssue={can_create_issues}
+                    onDeleted={handleIssueDeleted}
                 />
             </CrudPage>
         </>
@@ -934,6 +1023,7 @@ function BoardLane({
                 ? insertionIndex + 1
                 : insertionIndex
             : insertionIndex;
+    const doneLane = isDoneLane(lane);
 
     return (
         <div
@@ -960,50 +1050,230 @@ function BoardLane({
                     isOver && 'bg-primary/5',
                 )}
             >
-                <SortableContext
-                    items={lane.issues.map((issue) => getIssueId(issue.id))}
-                    strategy={verticalListSortingStrategy}
-                >
-                    <div className="flex flex-1 flex-col gap-1.5">
-                        {lane.issues.length === 0 &&
-                        adjustedInsertionIndex === null ? (
-                            <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-                                Drop issues here
-                            </div>
-                        ) : null}
+                {doneLane ? (
+                    <DoneLaneCards
+                        lane={lane}
+                        canMoveIssues={canMoveIssues}
+                        movingIssueId={movingIssueId}
+                        dragState={dragState}
+                        insertionIndex={adjustedInsertionIndex}
+                        isNoOpDrop={isNoOpDrop}
+                        onIssueNodeChange={onIssueNodeChange}
+                        onIssueOpen={onIssueOpen}
+                    />
+                ) : (
+                    <SortableContext
+                        items={lane.issues.map((issue) => getIssueId(issue.id))}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        <div className="flex flex-1 flex-col gap-1.5">
+                            {lane.issues.length === 0 &&
+                            adjustedInsertionIndex === null ? (
+                                <div className="px-2 py-8 text-center text-xs text-muted-foreground">
+                                    Drop issues here
+                                </div>
+                            ) : null}
 
-                        {lane.issues.map((issue, index) => (
-                            <div key={issue.id}>
-                                {adjustedInsertionIndex === index ? (
-                                    <InsertionMarker label={lane.name} />
-                                ) : null}
-                                <IssueCard
-                                    issue={issue}
-                                    columnId={lane.id}
-                                    canMove={canMoveIssues}
-                                    isMoving={movingIssueId === issue.id}
-                                    isGhosted={
-                                        dragState?.activeIssueId === issue.id
-                                    }
-                                    isDropTarget={
-                                        isNoOpDrop &&
-                                        dragState?.source.columnId ===
-                                            lane.id &&
-                                        dragState.activeIssueId === issue.id
-                                    }
-                                    onNodeChange={onIssueNodeChange}
-                                    onOpen={onIssueOpen}
-                                />
-                            </div>
-                        ))}
+                            {lane.issues.map((issue, index) => (
+                                <div key={issue.id}>
+                                    {adjustedInsertionIndex === index ? (
+                                        <InsertionMarker label={lane.name} />
+                                    ) : null}
+                                    <IssueCard
+                                        issue={issue}
+                                        columnId={lane.id}
+                                        canMove={canMoveIssues}
+                                        isMoving={movingIssueId === issue.id}
+                                        isGhosted={
+                                            dragState?.activeIssueId ===
+                                            issue.id
+                                        }
+                                        isDropTarget={
+                                            isNoOpDrop &&
+                                            dragState?.source.columnId ===
+                                                lane.id &&
+                                            dragState.activeIssueId === issue.id
+                                        }
+                                        onNodeChange={onIssueNodeChange}
+                                        onOpen={onIssueOpen}
+                                    />
+                                </div>
+                            ))}
 
-                        {adjustedInsertionIndex === lane.issues.length ? (
-                            <InsertionMarker label={lane.name} />
-                        ) : null}
-                    </div>
-                </SortableContext>
+                            {adjustedInsertionIndex === lane.issues.length ? (
+                                <InsertionMarker label={lane.name} />
+                            ) : null}
+                        </div>
+                    </SortableContext>
+                )}
             </div>
         </div>
+    );
+}
+
+function DoneLaneCards({
+    lane,
+    canMoveIssues,
+    movingIssueId,
+    dragState,
+    insertionIndex,
+    isNoOpDrop,
+    onIssueNodeChange,
+    onIssueOpen,
+}: {
+    lane: Lane;
+    canMoveIssues: boolean;
+    movingIssueId: number | null;
+    dragState: DragState | null;
+    insertionIndex: number | null;
+    isNoOpDrop: boolean;
+    onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
+    onIssueOpen: (issueId: number) => void;
+}) {
+    const [query, setQuery] = useState('');
+    const [priorityFilter, setPriorityFilter] = useState('');
+    const [typeFilter, setTypeFilter] = useState('');
+    const normalizedQuery = query.trim().toLowerCase();
+    const priorityOptions = buildIssueSelectOptions(
+        lane.issues,
+        (issue) => issue.priority,
+    );
+    const typeOptions = buildIssueSelectOptions(
+        lane.issues,
+        (issue) => issue.type,
+    );
+    const visibleIssues = lane.issues.filter((issue) => {
+        if (
+            normalizedQuery &&
+            !getIssueSearchText(issue).includes(normalizedQuery)
+        ) {
+            return false;
+        }
+
+        if (priorityFilter && issue.priority !== priorityFilter) {
+            return false;
+        }
+
+        if (typeFilter && issue.type !== typeFilter) {
+            return false;
+        }
+
+        return true;
+    });
+    const isFilteredView =
+        normalizedQuery.length > 0 ||
+        priorityFilter.length > 0 ||
+        typeFilter.length > 0;
+    const showDeck = dragState === null && !isFilteredView;
+
+    return (
+        <SortableContext
+            items={visibleIssues.map((issue) => getIssueId(issue.id))}
+            strategy={verticalListSortingStrategy}
+        >
+            <div
+                data-testid={`done-lane-deck-${lane.id}`}
+                className={cn(
+                    'flex flex-1 flex-col pb-3',
+                    showDeck ? 'px-1 pt-1' : 'gap-1.5 p-1',
+                )}
+            >
+                <div className="mb-2 grid gap-2 px-1 sm:grid-cols-2">
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search done tickets"
+                        data-testid={`done-lane-query-${lane.id}`}
+                        className="h-8 bg-background/90 text-xs"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                        <SearchableSelect
+                            size="sm"
+                            value={priorityFilter}
+                            onValueChange={setPriorityFilter}
+                            options={priorityOptions}
+                            placeholder="Priority"
+                            data-testid={`done-lane-priority-filter-${lane.id}`}
+                        />
+                        <SearchableSelect
+                            size="sm"
+                            value={typeFilter}
+                            onValueChange={setTypeFilter}
+                            options={typeOptions}
+                            placeholder="Type"
+                            data-testid={`done-lane-type-filter-${lane.id}`}
+                        />
+                    </div>
+                </div>
+
+                {visibleIssues.length === 0 && insertionIndex === null ? (
+                    <div className="px-2 py-8 text-center text-xs text-muted-foreground">
+                        {lane.issues.length === 0
+                            ? 'Drop issues here'
+                            : 'No done tickets match this filter'}
+                    </div>
+                ) : null}
+
+                {visibleIssues.map((issue, index) => (
+                    <div
+                        key={issue.id}
+                        className={cn(
+                            'relative transition-[margin,transform] duration-200',
+                            showDeck && index > 0 && '-mt-2',
+                        )}
+                        style={{
+                            zIndex: showDeck
+                                ? visibleIssues.length - index
+                                : undefined,
+                        }}
+                    >
+                        {!showDeck &&
+                        !isFilteredView &&
+                        insertionIndex === index ? (
+                            <InsertionMarker label={lane.name} />
+                        ) : null}
+                        <IssueCard
+                            issue={issue}
+                            columnId={lane.id}
+                            canMove={canMoveIssues && !isFilteredView}
+                            isMoving={movingIssueId === issue.id}
+                            isGhosted={dragState?.activeIssueId === issue.id}
+                            isDropTarget={
+                                !isFilteredView &&
+                                isNoOpDrop &&
+                                dragState?.source.columnId === lane.id &&
+                                dragState.activeIssueId === issue.id
+                            }
+                            density="done-deck"
+                            rootClassName={cn(
+                                showDeck && 'focus-within:z-20 hover:z-20',
+                            )}
+                            cardClassName={cn(
+                                'border border-border/70 bg-background/95 p-2.5',
+                                showDeck &&
+                                    'shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)]',
+                            )}
+                            cardStyle={
+                                showDeck
+                                    ? {
+                                          transform: `rotate(${getDoneDeckRotation(index)}deg)`,
+                                          transformOrigin: 'top center',
+                                      }
+                                    : undefined
+                            }
+                            onNodeChange={onIssueNodeChange}
+                            onOpen={onIssueOpen}
+                        />
+                    </div>
+                ))}
+
+                {!showDeck &&
+                !isFilteredView &&
+                insertionIndex === lane.issues.length ? (
+                    <InsertionMarker label={lane.name} />
+                ) : null}
+            </div>
+        </SortableContext>
     );
 }
 
@@ -1333,6 +1603,10 @@ function IssueCard({
     isMoving = false,
     isGhosted = false,
     isDropTarget = false,
+    density = 'default',
+    rootClassName,
+    cardClassName,
+    cardStyle,
     onNodeChange,
     onOpen,
 }: {
@@ -1342,6 +1616,10 @@ function IssueCard({
     isMoving?: boolean;
     isGhosted?: boolean;
     isDropTarget?: boolean;
+    density?: 'default' | 'compact' | 'done-deck';
+    rootClassName?: string;
+    cardClassName?: string;
+    cardStyle?: CSSProperties;
     onNodeChange?: (issueId: number, node: HTMLDivElement | null) => void;
     onOpen?: (issueId: number) => void;
 }) {
@@ -1380,36 +1658,46 @@ function IssueCard({
                 transition,
             }}
             className={cn(
-                ISSUE_CARD_CLASS,
+                'relative',
+                rootClassName,
                 isDragging && 'opacity-0',
                 isGhosted && !isDragging && 'opacity-20',
                 isMoving && 'scale-[0.985] opacity-60',
-                isDropTarget &&
-                    !isDragging &&
-                    'bg-primary/6 shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_12px_32px_rgba(59,130,246,0.12)] ring-2 ring-primary/35',
             )}
         >
-            <IssueCardBody
-                issue={issue}
-                interactive
-                showHandle={canMove}
-                showBacklogMeta={columnId === null}
-                handleTestId={
-                    canMove ? `issue-drag-handle-${issue.id}` : undefined
-                }
-                className="w-full"
-                onOpen={onOpen ? () => onOpen(issue.id) : undefined}
-                handleProps={
-                    canMove
-                        ? {
-                              ref: setActivatorNodeRef,
-                              'aria-label': `Move ${issue.title}`,
-                              ...attributes,
-                              ...listeners,
-                          }
-                        : undefined
-                }
-            />
+            <div
+                className={cn(
+                    ISSUE_CARD_CLASS,
+                    cardClassName,
+                    isDropTarget &&
+                        !isDragging &&
+                        'bg-primary/6 shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_12px_32px_rgba(59,130,246,0.12)] ring-2 ring-primary/35',
+                )}
+                style={cardStyle}
+            >
+                <IssueCardBody
+                    issue={issue}
+                    interactive
+                    showHandle={canMove}
+                    showBacklogMeta={columnId === null}
+                    density={density}
+                    handleTestId={
+                        canMove ? `issue-drag-handle-${issue.id}` : undefined
+                    }
+                    className="w-full"
+                    onOpen={onOpen ? () => onOpen(issue.id) : undefined}
+                    handleProps={
+                        canMove
+                            ? {
+                                  ref: setActivatorNodeRef,
+                                  'aria-label': `Move ${issue.title}`,
+                                  ...attributes,
+                                  ...listeners,
+                              }
+                            : undefined
+                    }
+                />
+            </div>
         </div>
     );
 }
@@ -1419,6 +1707,7 @@ function IssueCardBody({
     interactive = false,
     showHandle = false,
     showBacklogMeta = false,
+    density = 'default',
     handleProps,
     handleTestId,
     className,
@@ -1429,6 +1718,7 @@ function IssueCardBody({
     interactive?: boolean;
     showHandle?: boolean;
     showBacklogMeta?: boolean;
+    density?: 'default' | 'compact' | 'done-deck';
     handleProps?: Record<string, unknown>;
     handleTestId?: string;
     className?: string;
@@ -1467,6 +1757,7 @@ function IssueCardBody({
                             issue={issue}
                             interactive={interactive}
                             showBacklogMeta={showBacklogMeta}
+                            density={density}
                         />
                     </button>
                 ) : (
@@ -1474,6 +1765,7 @@ function IssueCardBody({
                         issue={issue}
                         interactive={interactive}
                         showBacklogMeta={showBacklogMeta}
+                        density={density}
                     />
                 )}
             </div>
@@ -1485,10 +1777,12 @@ function IssueCardContent({
     issue,
     interactive = false,
     showBacklogMeta = false,
+    density = 'default',
 }: {
     issue: Issue;
     interactive?: boolean;
     showBacklogMeta?: boolean;
+    density?: 'default' | 'compact' | 'done-deck';
 }) {
     const priorityClass =
         PRIORITY_COLORS[issue.priority] ?? 'bg-muted text-muted-foreground';
@@ -1497,10 +1791,11 @@ function IssueCardContent({
     const addedLabel = issue.created_at
         ? formatDetailedTimestamp(issue.created_at)
         : null;
+    const isDoneDeck = density === 'done-deck';
 
     return (
         <div className="min-w-0 flex-1">
-            {issue.preview_image_url ? (
+            {density === 'default' && issue.preview_image_url ? (
                 <img
                     src={issue.preview_image_url}
                     alt={issue.title}
@@ -1510,7 +1805,12 @@ function IssueCardContent({
             <div className="flex items-start justify-between gap-3">
                 <div
                     className={cn(
-                        'min-w-0 text-sm leading-snug font-medium text-foreground transition-colors duration-150',
+                        'min-w-0 font-medium text-foreground transition-colors duration-150',
+                        density === 'compact'
+                            ? 'line-clamp-1 text-[13px] leading-5'
+                            : isDoneDeck
+                              ? 'line-clamp-1 text-[13px] leading-5 group-focus-within:line-clamp-none group-hover:line-clamp-none'
+                              : 'text-sm leading-snug',
                         interactive && 'cursor-pointer hover:text-primary',
                     )}
                 >
@@ -1522,12 +1822,26 @@ function IssueCardContent({
                     </span>
                 ) : null}
             </div>
-            {issue.description ? (
+            {(density === 'default' || isDoneDeck) && issue.description ? (
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {stripHtml(issue.description)}
+                    <span
+                        className={cn(
+                            isDoneDeck &&
+                                'block max-h-0 overflow-hidden opacity-0 transition-all duration-200 group-focus-within:mt-1 group-focus-within:max-h-16 group-focus-within:opacity-100 group-hover:mt-1 group-hover:max-h-16 group-hover:opacity-100',
+                        )}
+                    >
+                        {stripHtml(issue.description)}
+                    </span>
                 </p>
             ) : null}
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div
+                className={cn(
+                    'flex flex-wrap gap-1.5',
+                    density === 'compact' ? 'mt-1.5' : 'mt-2',
+                    isDoneDeck &&
+                        'max-h-0 overflow-hidden opacity-0 transition-all duration-200 group-focus-within:max-h-16 group-focus-within:opacity-100 group-hover:max-h-16 group-hover:opacity-100',
+                )}
+            >
                 <span
                     className={cn(
                         'rounded-md px-1.5 py-0.5 text-[10px] font-medium',
@@ -1544,13 +1858,13 @@ function IssueCardContent({
                 >
                     {issue.type}
                 </span>
-                {issue.image_count ? (
+                {density === 'default' && issue.image_count ? (
                     <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                         <ImageIcon className="size-3" />
                         {issue.image_count}
                     </span>
                 ) : null}
-                {issue.file_count ? (
+                {density === 'default' && issue.file_count ? (
                     <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                         <Paperclip className="size-3" />
                         {issue.file_count}

@@ -21,7 +21,6 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
-import { ActionDropdown } from '@/components/crud/action-dropdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,6 +80,7 @@ type IssueRow = {
     preview_image_url: string | null;
     comments_count: number;
     can_comment: boolean;
+    can_manage_issue?: boolean;
     comments: IssueCommentPreview[];
 };
 
@@ -239,7 +239,7 @@ export default function ClientIssuesPage({
                 issue.project ? (
                     <Link
                         href={`/clients/${client.id}/projects/${issue.project.id}/issues`}
-                        className="underline-offset-4 hover:underline"
+                        className="cursor-pointer underline-offset-4 hover:underline"
                     >
                         {issue.project.name}
                     </Link>
@@ -321,36 +321,6 @@ export default function ClientIssuesPage({
                     </Badge>
                 );
             },
-        },
-        {
-            key: 'actions',
-            header: '',
-            render: (issue) => (
-                <div className="flex justify-end">
-                    <ActionDropdown
-                        items={[
-                            {
-                                label: 'Edit',
-                                onClick: () => {
-                                    if (issue.project) {
-                                        window.location.assign(
-                                            `/clients/${client.id}/projects/${issue.project.id}/issues/${issue.id}/edit`,
-                                        );
-                                    }
-                                },
-                            },
-                            {
-                                label: 'Delete',
-                                destructive: true,
-                                onClick: () => {
-                                    setDeleteIds([issue.id]);
-                                },
-                            },
-                        ]}
-                        variant="ghost"
-                    />
-                </div>
-            ),
         },
     ];
 
@@ -488,10 +458,14 @@ export default function ClientIssuesPage({
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>
-                                Delete issue{deleteIds?.length === 1 ? '' : 's'}?
+                                Delete issue{deleteIds?.length === 1 ? '' : 's'}
+                                ?
                             </DialogTitle>
                             <DialogDescription>
-                                This will permanently remove {deleteIds?.length ?? 0} issue{deleteIds?.length === 1 ? '' : 's'} from this workspace.
+                                This will permanently remove{' '}
+                                {deleteIds?.length ?? 0} issue
+                                {deleteIds?.length === 1 ? '' : 's'} from this
+                                workspace.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
@@ -518,6 +492,7 @@ export default function ClientIssuesPage({
                 }}
                 clientId={client.id}
                 projectId={quickViewIssue?.project?.id ?? 0}
+                canManageIssue={Boolean(quickViewIssue?.can_manage_issue)}
             />
         </>
     );

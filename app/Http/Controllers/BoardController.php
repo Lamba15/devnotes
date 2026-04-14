@@ -22,15 +22,18 @@ class BoardController extends Controller
     public function create(Request $request, Client $client): Response
     {
         $user = $request->user();
+        $projects = Project::query()
+            ->whereBelongsTo($client)
+            ->orderBy('name')
+            ->get(['id', 'name', 'client_id'])
+            ->filter(fn (Project $project) => $user->canCreateBoard($project))
+            ->values();
 
-        abort_unless($user->canManageClient($client), 403);
+        abort_unless($projects->isNotEmpty(), 403);
 
         return Inertia::render('boards/create', [
             'client' => $client->only(['id', 'name']),
-            'projects' => Project::query()
-                ->whereBelongsTo($client)
-                ->orderBy('name')
-                ->get(['id', 'name']),
+            'projects' => $projects->map(fn (Project $project) => $project->only(['id', 'name']))->all(),
             'status_options' => ['todo', 'in_progress', 'done'],
         ]);
     }
@@ -62,7 +65,7 @@ class BoardController extends Controller
         $board->load('project');
 
         abort_unless($board->project?->client_id === $client->id, 404);
-        abort_unless($request->user()->canManageClient($client), 403);
+        abort_unless($request->user()->canManageBoard($board), 403);
 
         return Inertia::render('boards/edit', [
             'client' => $client->only(['id', 'name']),

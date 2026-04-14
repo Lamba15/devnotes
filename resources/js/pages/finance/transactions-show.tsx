@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { formatDateOnly } from '@/lib/datetime';
 import { formatCurrencyAmount } from '@/lib/format-currency';
 
 export default function FinanceTransactionShow({
@@ -22,7 +23,7 @@ export default function FinanceTransactionShow({
         description: string;
         amount: string;
         currency: string | null;
-        occurred_at: string | null;
+        occurred_date: string | null;
         project: {
             id: number;
             name: string;
@@ -40,7 +41,8 @@ export default function FinanceTransactionShow({
                             <div className="space-y-1">
                                 <CardTitle>{transaction.description}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                    {transaction.project.client?.name} / {transaction.project.name}
+                                    {transaction.project.client?.name} /{' '}
+                                    {transaction.project.name}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -51,7 +53,9 @@ export default function FinanceTransactionShow({
                                     </Link>
                                 </Button>
                                 <Button asChild>
-                                    <Link href={`/finance/transactions/${transaction.id}/edit`}>
+                                    <Link
+                                        href={`/finance/transactions/${transaction.id}/edit`}
+                                    >
                                         <Pencil className="mr-1.5 size-3.5" />
                                         Edit
                                     </Link>
@@ -60,35 +64,55 @@ export default function FinanceTransactionShow({
                         </CardHeader>
                         <CardContent className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">Amount</p>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Amount
+                                </p>
                                 {(() => {
                                     const num = Number(transaction.amount);
                                     const isPositive = num >= 0;
 
                                     return (
-                                        <p className={`mt-1 flex items-center gap-1 text-lg font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                                            {isPositive ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
-                                            {formatCurrencyAmount(num, transaction.currency, { absolute: true })}
+                                        <p
+                                            className={`mt-1 flex items-center gap-1 text-lg font-semibold ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
+                                        >
+                                            {isPositive ? (
+                                                <ArrowUpRight className="size-4" />
+                                            ) : (
+                                                <ArrowDownRight className="size-4" />
+                                            )}
+                                            {formatCurrencyAmount(
+                                                num,
+                                                transaction.currency,
+                                                { absolute: true },
+                                            )}
                                         </p>
                                     );
                                 })()}
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">Occurred at</p>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Occurred on
+                                </p>
                                 <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
                                     <Calendar className="size-3.5 text-muted-foreground" />
-                                    {transaction.occurred_at ?? 'Not recorded'}
+                                    {formatDateOnly(transaction.occurred_date, {
+                                        fallback: 'Not recorded',
+                                    })}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">Project</p>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Project
+                                </p>
                                 <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
                                     <FolderKanban className="size-3.5 text-violet-500" />
                                     {transaction.project.name}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground">Client</p>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Client
+                                </p>
                                 <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
                                     <Users className="size-3.5 text-blue-500" />
                                     {transaction.project.client?.name ?? '—'}

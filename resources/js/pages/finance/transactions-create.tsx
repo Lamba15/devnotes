@@ -17,7 +17,7 @@ export default function FinanceTransactionsCreate({
         project_id: '',
         description: '',
         amount: '',
-        occurred_at: '',
+        occurred_date: '',
         category: '',
         currency: 'USD',
     });
@@ -54,8 +54,8 @@ export default function FinanceTransactionsCreate({
                     placeholder: '0.00',
                 },
                 {
-                    name: 'occurred_at',
-                    label: 'Occurred at',
+                    name: 'occurred_date',
+                    label: 'Occurred on',
                     type: 'date',
                 },
                 {
@@ -97,10 +97,7 @@ export default function FinanceTransactionsCreate({
                     cancelLabel="Back to transactions"
                     onCancel={() => router.visit('/finance/transactions')}
                     onChange={(name, value) =>
-                        form.setData(
-                            name as keyof typeof form.data,
-                            value,
-                        )
+                        form.setData(name as keyof typeof form.data, value)
                     }
                     onSubmit={() => form.post('/finance/transactions')}
                 />

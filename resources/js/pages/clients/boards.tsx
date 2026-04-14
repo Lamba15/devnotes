@@ -24,6 +24,7 @@ type BoardRow = {
     id: number;
     name: string;
     columns_count: number;
+    can_manage: boolean;
     project?: { id: number; name: string } | null;
 };
 
@@ -32,7 +33,7 @@ export default function ClientBoardsPage({
     boards,
     filters,
     pagination,
-    can_manage_boards,
+    can_create_boards,
 }: {
     client: {
         id: number;
@@ -48,7 +49,7 @@ export default function ClientBoardsPage({
         per_page: number;
         total: number;
     };
-    can_manage_boards: boolean;
+    can_create_boards: boolean;
 }) {
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
@@ -123,6 +124,10 @@ export default function ClientBoardsPage({
     const selectedBoards = boards.filter((board) =>
         selectedBoardIds.includes(board.id),
     );
+    const selectedBoard = selectedBoards.length === 1 ? selectedBoards[0] : null;
+    const selectionIncludesReadOnlyBoard =
+        selectedBoards.length > 0 &&
+        selectedBoards.some((board) => !board.can_manage);
 
     const bulkActions = [
         {
@@ -135,16 +140,21 @@ export default function ClientBoardsPage({
                 }
             },
         },
-        ...(can_manage_boards
+        ...(boards.some((board) => board.can_manage)
             ? [
                   {
                       label: 'Edit',
-                      disabled: selectedBoardIds.length !== 1,
-                      disabledReason: 'Select exactly one board to edit.',
+                      disabled:
+                          selectedBoardIds.length !== 1 ||
+                          selectedBoard?.can_manage !== true,
+                      disabledReason:
+                          selectedBoardIds.length !== 1
+                              ? 'Select exactly one board to edit.'
+                              : 'You do not have permission to edit that board.',
                       onClick: () => {
-                          if (selectedBoardIds.length === 1) {
+                          if (selectedBoard?.can_manage) {
                               router.visit(
-                                  `/clients/${client.id}/boards/${selectedBoardIds[0]}/edit`,
+                                  `/clients/${client.id}/boards/${selectedBoard.id}/edit`,
                               );
                           }
                       },
@@ -152,8 +162,18 @@ export default function ClientBoardsPage({
                   {
                       label: 'Delete',
                       destructive: true,
+                      disabled: selectedBoards.length === 0 || selectionIncludesReadOnlyBoard,
+                      disabledReason:
+                          selectedBoards.length === 0
+                              ? 'Select at least one board to delete.'
+                              : selectionIncludesReadOnlyBoard
+                                ? 'You do not have permission to delete one or more selected boards.'
+                                : undefined,
                       onClick: () => {
-                          if (selectedBoardIds.length > 0) {
+                          if (
+                              selectedBoardIds.length > 0 &&
+                              !selectionIncludesReadOnlyBoard
+                          ) {
                               setDeleteIds(selectedBoardIds);
                           }
                       },
@@ -187,7 +207,7 @@ export default function ClientBoardsPage({
                 title={`${client.name} Boards`}
                 description="Manage the boards available across this client workspace without leaving the portal context."
                 actions={
-                    can_manage_boards ? (
+                    can_create_boards ? (
                         <Button asChild>
                             <Link href={`/clients/${client.id}/boards/create`}>
                                 <Plus className="mr-1.5 size-4" />

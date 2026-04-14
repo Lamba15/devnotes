@@ -151,14 +151,14 @@ class ClientManagementTest extends TestCase
             'description' => 'Deposit',
             'amount' => 500,
             'currency' => 'EGP',
-            'occurred_at' => '2026-04-12',
+            'occurred_date' => '2026-04-12',
         ]);
         Transaction::query()->create([
             'project_id' => $secondProject->id,
             'description' => 'Expense',
             'amount' => -150,
             'currency' => 'EGP',
-            'occurred_at' => '2026-04-12',
+            'occurred_date' => '2026-04-12',
         ]);
 
         Invoice::query()->create([
@@ -225,7 +225,7 @@ class ClientManagementTest extends TestCase
             'description' => 'Hidden amount',
             'amount' => 900,
             'currency' => 'EGP',
-            'occurred_at' => '2026-04-12',
+            'occurred_date' => '2026-04-12',
         ]);
 
         $this->actingAs($member)
@@ -267,14 +267,14 @@ class ClientManagementTest extends TestCase
             'description' => 'Low transaction',
             'amount' => 100,
             'currency' => 'EGP',
-            'occurred_at' => '2026-04-12',
+            'occurred_date' => '2026-04-12',
         ]);
         Transaction::query()->create([
             'project_id' => $highProject->id,
             'description' => 'High transaction',
             'amount' => 600,
             'currency' => 'EGP',
-            'occurred_at' => '2026-04-12',
+            'occurred_date' => '2026-04-12',
         ]);
 
         Invoice::query()->create([

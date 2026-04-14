@@ -78,7 +78,7 @@ export default function FinanceInvoices({
             render: (invoice) => (
                 <Link
                     href={`/finance/invoices/${invoice.id}`}
-                    className="font-medium underline-offset-4 hover:underline"
+                    className="cursor-pointer font-medium underline-offset-4 hover:underline"
                 >
                     {invoice.reference}
                 </Link>

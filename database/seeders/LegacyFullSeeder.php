@@ -126,7 +126,7 @@ class LegacyFullSeeder extends Seeder
                 'project_id' => $projectId,
                 'description' => Str::limit($transaction['description'], 255, ''),
                 'amount' => $transaction['amount'],
-                'occurred_at' => $this->parseDate($transaction['occurred_at']),
+                'occurred_date' => $this->parseDate($transaction['occurred_date'] ?? $transaction['occurred_at'] ?? null),
                 'category' => $transaction['category'],
                 'currency' => $transaction['currency'],
             ]);

@@ -73,7 +73,7 @@ export default function AllProjectsIndex({
                 project.client ? (
                     <Link
                         href={`/clients/${project.client.id}/projects/${project.id}`}
-                        className="flex items-center gap-2.5 font-medium underline-offset-4 hover:underline"
+                        className="flex cursor-pointer items-center gap-2.5 font-medium underline-offset-4 hover:underline"
                     >
                         <Avatar className="size-7">
                             {project.image_path ? (
@@ -106,7 +106,7 @@ export default function AllProjectsIndex({
                 project.client ? (
                     <Link
                         href={`/clients/${project.client.id}`}
-                        className="underline-offset-4 hover:underline"
+                        className="cursor-pointer underline-offset-4 hover:underline"
                     >
                         {project.client.name}
                     </Link>

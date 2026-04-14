@@ -24,7 +24,7 @@ class CreateTransaction
             'project_id' => $project->id,
             'description' => $attributes['description'],
             'amount' => $attributes['amount'],
-            'occurred_at' => $attributes['occurred_at'],
+            'occurred_date' => $attributes['occurred_date'],
             'category' => $attributes['category'] ?? null,
             'currency' => $attributes['currency'] ?? 'USD',
         ]);
@@ -46,7 +46,7 @@ class CreateTransaction
                 'project_id' => $transaction->project_id,
                 'description' => $transaction->description,
                 'amount' => $transaction->amount,
-                'occurred_at' => $transaction->occurred_at?->toDateString(),
+                'occurred_date' => $transaction->occurred_date?->toDateString(),
                 'category' => $transaction->category,
                 'currency' => $transaction->currency,
             ],

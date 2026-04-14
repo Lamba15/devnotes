@@ -197,7 +197,7 @@ export function DataTable<T>({
                                             onClick={() =>
                                                 onSortChange(column.sortKey!)
                                             }
-                                            className="inline-flex items-center gap-2"
+                                            className="inline-flex cursor-pointer items-center gap-2"
                                         >
                                             <span>{column.header}</span>
                                             {currentSort?.sortBy ===
