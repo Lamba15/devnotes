@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\ProjectStatus;
+use App\Models\Skill;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -96,6 +97,7 @@ class ProjectController extends Controller
                 })
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug']),
+            'skills' => Skill::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -106,16 +108,34 @@ class ProjectController extends Controller
         abort_unless($user->canManageClient($client), 403);
         abort_unless($project->client_id === $client->id, 404);
 
+        $project->load(['skills:id,name', 'links', 'gitRepos']);
+
         return Inertia::render('projects/edit', [
             'client' => $client->only(['id', 'name']),
             'project' => [
                 'id' => $project->id,
                 'name' => $project->name,
                 'description' => $project->description,
+                'markdown_description' => $project->markdown_description,
+                'hosting' => $project->hosting,
                 'status_id' => $project->status_id,
                 'budget' => $project->budget,
                 'currency' => $project->currency,
                 'image_path' => $project->image_path,
+                'skills' => $project->skills->map(fn (Skill $skill) => ['id' => $skill->id, 'name' => $skill->name])->all(),
+                'links' => $project->links->map(fn ($link) => [
+                    'id' => $link->id,
+                    'label' => $link->label,
+                    'url' => $link->url,
+                    'position' => $link->position,
+                ])->all(),
+                'git_repos' => $project->gitRepos->map(fn ($repo) => [
+                    'id' => $repo->id,
+                    'name' => $repo->name,
+                    'repo_url' => $repo->repo_url,
+                    'wakatime_badge_url' => $repo->wakatime_badge_url,
+                    'position' => $repo->position,
+                ])->all(),
             ],
             'statuses' => ProjectStatus::query()
                 ->where(function ($query) use ($client): void {
@@ -124,6 +144,7 @@ class ProjectController extends Controller
                 })
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug']),
+            'skills' => Skill::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -134,7 +155,7 @@ class ProjectController extends Controller
         abort_unless($project->client_id === $client->id, 404);
         abort_unless($user->hasProjectAccess($project), 403);
 
-        $project->load('status:id,name,slug');
+        $project->load(['status:id,name,slug', 'skills:id,name', 'links', 'gitRepos']);
 
         return Inertia::render('projects/show', [
             'client' => $client->only(['id', 'name']),
@@ -142,10 +163,24 @@ class ProjectController extends Controller
                 'id' => $project->id,
                 'name' => $project->name,
                 'description' => $project->description,
+                'markdown_description' => $project->markdown_description,
+                'hosting' => $project->hosting,
                 'status' => $project->status?->only(['id', 'name', 'slug']),
                 'budget' => $project->budget,
                 'currency' => $project->currency,
                 'image_path' => $project->image_path,
+                'skills' => $project->skills->map(fn (Skill $skill) => ['id' => $skill->id, 'name' => $skill->name])->all(),
+                'links' => $project->links->map(fn ($link) => [
+                    'id' => $link->id,
+                    'label' => $link->label,
+                    'url' => $link->url,
+                ])->all(),
+                'git_repos' => $project->gitRepos->map(fn ($repo) => [
+                    'id' => $repo->id,
+                    'name' => $repo->name,
+                    'repo_url' => $repo->repo_url,
+                    'wakatime_badge_url' => $repo->wakatime_badge_url,
+                ])->all(),
             ],
             'secrets' => $user->canAccessPlatform()
                 ? $project->secrets()
@@ -263,13 +298,7 @@ class ProjectController extends Controller
 
     public function store(Request $request, Client $client, CreateProject $createProject): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
-            'description' => ['nullable', 'string'],
-            'budget' => ['nullable', 'numeric', 'min:0'],
-            'currency' => ['nullable', 'string', 'size:3'],
-        ]);
+        $validated = $request->validate(self::projectValidationRules());
 
         $createProject->handle($request->user(), $client, $validated);
 
@@ -280,17 +309,36 @@ class ProjectController extends Controller
     {
         abort_unless($project->client_id === $client->id, 404);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
-            'description' => ['nullable', 'string'],
-            'budget' => ['nullable', 'numeric', 'min:0'],
-            'currency' => ['nullable', 'string', 'size:3'],
-        ]);
+        $validated = $request->validate(self::projectValidationRules());
 
         $updateProject->handle($request->user(), $project, $validated);
 
         return to_route('clients.projects.index', $client);
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private static function projectValidationRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
+            'description' => ['nullable', 'string'],
+            'markdown_description' => ['nullable', 'string'],
+            'hosting' => ['nullable', 'string', 'max:255'],
+            'budget' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['nullable', 'string', 'size:3'],
+            'skills' => ['nullable', 'array'],
+            'skills.*' => ['nullable'],
+            'links' => ['nullable', 'array'],
+            'links.*.label' => ['nullable', 'string', 'max:255'],
+            'links.*.url' => ['required_with:links.*', 'string', 'max:2048'],
+            'git_repos' => ['nullable', 'array'],
+            'git_repos.*.name' => ['required_with:git_repos.*', 'string', 'max:255'],
+            'git_repos.*.repo_url' => ['required_with:git_repos.*', 'string', 'max:2048'],
+            'git_repos.*.wakatime_badge_url' => ['nullable', 'string', 'max:2048'],
+        ];
     }
 
     public function destroy(Request $request, Client $client, Project $project, DeleteProject $deleteProject): RedirectResponse

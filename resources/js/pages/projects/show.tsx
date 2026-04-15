@@ -2,9 +2,12 @@ import { Head, Link } from '@inertiajs/react';
 import {
     Camera,
     Banknote,
+    GitBranch,
     LayoutGrid,
+    LinkIcon,
     Pencil,
     Plus,
+    Server,
     Ticket,
 } from 'lucide-react';
 import SecretsCard from '@/components/secrets/secrets-card';
@@ -28,10 +31,20 @@ export default function ProjectShow({
         id: number;
         name: string;
         description: string | null;
+        markdown_description: string | null;
+        hosting: string | null;
         status?: { id: number; name: string; slug: string } | null;
         budget?: string | null;
         currency?: string | null;
         image_path?: string | null;
+        skills: Array<{ id: number; name: string }>;
+        links: Array<{ id: number; label: string | null; url: string }>;
+        git_repos: Array<{
+            id: number;
+            name: string;
+            repo_url: string;
+            wakatime_badge_url: string | null;
+        }>;
     };
     secrets: Array<{
         id: number;
@@ -139,13 +152,112 @@ export default function ProjectShow({
                                 </p>
                             </div>
                         ) : null}
+                        {project.hosting ? (
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Hosting
+                                </p>
+                                <p className="mt-1 flex items-center gap-1 text-sm text-foreground">
+                                    <Server className="size-3.5 text-muted-foreground" />
+                                    {project.hosting}
+                                </p>
+                            </div>
+                        ) : null}
                         <ProjectField
                             label="Description"
                             value={project.description ?? 'No description yet.'}
                             fullWidth
                         />
+                        {project.markdown_description ? (
+                            <ProjectField
+                                label="Long description"
+                                value={project.markdown_description}
+                                fullWidth
+                            />
+                        ) : null}
+                        {project.skills.length > 0 ? (
+                            <div className="sm:col-span-2">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Skills
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {project.skills.map((skill) => (
+                                        <Badge
+                                            key={skill.id}
+                                            variant="secondary"
+                                        >
+                                            {skill.name}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                     </CardContent>
                 </Card>
+
+                {project.links.length > 0 || project.git_repos.length > 0 ? (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        {project.links.length > 0 ? (
+                            <Card className="shadow-none">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <LinkIcon className="size-4" />
+                                        Links
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    {project.links.map((link) => (
+                                        <a
+                                            key={link.id}
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="block truncate text-sm text-primary underline-offset-4 hover:underline"
+                                        >
+                                            {link.label || link.url}
+                                        </a>
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        ) : null}
+                        {project.git_repos.length > 0 ? (
+                            <Card className="shadow-none">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <GitBranch className="size-4" />
+                                        Repositories
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    {project.git_repos.map((repo) => (
+                                        <div
+                                            key={repo.id}
+                                            className="space-y-1"
+                                        >
+                                            <a
+                                                href={repo.repo_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="block truncate text-sm font-medium text-primary underline-offset-4 hover:underline"
+                                            >
+                                                {repo.name}
+                                            </a>
+                                            {repo.wakatime_badge_url ? (
+                                                <img
+                                                    src={
+                                                        repo.wakatime_badge_url
+                                                    }
+                                                    alt={`${repo.name} wakatime`}
+                                                    className="h-4"
+                                                />
+                                            ) : null}
+                                        </div>
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        ) : null}
+                    </div>
+                ) : null}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     {[

@@ -16,8 +16,31 @@ class UpdateProject
             throw new AuthorizationException('You are not allowed to update projects for this client.');
         }
 
-        $project->fill(Arr::only($attributes, ['status_id', 'name', 'description', 'starts_at', 'ends_at', 'notes']));
+        $project->fill(Arr::only($attributes, [
+            'status_id',
+            'name',
+            'description',
+            'markdown_description',
+            'hosting',
+            'starts_at',
+            'ends_at',
+            'notes',
+            'budget',
+            'currency',
+        ]));
         $project->save();
+
+        if (array_key_exists('skills', $attributes)) {
+            $project->skills()->sync(CreateProject::resolveSkillIds($attributes['skills'] ?? []));
+        }
+
+        if (array_key_exists('links', $attributes)) {
+            CreateProject::syncLinks($project, $attributes['links'] ?? []);
+        }
+
+        if (array_key_exists('git_repos', $attributes)) {
+            CreateProject::syncGitRepos($project, $attributes['git_repos'] ?? []);
+        }
 
         AuditLog::query()->create([
             'user_id' => $actor->id,

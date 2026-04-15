@@ -59,13 +59,13 @@ export type DynamicFormSection = {
 type Props = {
     fields?: DynamicFormField[];
     sections?: DynamicFormSection[];
-    data: Record<string, string>;
+    data: Record<string, any>;
     errors: Record<string, string | undefined>;
     processing?: boolean;
     submitLabel: string;
     cancelLabel?: string;
     onCancel?: () => void;
-    onChange: (name: string, value: string) => void;
+    onChange: (name: string, value: any) => void;
     onSubmit: () => void;
 };
 
@@ -178,9 +178,9 @@ function FormField({
     onChange,
 }: {
     field: DynamicFormField;
-    value: string;
+    value: any;
     error?: string;
-    onChange: (name: string, value: string) => void;
+    onChange: (name: string, value: any) => void;
 }) {
     const spanFull = field.wide || field.type === 'textarea';
     const selectOptions =

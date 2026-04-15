@@ -2,11 +2,17 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import { ProjectGitReposEditor } from '@/components/projects/project-git-repos-editor';
+import type { ProjectGitRepoRow } from '@/components/projects/project-git-repos-editor';
+import { ProjectLinksEditor } from '@/components/projects/project-links-editor';
+import type { ProjectLinkRow } from '@/components/projects/project-links-editor';
+import { ProjectSkillPicker } from '@/components/projects/project-skill-picker';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function ProjectsCreate({
     client,
     statuses,
+    skills,
 }: {
     client: {
         id: number;
@@ -15,13 +21,30 @@ export default function ProjectsCreate({
         behavior?: { id: number; name: string; slug: string } | null;
     };
     statuses: Array<{ id: number; name: string; slug: string }>;
+    skills: Array<{ id: number; name: string }>;
 }) {
-    const form = useForm({
+    const form = useForm<{
+        name: string;
+        description: string;
+        markdown_description: string;
+        hosting: string;
+        status_id: string;
+        budget: string;
+        currency: string;
+        skills: Array<number | string>;
+        links: ProjectLinkRow[];
+        git_repos: ProjectGitRepoRow[];
+    }>({
         name: '',
         description: '',
+        markdown_description: '',
+        hosting: '',
         status_id: '',
         budget: '',
         currency: 'USD',
+        skills: [],
+        links: [],
+        git_repos: [],
     });
 
     const sections: DynamicFormSection[] = [
@@ -40,9 +63,17 @@ export default function ProjectsCreate({
                 },
                 {
                     name: 'description',
-                    label: 'Description',
+                    label: 'Short description',
                     type: 'textarea',
-                    placeholder: 'Optional description',
+                    placeholder: 'One-liner summary',
+                    wide: true,
+                },
+                {
+                    name: 'markdown_description',
+                    label: 'Long description (markdown)',
+                    type: 'textarea',
+                    placeholder:
+                        'Detailed markdown description, docs, decisions, etc.',
                     wide: true,
                 },
                 {
@@ -54,6 +85,12 @@ export default function ProjectsCreate({
                         label: status.name,
                         value: status.id,
                     })),
+                },
+                {
+                    name: 'hosting',
+                    label: 'Hosting',
+                    type: 'text',
+                    placeholder: 'Hostinger, AWS, Vercel, …',
                 },
                 {
                     name: 'budget',
@@ -73,6 +110,65 @@ export default function ProjectsCreate({
                         { label: 'SAR', value: 'SAR' },
                         { label: 'AED', value: 'AED' },
                     ],
+                },
+            ],
+        },
+        {
+            name: 'skills',
+            title: 'Skills',
+            description:
+                'Pick existing skills or type a new one — new skills are created on save.',
+            fields: [
+                {
+                    name: 'skills',
+                    label: 'Project skills',
+                    type: 'custom',
+                    wide: true,
+                    render: ({ value, onChange }) => (
+                        <ProjectSkillPicker
+                            value={Array.isArray(value) ? value : []}
+                            onChange={onChange}
+                            options={skills}
+                        />
+                    ),
+                },
+            ],
+        },
+        {
+            name: 'links',
+            title: 'Links',
+            description: 'External URLs related to this project.',
+            fields: [
+                {
+                    name: 'links',
+                    label: 'Project links',
+                    type: 'custom',
+                    wide: true,
+                    render: ({ value, onChange }) => (
+                        <ProjectLinksEditor
+                            value={Array.isArray(value) ? value : []}
+                            onChange={onChange}
+                        />
+                    ),
+                },
+            ],
+        },
+        {
+            name: 'git_repos',
+            title: 'Git repositories',
+            description: 'Source-code repositories for this project.',
+            fields: [
+                {
+                    name: 'git_repos',
+                    label: 'Repositories',
+                    type: 'custom',
+                    wide: true,
+                    render: ({ value, onChange }) => (
+                        <ProjectGitReposEditor
+                            value={Array.isArray(value) ? value : []}
+                            onChange={onChange}
+                        />
+                    ),
                 },
             ],
         },
@@ -96,7 +192,10 @@ export default function ProjectsCreate({
                         router.visit(`/clients/${client.id}/projects`)
                     }
                     onChange={(name, value) =>
-                        form.setData(name as keyof typeof form.data, value)
+                        form.setData(
+                            name as keyof typeof form.data,
+                            value as any,
+                        )
                     }
                     onSubmit={() => form.post(`/clients/${client.id}/projects`)}
                 />
