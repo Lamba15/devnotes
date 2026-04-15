@@ -28,8 +28,8 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - name: Install PHP dependencies
-        run: composer install --no-dev --prefer-dist --optimize-autoloader
+      - name: Install PHP dependencies (for artisan during build)
+        run: composer install --prefer-dist --no-interaction
 
       - name: Prepare build environment
         run: cp .env.example .env
@@ -55,11 +55,31 @@ jobs:
             **/.git*
             **/.git*/**
             **/node_modules/**
+            **/vendor/**
             **/.env
             **/.env.*
+            **/tests/**
             **/storage/app/public/**
             **/storage/framework/cache/**
             **/storage/framework/sessions/**
             **/storage/framework/testing/**
             **/storage/framework/views/**
             **/storage/logs/**
+
+      - name: Install dependencies and cache on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            cd ~/domains/devnotes.nouraboelsoud.com
+            export PATH="/opt/alt/php83/usr/bin:$PATH"
+            php -v
+            php /usr/local/bin/composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
