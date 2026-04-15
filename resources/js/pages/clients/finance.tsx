@@ -39,6 +39,7 @@ type InvoiceRow = {
 
 export default function ClientFinancePage({
     client,
+    viewer_perspective,
     filters,
     analysis,
     transactions,
@@ -50,6 +51,7 @@ export default function ClientFinancePage({
         email?: string | null;
         behavior?: { id: number; name: string; slug: string } | null;
     };
+    viewer_perspective: 'platform_owner' | 'client_user';
     filters: { search: string };
     analysis: {
         overall: {
@@ -233,7 +235,10 @@ export default function ClientFinancePage({
                 />
 
                 <div className="space-y-6">
-                    <ClientFinanceAnalysis analysis={analysis} />
+                    <ClientFinanceAnalysis
+                        analysis={analysis}
+                        viewerPerspective={viewer_perspective}
+                    />
 
                     <section className="space-y-3">
                         <h2 className="flex items-center gap-2 text-lg font-semibold">

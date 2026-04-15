@@ -691,6 +691,7 @@ class ClientController extends Controller
 
         return Inertia::render('clients/finance', [
             'client' => $this->serializeClientForWorkspace($client),
+            'viewer_perspective' => $user->isPlatformOwner() ? 'platform_owner' : 'client_user',
             'filters' => [
                 'search' => $search,
             ],

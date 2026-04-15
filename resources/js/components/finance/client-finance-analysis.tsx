@@ -43,6 +43,7 @@ type CurrencyAnalysis = {
 };
 
 type ClientFinanceAnalysisProps = {
+    viewerPerspective: 'platform_owner' | 'client_user';
     analysis: {
         overall: {
             project_count: number;
@@ -59,6 +60,7 @@ type ClientFinanceAnalysisProps = {
 
 export function ClientFinanceAnalysis({
     analysis,
+    viewerPerspective,
 }: ClientFinanceAnalysisProps) {
     const overallBalance = analysis.overall.running_account;
     const hasSingleCurrency = !overallBalance.mixed_currencies;
@@ -76,15 +78,23 @@ export function ClientFinanceAnalysis({
                         </div>
                         <CardTitle className="text-2xl leading-tight">
                             {hasSingleCurrency ? (
-                                describeOverallBalance(overallBalance)
+                                describeOverallBalance(
+                                    overallBalance,
+                                    viewerPerspective,
+                                )
                             ) : (
                                 <>This client spans multiple currencies.</>
                             )}
                         </CardTitle>
                         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
                             {hasSingleCurrency
-                                ? explainBalance(overallBalance)
-                                : 'No FX conversion is applied. The per-currency sections below show exactly what the client owes you, what you owe the client, and how invoices and payments evolved over time.'}
+                                ? explainBalance(
+                                      overallBalance,
+                                      viewerPerspective,
+                                  )
+                                : describeMixedCurrencyBalance(
+                                      viewerPerspective,
+                                  )}
                         </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 md:grid-cols-3">
@@ -134,6 +144,7 @@ export function ClientFinanceAnalysis({
                     <CurrencyBreakdownSection
                         key={currencyAnalysis.label}
                         analysis={currencyAnalysis}
+                        viewerPerspective={viewerPerspective}
                     />
                 ))}
             </div>
@@ -143,8 +154,10 @@ export function ClientFinanceAnalysis({
 
 function CurrencyBreakdownSection({
     analysis,
+    viewerPerspective,
 }: {
     analysis: CurrencyAnalysis;
+    viewerPerspective: 'platform_owner' | 'client_user';
 }) {
     return (
         <div className="space-y-4 rounded-2xl border border-border/60 bg-card/40 p-4 md:p-5">
@@ -157,7 +170,7 @@ function CurrencyBreakdownSection({
                         </h2>
                     </div>
                     <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-                        {describeCurrencyBalance(analysis)}
+                        {describeCurrencyBalance(analysis, viewerPerspective)}
                     </p>
                 </div>
                 <div className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -167,13 +180,21 @@ function CurrencyBreakdownSection({
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <AmountMetricCard
-                    title="Client owes you"
+                    title={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Client owes you'
+                            : 'You owe'
+                    }
                     amount={analysis.client_owes_you}
                     currency={analysis.currency}
                     tone="danger"
                 />
                 <AmountMetricCard
-                    title="You owe client"
+                    title={
+                        viewerPerspective === 'platform_owner'
+                            ? 'You owe client'
+                            : 'Your credit with us'
+                    }
                     amount={analysis.you_owe_client}
                     currency={analysis.currency}
                     tone="success"
@@ -191,11 +212,16 @@ function CurrencyBreakdownSection({
             </div>
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
-                <TimelineChartCard analysis={analysis} />
+                <TimelineChartCard
+                    analysis={analysis}
+                    viewerPerspective={viewerPerspective}
+                />
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base">
-                            Invoice status breakdown
+                            {viewerPerspective === 'platform_owner'
+                                ? 'Invoice status breakdown'
+                                : 'Your invoice status breakdown'}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -236,17 +262,29 @@ function CurrencyBreakdownSection({
 
                         <div className="grid gap-3 border-t border-border/60 pt-4 text-sm">
                             <InlineMetric
-                                label="Positive payments received"
+                                label={
+                                    viewerPerspective === 'platform_owner'
+                                        ? 'Positive payments received'
+                                        : 'Payments you made'
+                                }
                                 amount={analysis.received_total}
                                 currency={analysis.currency}
                             />
                             <InlineMetric
-                                label="Refunds / money back"
+                                label={
+                                    viewerPerspective === 'platform_owner'
+                                        ? 'Refunds / money back'
+                                        : 'Money returned to you'
+                                }
                                 amount={analysis.refund_total}
                                 currency={analysis.currency}
                             />
                             <InlineMetric
-                                label="Open invoice exposure"
+                                label={
+                                    viewerPerspective === 'platform_owner'
+                                        ? 'Open invoice exposure'
+                                        : 'Open invoiced balance'
+                                }
                                 amount={analysis.open_invoice_total}
                                 currency={analysis.currency}
                             />
@@ -258,15 +296,25 @@ function CurrencyBreakdownSection({
     );
 }
 
-function TimelineChartCard({ analysis }: { analysis: CurrencyAnalysis }) {
+function TimelineChartCard({
+    analysis,
+    viewerPerspective,
+}: {
+    analysis: CurrencyAnalysis;
+    viewerPerspective: 'platform_owner' | 'client_user';
+}) {
     return (
         <Card>
             <CardHeader className="space-y-2">
                 <CardTitle className="text-base">
-                    Billed vs paid over time
+                    {viewerPerspective === 'platform_owner'
+                        ? 'Billed vs paid over time'
+                        : 'Your billed vs paid history'}
                 </CardTitle>
                 <p className="text-sm leading-6 text-muted-foreground">
-                    Cumulative invoice totals and cumulative net payments across
+                    {viewerPerspective === 'platform_owner'
+                        ? 'Cumulative invoice totals and cumulative net payments across'
+                        : 'Cumulative invoice totals and cumulative net payments across'}{' '}
                     the last {analysis.timeline.length} month
                     {analysis.timeline.length === 1 ? '' : 's'} with recorded
                     activity.
@@ -281,6 +329,7 @@ function TimelineChartCard({ analysis }: { analysis: CurrencyAnalysis }) {
                     <FinanceTrendChart
                         timeline={analysis.timeline}
                         currency={analysis.currency}
+                        viewerPerspective={viewerPerspective}
                     />
                 )}
             </CardContent>
@@ -291,9 +340,11 @@ function TimelineChartCard({ analysis }: { analysis: CurrencyAnalysis }) {
 function FinanceTrendChart({
     timeline,
     currency,
+    viewerPerspective,
 }: {
     timeline: TimelinePoint[];
     currency: string | null;
+    viewerPerspective: 'platform_owner' | 'client_user';
 }) {
     const width = 760;
     const height = 260;
@@ -345,8 +396,22 @@ function FinanceTrendChart({
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <LegendSwatch label="Invoiced" color="#8b5cf6" />
-                <LegendSwatch label="Paid" color="#0f766e" />
+                <LegendSwatch
+                    label={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Invoiced'
+                            : 'Your invoices'
+                    }
+                    color="#8b5cf6"
+                />
+                <LegendSwatch
+                    label={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Paid'
+                            : 'Your payments'
+                    }
+                    color="#0f766e"
+                />
                 <LegendSwatch label="Zero line" color="#94a3b8" />
             </div>
 
@@ -355,7 +420,11 @@ function FinanceTrendChart({
                     viewBox={`0 0 ${width} ${height}`}
                     className="h-64 w-full min-w-[42rem]"
                     role="img"
-                    aria-label="Cumulative invoiced and paid amounts over time"
+                    aria-label={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Cumulative invoiced and paid amounts over time'
+                            : 'Your cumulative invoiced and paid amounts over time'
+                    }
                 >
                     {yTicks.map((tick) => (
                         <g key={tick}>
@@ -447,12 +516,20 @@ function FinanceTrendChart({
                         </p>
                         <div className="mt-3 space-y-2 text-sm">
                             <InlineMetric
-                                label="Invoiced"
+                                label={
+                                    viewerPerspective === 'platform_owner'
+                                        ? 'Invoiced'
+                                        : 'Invoiced to you'
+                                }
                                 amount={point.monthly_invoiced}
                                 currency={currency}
                             />
                             <InlineMetric
-                                label="Paid"
+                                label={
+                                    viewerPerspective === 'platform_owner'
+                                        ? 'Paid'
+                                        : 'You paid'
+                                }
                                 amount={point.monthly_paid}
                                 currency={currency}
                             />
@@ -605,40 +682,87 @@ function LegendSwatch({ label, color }: { label: string; color: string }) {
     );
 }
 
-function describeOverallBalance(summary: MoneySummary) {
+function describeOverallBalance(
+    summary: MoneySummary,
+    viewerPerspective: 'platform_owner' | 'client_user',
+) {
     if (summary.amount < 0) {
+        if (viewerPerspective === 'client_user') {
+            return 'You currently owe more than you have paid.';
+        }
+
         return 'This client currently owes you more than they have paid.';
     }
 
     if (summary.amount > 0) {
+        if (viewerPerspective === 'client_user') {
+            return 'You currently have credit with us for future delivery or value.';
+        }
+
         return 'You currently owe this client value back or future delivery.';
     }
 
-    return 'This client is currently settled against recorded invoices and payments.';
+    return viewerPerspective === 'platform_owner'
+        ? 'This client is currently settled against recorded invoices and payments.'
+        : 'Your account is currently settled against recorded invoices and payments.';
 }
 
-function explainBalance(summary: MoneySummary) {
+function explainBalance(
+    summary: MoneySummary,
+    viewerPerspective: 'platform_owner' | 'client_user',
+) {
     if (summary.amount < 0) {
+        if (viewerPerspective === 'client_user') {
+            return 'Recorded invoices currently exceed your net payments, so there is still an open balance on your side. Use the per-currency sections below to see how that gap formed over time.';
+        }
+
         return 'Invoices exceed recorded payments, so the open balance sits on the client side. Use the per-currency sections below to see how that gap formed over time.';
     }
 
     if (summary.amount > 0) {
+        if (viewerPerspective === 'client_user') {
+            return 'Your recorded payments currently exceed invoiced value, so you have credit on the account. This usually means deposit-heavy work, prepaid work, or value still to be delivered.';
+        }
+
         return 'Recorded payments exceed invoiced value, so the balance currently sits on your side. This usually means deposit-heavy work, credit carried forward, or refunds still to be invoiced.';
     }
 
-    return 'Recorded payments and invoiced value currently cancel out. The detailed sections still show payment timing, invoice status, and trend history.';
+    return viewerPerspective === 'platform_owner'
+        ? 'Recorded payments and invoiced value currently cancel out. The detailed sections still show payment timing, invoice status, and trend history.'
+        : 'Recorded payments and invoiced value currently cancel out. The detailed sections still show payment timing, invoice status, and trend history.';
 }
 
-function describeCurrencyBalance(analysis: CurrencyAnalysis) {
+function describeMixedCurrencyBalance(
+    viewerPerspective: 'platform_owner' | 'client_user',
+) {
+    return viewerPerspective === 'platform_owner'
+        ? 'No FX conversion is applied. The per-currency sections below show exactly what the client owes you, what you owe the client, and how invoices and payments evolved over time.'
+        : 'No FX conversion is applied. The per-currency sections below show exactly what you owe, what credit you have with us, and how invoices and payments evolved over time.';
+}
+
+function describeCurrencyBalance(
+    analysis: CurrencyAnalysis,
+    viewerPerspective: 'platform_owner' | 'client_user',
+) {
     if (analysis.client_owes_you > 0) {
+        if (viewerPerspective === 'client_user') {
+            return `In ${analysis.label}, your invoiced balance is still ahead of your payments so far. The gap between billed work and cash movement is shown below.`;
+        }
+
         return `In ${analysis.label}, this client owes you more than they have paid so far. The gap between billed work and cash movement is shown below.`;
     }
 
     if (analysis.you_owe_client > 0) {
+        if (viewerPerspective === 'client_user') {
+            return `In ${analysis.label}, you currently have credit on the account because payments are ahead of billed value.`;
+        }
+
         return `In ${analysis.label}, you currently owe the client more value than you have billed. This usually means deposits, prepaid work, or money returned to the client.`;
     }
 
-    return `In ${analysis.label}, recorded invoices and net payments are currently balanced.`;
+    return viewerPerspective === 'platform_owner'
+        ? `In ${analysis.label}, recorded invoices and net payments are currently balanced.`
+        : `In ${analysis.label}, your recorded invoices and net payments are currently balanced.`;
 }
 
 function formatCompactMoney(amount: number, currency: string | null) {
