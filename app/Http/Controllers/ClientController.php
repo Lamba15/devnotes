@@ -18,6 +18,7 @@ use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -672,14 +673,33 @@ class ClientController extends Controller
 
         $projectIds = $this->accessibleProjectsQuery($user, $client)->pluck('id');
 
+        $transactionsQuery = Transaction::query()
+            ->with('project:id,name,client_id')
+            ->whereIn('project_id', $projectIds);
+
+        $invoicesQuery = Invoice::query()
+            ->with('project:id,name,client_id')
+            ->whereIn('project_id', $projectIds);
+
+        $allTransactions = (clone $transactionsQuery)
+            ->orderByRaw('COALESCE(occurred_date, created_at)')
+            ->get();
+
+        $allInvoices = (clone $invoicesQuery)
+            ->orderByRaw('COALESCE(issued_at, created_at)')
+            ->get();
+
         return Inertia::render('clients/finance', [
             'client' => $this->serializeClientForWorkspace($client),
             'filters' => [
                 'search' => $search,
             ],
-            'transactions' => Transaction::query()
-                ->with('project:id,name,client_id')
-                ->whereIn('project_id', $projectIds)
+            'analysis' => $this->buildClientFinanceAnalysis(
+                $projectIds,
+                $allTransactions,
+                $allInvoices,
+            ),
+            'transactions' => (clone $transactionsQuery)
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($transactionQuery) use ($search): void {
                         $transactionQuery->where('description', 'like', "%{$search}%")
@@ -700,9 +720,7 @@ class ClientController extends Controller
                     'project' => $transaction->project?->only(['id', 'name']),
                 ])
                 ->all(),
-            'invoices' => Invoice::query()
-                ->with('project:id,name,client_id')
-                ->whereIn('project_id', $projectIds)
+            'invoices' => (clone $invoicesQuery)
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($invoiceQuery) use ($search): void {
                         $invoiceQuery->where('reference', 'like', "%{$search}%")
@@ -726,6 +744,203 @@ class ClientController extends Controller
                 ])
                 ->all(),
         ]);
+    }
+
+    private function buildClientFinanceAnalysis(
+        Collection $projectIds,
+        Collection $transactions,
+        Collection $invoices,
+    ): array {
+        $runningAccountRows = collect();
+
+        foreach ($transactions as $transaction) {
+            $runningAccountRows->push((object) [
+                'amount' => (float) $transaction->amount,
+                'currency' => $transaction->currency,
+            ]);
+        }
+
+        foreach ($invoices as $invoice) {
+            $runningAccountRows->push((object) [
+                'amount' => -(float) $invoice->amount,
+                'currency' => $invoice->currency,
+            ]);
+        }
+
+        $currencyKeys = $transactions
+            ->pluck('currency')
+            ->merge($invoices->pluck('currency'))
+            ->map(fn ($currency) => $this->normalizeMoneyCurrencyKey($currency))
+            ->unique()
+            ->sort()
+            ->values();
+
+        return [
+            'overall' => [
+                'project_count' => $projectIds->count(),
+                'transaction_count' => $transactions->count(),
+                'invoice_count' => $invoices->count(),
+                'currencies' => $currencyKeys
+                    ->map(fn (string $key) => $this->moneyCurrencyLabel($key))
+                    ->all(),
+                'running_account' => $this->summarizeMoneyCollection(
+                    $runningAccountRows,
+                    'amount',
+                    'currency',
+                ),
+                'relationship_volume' => $this->summarizeMoneyCollection(
+                    $invoices,
+                    'amount',
+                    'currency',
+                ),
+                'transaction_volume' => $this->summarizeMoneyCollection(
+                    $transactions,
+                    'amount',
+                    'currency',
+                ),
+            ],
+            'by_currency' => $currencyKeys
+                ->map(function (string $currencyKey) use ($transactions, $invoices): array {
+                    $currencyTransactions = $transactions
+                        ->filter(fn (Transaction $transaction) => $this->normalizeMoneyCurrencyKey($transaction->currency) === $currencyKey)
+                        ->values();
+                    $currencyInvoices = $invoices
+                        ->filter(fn (Invoice $invoice) => $this->normalizeMoneyCurrencyKey($invoice->currency) === $currencyKey)
+                        ->values();
+
+                    $transactionTotal = round($currencyTransactions->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2);
+                    $invoiceTotal = round($currencyInvoices->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2);
+                    $runningAccount = round($transactionTotal - $invoiceTotal, 2);
+                    $openStatuses = ['draft', 'pending', 'overdue'];
+
+                    return [
+                        'currency' => $currencyKey === 'UNSPECIFIED' ? null : $currencyKey,
+                        'label' => $this->moneyCurrencyLabel($currencyKey),
+                        'running_account' => $runningAccount,
+                        'client_owes_you' => max(round($invoiceTotal - $transactionTotal, 2), 0),
+                        'you_owe_client' => max($runningAccount, 0),
+                        'transaction_total' => $transactionTotal,
+                        'invoice_total' => $invoiceTotal,
+                        'received_total' => round($currencyTransactions
+                            ->filter(fn (Transaction $transaction) => (float) $transaction->amount > 0)
+                            ->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2),
+                        'refund_total' => round(abs($currencyTransactions
+                            ->filter(fn (Transaction $transaction) => (float) $transaction->amount < 0)
+                            ->sum(fn (Transaction $transaction) => (float) $transaction->amount)), 2),
+                        'open_invoice_total' => round($currencyInvoices
+                            ->filter(fn (Invoice $invoice) => in_array($invoice->status, $openStatuses, true))
+                            ->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2),
+                        'invoice_statuses' => collect(['draft', 'pending', 'paid', 'overdue'])
+                            ->mapWithKeys(fn (string $status) => [
+                                $status => [
+                                    'count' => $currencyInvoices->where('status', $status)->count(),
+                                    'amount' => round($currencyInvoices
+                                        ->where('status', $status)
+                                        ->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2),
+                                ],
+                            ])
+                            ->all(),
+                        'timeline' => $this->buildClientFinanceTimeline(
+                            $currencyTransactions,
+                            $currencyInvoices,
+                        ),
+                    ];
+                })
+                ->all(),
+        ];
+    }
+
+    private function buildClientFinanceTimeline(
+        Collection $transactions,
+        Collection $invoices,
+    ): array {
+        $events = collect();
+
+        foreach ($transactions as $transaction) {
+            $date = $transaction->occurred_date
+                ? CarbonImmutable::parse($transaction->occurred_date)
+                : CarbonImmutable::parse($transaction->created_at);
+
+            $events->push([
+                'type' => 'transaction',
+                'date' => $date,
+                'amount' => (float) $transaction->amount,
+            ]);
+        }
+
+        foreach ($invoices as $invoice) {
+            $date = $invoice->issued_at
+                ? CarbonImmutable::parse($invoice->issued_at)
+                : CarbonImmutable::parse($invoice->created_at);
+
+            $events->push([
+                'type' => 'invoice',
+                'date' => $date,
+                'amount' => (float) $invoice->amount,
+            ]);
+        }
+
+        if ($events->isEmpty()) {
+            return [];
+        }
+
+        $firstMonth = $events->min('date')->startOfMonth();
+        $lastMonth = $events->max('date')->startOfMonth();
+        $rangeStart = $firstMonth->lessThan($lastMonth->subMonths(11))
+            ? $lastMonth->subMonths(11)
+            : $firstMonth;
+
+        $initialInvoiced = $events
+            ->filter(fn (array $event) => $event['type'] === 'invoice' && $event['date']->lessThan($rangeStart))
+            ->sum('amount');
+        $initialPaid = $events
+            ->filter(fn (array $event) => $event['type'] === 'transaction' && $event['date']->lessThan($rangeStart))
+            ->sum('amount');
+
+        $currentMonth = $rangeStart;
+        $cumulativeInvoiced = (float) $initialInvoiced;
+        $cumulativePaid = (float) $initialPaid;
+        $timeline = [];
+
+        while ($currentMonth->lessThanOrEqualTo($lastMonth)) {
+            $monthEvents = $events->filter(fn (array $event) => $event['date']->format('Y-m') === $currentMonth->format('Y-m'));
+
+            $monthlyInvoiced = (float) $monthEvents
+                ->filter(fn (array $event) => $event['type'] === 'invoice')
+                ->sum('amount');
+            $monthlyPaid = (float) $monthEvents
+                ->filter(fn (array $event) => $event['type'] === 'transaction')
+                ->sum('amount');
+
+            $cumulativeInvoiced += $monthlyInvoiced;
+            $cumulativePaid += $monthlyPaid;
+
+            $timeline[] = [
+                'period' => $currentMonth->format('Y-m'),
+                'label' => $currentMonth->format('M Y'),
+                'monthly_invoiced' => round($monthlyInvoiced, 2),
+                'monthly_paid' => round($monthlyPaid, 2),
+                'cumulative_invoiced' => round($cumulativeInvoiced, 2),
+                'cumulative_paid' => round($cumulativePaid, 2),
+                'running_account' => round($cumulativePaid - $cumulativeInvoiced, 2),
+            ];
+
+            $currentMonth = $currentMonth->addMonth();
+        }
+
+        return $timeline;
+    }
+
+    private function normalizeMoneyCurrencyKey(?string $currency): string
+    {
+        $normalized = strtoupper(trim((string) $currency));
+
+        return $normalized !== '' ? $normalized : 'UNSPECIFIED';
+    }
+
+    private function moneyCurrencyLabel(string $currencyKey): string
+    {
+        return $currencyKey === 'UNSPECIFIED' ? 'No currency' : $currencyKey;
     }
 
     private function accessibleProjectsQuery($user, Client $client)

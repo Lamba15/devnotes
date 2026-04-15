@@ -142,6 +142,76 @@ test('client members with finance permission can visit finance pages in their pr
         );
 });
 
+test('client finance page exposes relationship analysis and timeline data', function () {
+    $user = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Finance analysis project',
+    ]);
+
+    Transaction::query()->create([
+        'project_id' => $project->id,
+        'description' => 'Deposit',
+        'amount' => 1000,
+        'currency' => 'EGP',
+        'occurred_date' => '2026-01-10',
+    ]);
+    Transaction::query()->create([
+        'project_id' => $project->id,
+        'description' => 'Refund',
+        'amount' => -200,
+        'currency' => 'EGP',
+        'occurred_date' => '2026-03-05',
+    ]);
+
+    Invoice::query()->create([
+        'project_id' => $project->id,
+        'reference' => 'INV-ANALYSIS-001',
+        'status' => 'pending',
+        'amount' => 1500,
+        'currency' => 'EGP',
+        'issued_at' => '2026-02-01',
+    ]);
+    Invoice::query()->create([
+        'project_id' => $project->id,
+        'reference' => 'INV-ANALYSIS-002',
+        'status' => 'paid',
+        'amount' => 500,
+        'currency' => 'EGP',
+        'issued_at' => '2026-04-01',
+        'paid_at' => '2026-04-10',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('clients.finance.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/finance')
+            ->where('analysis.overall.project_count', 1)
+            ->where('analysis.overall.transaction_count', 2)
+            ->where('analysis.overall.invoice_count', 2)
+            ->where('analysis.overall.running_account.amount', -1200)
+            ->where('analysis.overall.running_account.currency', 'EGP')
+            ->where('analysis.by_currency.0.label', 'EGP')
+            ->where('analysis.by_currency.0.client_owes_you', 1200)
+            ->where('analysis.by_currency.0.you_owe_client', 0)
+            ->where('analysis.by_currency.0.received_total', 1000)
+            ->where('analysis.by_currency.0.refund_total', 200)
+            ->where('analysis.by_currency.0.invoice_statuses.pending.amount', 1500)
+            ->where('analysis.by_currency.0.invoice_statuses.paid.amount', 500)
+            ->has('analysis.by_currency.0.timeline', 4)
+            ->where('analysis.by_currency.0.timeline.0.period', '2026-01')
+            ->where('analysis.by_currency.0.timeline.3.period', '2026-04')
+            ->where('analysis.by_currency.0.timeline.3.cumulative_invoiced', 2000)
+            ->where('analysis.by_currency.0.timeline.3.cumulative_paid', 800)
+            ->where('analysis.by_currency.0.timeline.3.running_account', -1200)
+        );
+});
+
 test('client members with finance write permission can create transactions', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

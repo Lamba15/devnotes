@@ -5,6 +5,7 @@ import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { ClientFinanceAnalysis } from '@/components/finance/client-finance-analysis';
 import { FinanceAmount } from '@/components/finance/finance-amount';
 import { FinanceProjectLabel } from '@/components/finance/finance-project-label';
 import { FinanceStatusBadge } from '@/components/finance/finance-status-badge';
@@ -39,6 +40,7 @@ type InvoiceRow = {
 export default function ClientFinancePage({
     client,
     filters,
+    analysis,
     transactions,
     invoices,
 }: {
@@ -49,6 +51,57 @@ export default function ClientFinancePage({
         behavior?: { id: number; name: string; slug: string } | null;
     };
     filters: { search: string };
+    analysis: {
+        overall: {
+            project_count: number;
+            transaction_count: number;
+            invoice_count: number;
+            currencies: string[];
+            running_account: {
+                amount: number;
+                currency: string | null;
+                mixed_currencies: boolean;
+            };
+            relationship_volume: {
+                amount: number;
+                currency: string | null;
+                mixed_currencies: boolean;
+            };
+            transaction_volume: {
+                amount: number;
+                currency: string | null;
+                mixed_currencies: boolean;
+            };
+        };
+        by_currency: Array<{
+            currency: string | null;
+            label: string;
+            running_account: number;
+            client_owes_you: number;
+            you_owe_client: number;
+            transaction_total: number;
+            invoice_total: number;
+            received_total: number;
+            refund_total: number;
+            open_invoice_total: number;
+            invoice_statuses: Record<
+                string,
+                {
+                    count: number;
+                    amount: number;
+                }
+            >;
+            timeline: Array<{
+                period: string;
+                label: string;
+                monthly_invoiced: number;
+                monthly_paid: number;
+                cumulative_invoiced: number;
+                cumulative_paid: number;
+                running_account: number;
+            }>;
+        }>;
+    };
     transactions: TransactionRow[];
     invoices: InvoiceRow[];
 }) {
@@ -180,6 +233,8 @@ export default function ClientFinancePage({
                 />
 
                 <div className="space-y-6">
+                    <ClientFinanceAnalysis analysis={analysis} />
+
                     <section className="space-y-3">
                         <h2 className="flex items-center gap-2 text-lg font-semibold">
                             <Receipt className="size-5 text-blue-500" />

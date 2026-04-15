@@ -33,8 +33,8 @@
         <!-- Top Light Wave -->
         <path d="M 0 0 L 794 0 L 794 30 L 450 30 C 300 30 300 130 150 130 L 0 130 Z" fill="#9767b8"/>
         
-        <!-- Perfect smooth hollow circles -->
-        <circle cx="0" cy="300" r="40" fill="none" stroke="#9767b8" stroke-width="30"/>
+        <!-- Top mirrored semicircle drawn as one arc to avoid seam artifacts -->
+        <path d="M 0 233 A 40 40 0 0 1 0 313" fill="none" stroke="#9767b8" stroke-width="30" stroke-linecap="round"/>
         <circle cx="794" cy="850" r="40" fill="none" stroke="#9767b8" stroke-width="30"/>
 
         <!-- Bottom Dark Echo -->
@@ -63,6 +63,27 @@
     }
     $arrowsSvg .= '</svg>';
     $arrowsSvgEnc = base64_encode($arrowsSvg);
+
+    $slashesSvg = '<svg width="150" height="40" xmlns="http://www.w3.org/2000/svg">';
+    for($i=0; $i<10; $i++) {
+        $slashesSvg .= '<line x1="'.($i*13).'" y1="40" x2="'.($i*13 + 30).'" y2="0" stroke="#9767b8" stroke-width="1.5"/>';
+    }
+    $slashesSvg .= '</svg>';
+    $slashesSvgEnc = base64_encode($slashesSvg);
+
+    $amount = (float) $transaction->amount;
+    $currency = strtoupper($transaction->currency ?? 'EGP');
+    $formatMoney = function ($amount) use ($currency) {
+        $value = number_format(abs((float) $amount), 2, '.', ',');
+
+        return match ($currency) {
+            'USD' => '$'.$value,
+            'EUR' => 'EUR '.$value,
+            'GBP' => 'GBP '.$value,
+            default => $value.' '.$currency,
+        };
+    };
+    $signedAmount = ($amount < 0 ? '-' : '').$formatMoney($amount);
     @endphp
 
     <img src="data:image/svg+xml;base64,{{ $bgSvgEnc }}" style="position: absolute; top:0; left:0; width:794px; height:1123px; z-index: -100;" />
@@ -76,7 +97,7 @@
     </div>
 
     <!-- Font thickness bumped to 200, pushed vertically up, reduced tracking scale ~7% -->
-    <div style="position: absolute; top: 60px; right: 50px; font-size: 46px; color: #5b377a; letter-spacing: 4px; font-weight: 200;">
+    <div style="position: absolute; top: 55px; right: 50px; font-size: 60px; color: #5b377a; letter-spacing: 4px; font-weight: 200;">
         TRANSACTION
     </div>
 
@@ -102,6 +123,10 @@
         </div>
     </div>
 
+    <div style="position: absolute; top: 285px; right: 70px;">
+        <img src="data:image/svg+xml;base64,{{ $slashesSvgEnc }}" width="150" />
+    </div>
+
     <div class="main-container">
         
         <div class="table-pill">
@@ -121,13 +146,7 @@
                     <span style="font-size: 11px; color:#555;">Category: {{ $transaction->category }}</span>
                     @endif
                 </td>
-                @php
-                    $amount = (float) $transaction->amount;
-                    $currency = strtoupper($transaction->currency ?? 'EGP');
-                    if(in_array($currency, ['USD'])) { $amountTpl = '$'.number_format(abs($amount)); } else { $amountTpl = abs($amount).' '.$currency; }
-                    $sign = $amount < 0 ? '-' : '';
-                @endphp
-                <td width="30%" align="left" style="padding-top: 30px;">{{ $sign }}{{ $amountTpl }}</td>
+                <td width="30%" align="left" style="padding-top: 30px;">{{ $signedAmount }}</td>
             </tr>
             @for($i=0; $i<5; $i++)
             <tr class="empty-row">
@@ -145,8 +164,10 @@
                     <div style="font-size:12px; color:#5b377a; padding-left: 20px;">{{ url('/finance/transactions/'.$transaction->id) }}</div>
                 </td>
                 <td width="35%" valign="top" style="padding-left: 30px;">
-                    <div style="font-size:13px; color:#444; margin-bottom:5px;">Total:</div>
-                    <div style="font-size:14px; font-weight: bold; color:#5b377a;">{{ $sign }}{{ $amountTpl }}</div>
+                    <div style="font-size:11px; color:#444; margin-bottom:4px; font-weight: bold;">Total</div>
+                    <div style="white-space: nowrap; margin-bottom: 0;">
+                        <span style="font-size:17px; font-weight: bold; color:#5b377a;">{{ $signedAmount }}</span>
+                    </div>
                 </td>
             </tr>
         </table>
