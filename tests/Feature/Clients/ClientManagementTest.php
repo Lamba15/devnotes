@@ -185,7 +185,7 @@ class ClientManagementTest extends TestCase
                 ->component('clients/index')
                 ->where('clients.0.name', 'Finance Client')
                 ->where('clients.0.can_view_finance_summary', true)
-                ->where('clients.0.running_account.amount', 350)
+                ->where('clients.0.running_account.amount', -1650)
                 ->where('clients.0.running_account.currency', 'EGP')
                 ->where('clients.0.running_account.mixed_currencies', false)
                 ->where('clients.0.relationship_volume.amount', 2000)
@@ -265,14 +265,14 @@ class ClientManagementTest extends TestCase
         Transaction::query()->create([
             'project_id' => $lowProject->id,
             'description' => 'Low transaction',
-            'amount' => 100,
+            'amount' => 500,
             'currency' => 'EGP',
             'occurred_date' => '2026-04-12',
         ]);
         Transaction::query()->create([
             'project_id' => $highProject->id,
             'description' => 'High transaction',
-            'amount' => 600,
+            'amount' => 2000,
             'currency' => 'EGP',
             'occurred_date' => '2026-04-12',
         ]);

@@ -14,19 +14,21 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 
 ## Transaction
 
+A transaction represents real cash movement between you and the client for a project. Positive amounts mean the client paid you; negative amounts mean you paid the client (refunds, advances returned, etc.). Internal project costs such as paying a freelancer are not transactions in this model.
+
 ### Database Fields
 
-| Field         | Type                | Notes                                                        |
-| ------------- | ------------------- | ------------------------------------------------------------ |
-| id            | auto-increment      | Primary key                                                  |
-| project_id    | FK to projects      | Required. The owning project                                 |
-| description   | string, max 255     | Required. What the transaction is for                        |
-| amount        | decimal(10,2)       | Required. Positive = income, negative = expense              |
-| occurred_date | date, nullable      | When the transaction took place                              |
-| category      | string, nullable    | Freeform category label (e.g. "hosting", "design", "salary") |
-| currency      | string(3), nullable | ISO 4217 currency code (e.g. USD, EUR, EGP)                  |
-| created_at    | timestamp           | Record creation                                              |
-| updated_at    | timestamp           | Last modification                                            |
+| Field         | Type                | Notes                                                                |
+| ------------- | ------------------- | -------------------------------------------------------------------- |
+| id            | auto-increment      | Primary key                                                          |
+| project_id    | FK to projects      | Required. The owning project                                         |
+| description   | string, max 255     | Required. What the transaction is for                                |
+| amount        | decimal(10,2)       | Required. Positive = client paid you, negative = you paid the client |
+| occurred_date | date, nullable      | When the transaction took place                                      |
+| category      | string, nullable    | Freeform category label (e.g. "deposit", "final payment", "refund")  |
+| currency      | string(3), nullable | ISO 4217 currency code (e.g. USD, EUR, EGP)                          |
+| created_at    | timestamp           | Record creation                                                      |
+| updated_at    | timestamp           | Last modification                                                    |
 
 ### Relationships
 
@@ -138,6 +140,26 @@ Finance is a top-level domain connecting to projects. All financial records (tra
 - The public verification URL uses the stable pattern `/invoices/{public_id}`.
 - The verification URL is printed inside the invoice document itself.
 - The stored public PDF is regenerated automatically whenever the invoice changes.
+
+## Client Finance Summary
+
+The clients index shows two aggregate numbers per client, computed over the projects the current user has finance access to.
+
+### Running Account
+
+`running_account = SUM(transactions.amount) − SUM(invoices.amount)` across the client's accessible projects. Every invoice counts regardless of its status (`draft`, `pending`, `paid`, `overdue`).
+
+The result is the outstanding balance between you and the client:
+
+- **Positive** — you owe the client (they've paid you more than you've invoiced, or you've invoiced nothing yet).
+- **Negative** — the client owes you (you've invoiced them for more than they've paid).
+- **Zero** — settled.
+
+If the client's transactions and invoices span more than one currency, `currency` is null and `mixed_currencies` is true. No FX conversion is performed; amounts are summed as raw numbers and the total is only meaningful when a single currency is in use.
+
+### Relationship Volume
+
+`relationship_volume = SUM(invoices.amount)` across the client's accessible projects. Lifetime billed value, regardless of payment state. Same mixed-currency rules apply.
 
 ## AI Tools
 

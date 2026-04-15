@@ -62,8 +62,9 @@ class ClientController extends Controller
             ->when(
                 $sortBy === 'running_account',
                 fn ($query) => $query
-                    ->selectSub($this->runningAccountSortSubquery($user), 'running_account_sort')
-                    ->orderBy('running_account_sort', $sortDirection)
+                    ->selectSub($this->runningAccountTransactionSumSubquery($user), 'running_account_tx_sort')
+                    ->selectSub($this->relationshipVolumeSortSubquery($user), 'running_account_inv_sort')
+                    ->orderByRaw('(running_account_tx_sort - running_account_inv_sort) '.$sortDirection)
                     ->orderBy('clients.name'),
             )
             ->when(
@@ -781,17 +782,33 @@ class ClientController extends Controller
             ->whereIn('project_id', $projectClientMap->keys())
             ->get(['project_id', 'amount', 'currency']);
 
-        $runningAccountByClient = $transactions
-            ->groupBy(fn (Transaction $transaction) => $projectClientMap->get($transaction->project_id))
-            ->map(fn (Collection $clientTransactions) => $this->summarizeMoneyCollection(
-                $clientTransactions,
-                'amount',
-                'currency',
-            ));
-
         $invoices = Invoice::query()
             ->whereIn('project_id', $projectClientMap->keys())
             ->get(['project_id', 'amount', 'currency']);
+
+        $runningAccountRows = collect();
+        foreach ($transactions as $transaction) {
+            $runningAccountRows->push((object) [
+                'client_id' => $projectClientMap->get($transaction->project_id),
+                'amount' => (float) $transaction->amount,
+                'currency' => $transaction->currency,
+            ]);
+        }
+        foreach ($invoices as $invoice) {
+            $runningAccountRows->push((object) [
+                'client_id' => $projectClientMap->get($invoice->project_id),
+                'amount' => -(float) $invoice->amount,
+                'currency' => $invoice->currency,
+            ]);
+        }
+
+        $runningAccountByClient = $runningAccountRows
+            ->groupBy('client_id')
+            ->map(fn (Collection $rows) => $this->summarizeMoneyCollection(
+                $rows,
+                'amount',
+                'currency',
+            ));
 
         $relationshipVolumeByClient = $invoices
             ->groupBy(fn (Invoice $invoice) => $projectClientMap->get($invoice->project_id))
@@ -834,7 +851,7 @@ class ClientController extends Controller
         ];
     }
 
-    private function runningAccountSortSubquery(User $user): QueryBuilder
+    private function runningAccountTransactionSumSubquery(User $user): QueryBuilder
     {
         $accessibleProjects = $user->workspaceAccess()->scopeAccessibleFinanceProjects(
             Project::query()
