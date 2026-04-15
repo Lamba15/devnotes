@@ -7,12 +7,15 @@ use App\Actions\Projects\DeleteProject;
 use App\Actions\Projects\UpdateProject;
 use App\Models\AuditLog;
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\ProjectStatus;
 use App\Models\Skill;
+use App\Models\Transaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -207,7 +210,7 @@ class ProjectController extends Controller
         $user = $request->user();
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
-            'sort_by' => ['nullable', 'in:name,description,created_at'],
+            'sort_by' => ['nullable', 'in:name,description,created_at,running_account,relationship_volume'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
             'status' => ['array'],
             'status.*' => ['string', 'max:255'],
@@ -226,7 +229,15 @@ class ProjectController extends Controller
 
         abort_unless($user->canAccessClient($client), 403);
 
+        $canSortFinanceSummary = $user->canAccessClientFinance($client);
+
+        if (! $canSortFinanceSummary && in_array($sortBy, ['running_account', 'relationship_volume'], true)) {
+            $sortBy = 'created_at';
+            $sortDirection = 'desc';
+        }
+
         $projects = Project::query()
+            ->select('projects.*')
             ->with('status:id,name,slug')
             ->whereBelongsTo($client);
 
@@ -245,21 +256,55 @@ class ProjectController extends Controller
             $projects->whereHas('status', fn ($query) => $query->whereIn('slug', $statusFilter));
         }
 
-        $paginatedProjects = $projects
-            ->orderBy($sortBy, $sortDirection)
-            ->paginate(15)
-            ->withQueryString();
+        $paginatedProjects = match ($sortBy) {
+            'running_account' => $projects
+                ->selectSub($this->runningAccountTransactionSortSubquery(), 'running_account_tx_sort')
+                ->selectSub($this->relationshipVolumeSortSubquery(), 'running_account_inv_sort')
+                ->orderByRaw('(running_account_tx_sort - running_account_inv_sort) '.$sortDirection)
+                ->orderBy('projects.name')
+                ->paginate(15)
+                ->withQueryString(),
+            'relationship_volume' => $projects
+                ->selectSub($this->relationshipVolumeSortSubquery(), 'relationship_volume_sort')
+                ->orderBy('relationship_volume_sort', $sortDirection)
+                ->orderBy('projects.name')
+                ->paginate(15)
+                ->withQueryString(),
+            default => $projects
+                ->orderBy($sortBy, $sortDirection)
+                ->paginate(15)
+                ->withQueryString(),
+        };
+
+        $projectModels = collect($paginatedProjects->items());
+        $financeSummaries = $this->financeSummariesForProjectIndex($projectModels);
 
         return Inertia::render('projects/index', [
             'client' => $client->only(['id', 'name']),
-            'projects' => collect($paginatedProjects->items())
-                ->map(fn (Project $project) => [
-                    'id' => $project->id,
-                    'name' => $project->name,
-                    'description' => $project->description,
-                    'image_path' => $project->image_path,
-                    'status' => $project->status?->only(['id', 'name', 'slug']),
-                ])
+            'projects' => $projectModels
+                ->map(function (Project $project) use ($financeSummaries, $user) {
+                    $canViewFinanceSummary = $user->canAccessProjectFinance($project);
+                    $financeSummary = $financeSummaries[$project->id] ?? null;
+
+                    return [
+                        'id' => $project->id,
+                        'name' => $project->name,
+                        'description' => $project->description,
+                        'image_path' => $project->image_path,
+                        'status' => $project->status?->only(['id', 'name', 'slug']),
+                        'running_account' => [
+                            'amount' => $canViewFinanceSummary ? ($financeSummary['running_account']['amount'] ?? 0) : null,
+                            'currency' => $canViewFinanceSummary ? ($financeSummary['running_account']['currency'] ?? null) : null,
+                            'mixed_currencies' => $canViewFinanceSummary ? ($financeSummary['running_account']['mixed_currencies'] ?? false) : false,
+                        ],
+                        'relationship_volume' => [
+                            'amount' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['amount'] ?? 0) : null,
+                            'currency' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['currency'] ?? null) : null,
+                            'mixed_currencies' => $canViewFinanceSummary ? ($financeSummary['relationship_volume']['mixed_currencies'] ?? false) : false,
+                        ],
+                        'can_view_finance_summary' => $canViewFinanceSummary,
+                    ];
+                })
                 ->all(),
             'pagination' => [
                 'current_page' => $paginatedProjects->currentPage(),
@@ -287,6 +332,7 @@ class ProjectController extends Controller
                 ])
                 ->all(),
             'can_create_projects' => $user->canManageClient($client),
+            'can_sort_finance_summary' => $canSortFinanceSummary,
             'filters' => [
                 'search' => $search,
                 'sort_by' => $sortBy,
@@ -396,5 +442,106 @@ class ProjectController extends Controller
         }
 
         return back();
+    }
+
+    private function financeSummariesForProjectIndex(Collection $projects): array
+    {
+        if ($projects->isEmpty()) {
+            return [];
+        }
+
+        $projectIds = $projects->pluck('id')
+            ->filter(fn ($projectId) => $projectId !== null)
+            ->values();
+
+        $transactions = Transaction::query()
+            ->whereIn('project_id', $projectIds)
+            ->get(['project_id', 'amount', 'currency']);
+
+        $invoices = Invoice::query()
+            ->whereIn('project_id', $projectIds)
+            ->get(['project_id', 'amount', 'currency']);
+
+        $runningAccountRows = collect();
+
+        foreach ($transactions as $transaction) {
+            $runningAccountRows->push((object) [
+                'project_id' => $transaction->project_id,
+                'amount' => (float) $transaction->amount,
+                'currency' => $transaction->currency,
+            ]);
+        }
+
+        foreach ($invoices as $invoice) {
+            $runningAccountRows->push((object) [
+                'project_id' => $invoice->project_id,
+                'amount' => -(float) $invoice->amount,
+                'currency' => $invoice->currency,
+            ]);
+        }
+
+        $runningAccountByProject = $runningAccountRows
+            ->groupBy('project_id')
+            ->map(fn (Collection $rows) => $this->summarizeMoneyCollection(
+                $rows,
+                'amount',
+                'currency',
+            ));
+
+        $relationshipVolumeByProject = $invoices
+            ->groupBy('project_id')
+            ->map(fn (Collection $rows) => $this->summarizeMoneyCollection(
+                $rows,
+                'amount',
+                'currency',
+            ));
+
+        return $projectIds
+            ->mapWithKeys(fn ($projectId) => [
+                $projectId => [
+                    'running_account' => $runningAccountByProject->get($projectId, [
+                        'amount' => 0,
+                        'currency' => null,
+                        'mixed_currencies' => false,
+                    ]),
+                    'relationship_volume' => $relationshipVolumeByProject->get($projectId, [
+                        'amount' => 0,
+                        'currency' => null,
+                        'mixed_currencies' => false,
+                    ]),
+                ],
+            ])
+            ->all();
+    }
+
+    private function summarizeMoneyCollection(Collection $rows, string $amountKey, string $currencyKey): array
+    {
+        $currencies = $rows
+            ->pluck($currencyKey)
+            ->filter()
+            ->unique()
+            ->values();
+
+        return [
+            'amount' => round($rows->sum(fn ($row) => (float) ($row->{$amountKey} ?? 0)), 2),
+            'currency' => $currencies->count() === 1 ? $currencies->first() : null,
+            'mixed_currencies' => $currencies->count() > 1,
+        ];
+    }
+
+    private function runningAccountTransactionSortSubquery()
+    {
+        return Transaction::query()
+            ->selectRaw('COALESCE(SUM(transactions.amount), 0)')
+            ->whereColumn('project_id', 'projects.id')
+            ->toBase();
+    }
+
+    private function relationshipVolumeSortSubquery()
+    {
+        return Invoice::query()
+            ->selectRaw('COALESCE(SUM(invoices.amount), 0)')
+            ->whereColumn('project_id', 'projects.id')
+            ->toBase();
     }
 }

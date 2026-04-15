@@ -3,10 +3,13 @@
 use App\Models\Behavior;
 use App\Models\Client;
 use App\Models\ClientMembership;
+use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
+use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -50,6 +53,108 @@ test('client members only see projects they are explicitly assigned to', functio
         );
 });
 
+test('client members without finance permission do not receive project finance summaries', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Assigned project',
+    ]);
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    Transaction::query()->create([
+        'project_id' => $project->id,
+        'description' => 'Deposit',
+        'amount' => 500,
+        'currency' => 'EGP',
+        'occurred_date' => '2026-04-01',
+    ]);
+    Invoice::query()->create([
+        'project_id' => $project->id,
+        'reference' => 'INV-HIDDEN-001',
+        'status' => 'pending',
+        'amount' => 800,
+        'currency' => 'EGP',
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('projects/index')
+            ->where('projects.0.name', 'Assigned project')
+            ->where('projects.0.running_account.amount', null)
+            ->where('projects.0.relationship_volume.amount', null)
+            ->where('projects.0.can_view_finance_summary', false)
+        );
+});
+
+test('client members with finance permission receive project finance summaries', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $member = User::factory()->create();
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Finance visible project',
+    ]);
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    $membership->permissions()->create([
+        'permission_name' => ClientPermissionCatalog::FINANCE_READ,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    Transaction::query()->create([
+        'project_id' => $project->id,
+        'description' => 'Deposit',
+        'amount' => 500,
+        'currency' => 'EGP',
+        'occurred_date' => '2026-04-01',
+    ]);
+    Invoice::query()->create([
+        'project_id' => $project->id,
+        'reference' => 'INV-VISIBLE-001',
+        'status' => 'pending',
+        'amount' => 800,
+        'currency' => 'EGP',
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.index', $client))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('projects/index')
+            ->where('projects.0.name', 'Finance visible project')
+            ->where('projects.0.running_account.amount', -300)
+            ->where('projects.0.relationship_volume.amount', 800)
+            ->where('projects.0.can_view_finance_summary', true)
+        );
+});
+
 test('client admins can see all client projects without explicit project memberships', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
@@ -88,10 +193,14 @@ test('project users can open an assigned project details page', function () {
         'description' => 'Project details page',
     ]);
 
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
+    ]);
+
+    $membership->permissions()->create([
+        'permission_name' => ClientPermissionCatalog::PROJECTS_READ,
     ]);
 
     ProjectMembership::query()->create([

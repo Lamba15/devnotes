@@ -4,8 +4,10 @@ namespace Tests\Feature\Projects;
 
 use App\Models\Behavior;
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\ProjectStatus;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -184,6 +186,131 @@ class ProjectManagementTest extends TestCase
                 ->where('projects.0.name', 'Archived Project')
                 ->where('filters.status', ['archived'])
                 ->has('status_filter_options')
+            );
+    }
+
+    public function test_projects_index_includes_project_finance_summaries(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+            'name' => 'Finance Project',
+        ]);
+
+        Transaction::query()->create([
+            'project_id' => $project->id,
+            'description' => 'Deposit',
+            'amount' => 1000,
+            'currency' => 'EGP',
+            'occurred_date' => '2026-04-01',
+        ]);
+
+        Invoice::query()->create([
+            'project_id' => $project->id,
+            'reference' => 'INV-PROJECT-001',
+            'status' => 'pending',
+            'amount' => 1600,
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-02',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.index', $client))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/index')
+                ->where('projects.0.name', 'Finance Project')
+                ->where('projects.0.running_account.amount', -600)
+                ->where('projects.0.running_account.currency', 'EGP')
+                ->where('projects.0.relationship_volume.amount', 1600)
+                ->where('projects.0.relationship_volume.currency', 'EGP')
+                ->where('projects.0.can_view_finance_summary', true)
+            );
+    }
+
+    public function test_projects_index_supports_finance_sorting(): void
+    {
+        $user = User::factory()->create();
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $status = ProjectStatus::query()->where('slug', 'active')->firstOrFail();
+
+        $highBalanceProject = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => $status->id,
+            'name' => 'High Balance Project',
+        ]);
+        $lowBalanceProject = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => $status->id,
+            'name' => 'Low Balance Project',
+        ]);
+
+        Transaction::query()->create([
+            'project_id' => $highBalanceProject->id,
+            'description' => 'Large deposit',
+            'amount' => 3000,
+            'currency' => 'EGP',
+            'occurred_date' => '2026-04-01',
+        ]);
+        Invoice::query()->create([
+            'project_id' => $highBalanceProject->id,
+            'reference' => 'INV-HIGH-001',
+            'status' => 'pending',
+            'amount' => 1000,
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-02',
+        ]);
+
+        Transaction::query()->create([
+            'project_id' => $lowBalanceProject->id,
+            'description' => 'Small deposit',
+            'amount' => 400,
+            'currency' => 'EGP',
+            'occurred_date' => '2026-04-01',
+        ]);
+        Invoice::query()->create([
+            'project_id' => $lowBalanceProject->id,
+            'reference' => 'INV-LOW-001',
+            'status' => 'pending',
+            'amount' => 2000,
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-02',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.index', [
+                'client' => $client,
+                'sort_by' => 'running_account',
+                'sort_direction' => 'desc',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/index')
+                ->where('projects.0.name', 'High Balance Project')
+                ->where('projects.1.name', 'Low Balance Project')
+                ->where('filters.sort_by', 'running_account')
+                ->where('filters.sort_direction', 'desc')
+                ->where('can_sort_finance_summary', true)
+            );
+
+        $this->actingAs($user)
+            ->get(route('clients.projects.index', [
+                'client' => $client,
+                'sort_by' => 'relationship_volume',
+                'sort_direction' => 'desc',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('projects/index')
+                ->where('projects.0.name', 'Low Balance Project')
+                ->where('projects.1.name', 'High Balance Project')
+                ->where('filters.sort_by', 'relationship_volume')
             );
     }
 

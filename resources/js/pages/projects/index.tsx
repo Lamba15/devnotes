@@ -20,6 +20,7 @@ import {
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Status = {
     id: number;
@@ -33,12 +34,24 @@ type Project = {
     description: string | null;
     image_path: string | null;
     status: Status;
+    running_account: {
+        amount: number | null;
+        currency: string | null;
+        mixed_currencies: boolean;
+    };
+    relationship_volume: {
+        amount: number | null;
+        currency: string | null;
+        mixed_currencies: boolean;
+    };
+    can_view_finance_summary: boolean;
 };
 
 export default function ProjectsIndex({
     client,
     projects,
     can_create_projects,
+    can_sort_finance_summary,
     status_filter_options,
     filters,
     pagination,
@@ -46,6 +59,7 @@ export default function ProjectsIndex({
     client: { id: number; name: string };
     projects: Project[];
     can_create_projects: boolean;
+    can_sort_finance_summary: boolean;
     status_filter_options: Array<{ label: string; value: string }>;
     filters: {
         search: string;
@@ -95,6 +109,24 @@ export default function ProjectsIndex({
         Array<string | number>
     >([]);
 
+    const renderMoneySummary = (summary: Project['running_account']) => {
+        if (!summary || summary.amount === null) {
+            return '—';
+        }
+
+        if (summary.mixed_currencies) {
+            return 'Mixed';
+        }
+
+        if (summary.currency) {
+            return formatCurrencyAmount(summary.amount, summary.currency);
+        }
+
+        return Number(summary.amount) === 0
+            ? '0'
+            : Number(summary.amount).toLocaleString();
+    };
+
     const columns: DataTableColumn<Project>[] = [
         {
             key: 'name',
@@ -141,6 +173,28 @@ export default function ProjectsIndex({
             sortable: true,
             sortKey: 'description',
             render: (project) => project.description ?? '—',
+        },
+        {
+            key: 'running_account',
+            header: 'Running account',
+            sortable: can_sort_finance_summary,
+            sortKey: 'running_account',
+            render: (project) => (
+                <span className="font-medium">
+                    {renderMoneySummary(project.running_account)}
+                </span>
+            ),
+        },
+        {
+            key: 'relationship_volume',
+            header: 'Relationship volume',
+            sortable: can_sort_finance_summary,
+            sortKey: 'relationship_volume',
+            render: (project) => (
+                <span className="font-medium">
+                    {renderMoneySummary(project.relationship_volume)}
+                </span>
+            ),
         },
     ];
 
