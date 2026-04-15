@@ -78,6 +78,7 @@ jobs:
             cd ~/domains/devnotes.nouraboelsoud.com
             export PATH="/opt/alt/php83/usr/bin:$PATH"
             php -v
+            rm -rf vendor
             php /usr/local/bin/composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
             php artisan migrate --force
             php artisan config:cache
