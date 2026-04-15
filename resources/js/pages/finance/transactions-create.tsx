@@ -1,7 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import {
+    TransactionFormEditor
+    
+} from '@/components/finance/transaction-form-editor';
+import type {TransactionFormData} from '@/components/finance/transaction-form-editor';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceTransactionsCreate({
@@ -15,7 +18,7 @@ export default function FinanceTransactionsCreate({
     }>;
     category_options: Array<{ label: string; value: string }>;
 }) {
-    const form = useForm({
+    const form = useForm<TransactionFormData>({
         project_id: '',
         description: '',
         amount: '',
@@ -24,69 +27,6 @@ export default function FinanceTransactionsCreate({
         currency: 'EGP',
     });
 
-    const sections: DynamicFormSection[] = [
-        {
-            name: 'transaction',
-            title: 'Create transaction',
-            description:
-                'Transactions should always be linked to a project and recorded clearly.',
-            fields: [
-                {
-                    name: 'project_id',
-                    label: 'Project',
-                    type: 'select',
-                    placeholder: 'Select project',
-                    options: projects.map((project) => ({
-                        label: `${project.client.name} / ${project.name}`,
-                        value: project.id,
-                    })),
-                    wide: true,
-                },
-                {
-                    name: 'description',
-                    label: 'Description',
-                    type: 'textarea',
-                    placeholder: 'Transaction description',
-                    wide: true,
-                },
-                {
-                    name: 'amount',
-                    label: 'Amount',
-                    type: 'text',
-                    placeholder: '0.00',
-                },
-                {
-                    name: 'occurred_date',
-                    label: 'Occurred on',
-                    type: 'date',
-                },
-                {
-                    name: 'category',
-                    label: 'Category',
-                    type: 'select',
-                    placeholder: 'Select or create category',
-                    creatable: true,
-                    options: category_options,
-                },
-                {
-                    name: 'currency',
-                    label: 'Currency',
-                    type: 'select',
-                    placeholder: 'Select or create currency',
-                    creatable: true,
-                    options: [
-                        { label: 'USD', value: 'USD' },
-                        { label: 'EUR', value: 'EUR' },
-                        { label: 'GBP', value: 'GBP' },
-                        { label: 'EGP', value: 'EGP' },
-                        { label: 'SAR', value: 'SAR' },
-                        { label: 'AED', value: 'AED' },
-                    ],
-                },
-            ],
-        },
-    ];
-
     return (
         <>
             <Head title="Create Transaction" />
@@ -94,17 +34,17 @@ export default function FinanceTransactionsCreate({
                 title="Create Transaction"
                 description="Create a project-linked financial transaction."
             >
-                <DynamicForm
-                    sections={sections}
+                <TransactionFormEditor
+                    title="Create transaction"
+                    description="Record the finance event with the same card-based finance layout used across invoices and transaction detail."
                     data={form.data}
                     errors={form.errors}
                     processing={form.processing}
                     submitLabel="Create transaction"
-                    cancelLabel="Back to transactions"
+                    projects={projects}
+                    categoryOptions={category_options}
                     onCancel={() => router.visit('/finance/transactions')}
-                    onChange={(name, value) =>
-                        form.setData(name as keyof typeof form.data, value)
-                    }
+                    onChange={(data) => form.setData(data)}
                     onSubmit={() => form.post('/finance/transactions')}
                 />
             </CrudPage>

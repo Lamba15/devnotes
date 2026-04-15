@@ -1,23 +1,18 @@
 import { Head, Link } from '@inertiajs/react';
-import {
-    ArrowDownRight,
-    ArrowUpRight,
-    DollarSign,
-    FileText,
-    Receipt,
-} from 'lucide-react';
+import { FileText, Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { FinanceAmount } from '@/components/finance/finance-amount';
+import { FinanceProjectLabel } from '@/components/finance/finance-project-label';
+import { FinanceStatusBadge } from '@/components/finance/finance-status-badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDateOnly } from '@/lib/datetime';
-import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type TransactionRow = {
     id: number;
@@ -25,14 +20,19 @@ type TransactionRow = {
     amount: string;
     currency: string | null;
     occurred_date: string | null;
+    category: string | null;
     project?: { id: number; name: string } | null;
 };
 
 type InvoiceRow = {
     id: number;
     reference: string;
+    status: string;
     amount: string;
     currency: string | null;
+    issued_at: string | null;
+    due_at: string | null;
+    paid_at: string | null;
     project?: { id: number; name: string } | null;
 };
 
@@ -75,40 +75,40 @@ export default function ClientFinancePage({
         {
             key: 'description',
             header: 'Description',
-            render: (row) => row.description,
+            render: (row) => (
+                <Link
+                    href={`/finance/transactions/${row.id}`}
+                    className="cursor-pointer font-medium underline-offset-4 hover:underline"
+                >
+                    {row.description}
+                </Link>
+            ),
         },
         {
             key: 'project',
             header: 'Project',
-            render: (row) => row.project?.name ?? '—',
+            render: (row) => <FinanceProjectLabel project={row.project} />,
         },
         {
             key: 'amount',
             header: 'Amount',
-            render: (row) => {
-                const num = Number(row.amount);
-                const isPositive = num >= 0;
-
-                return (
-                    <span
-                        className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
-                    >
-                        {isPositive ? (
-                            <ArrowUpRight className="size-3" />
-                        ) : (
-                            <ArrowDownRight className="size-3" />
-                        )}
-                        {formatCurrencyAmount(num, row.currency, {
-                            absolute: true,
-                        })}
-                    </span>
-                );
-            },
+            render: (row) => (
+                <FinanceAmount
+                    amount={row.amount}
+                    currency={row.currency}
+                    variant="transaction"
+                />
+            ),
         },
         {
             key: 'occurred_date',
             header: 'Occurred',
             render: (row) => formatDateOnly(row.occurred_date),
+        },
+        {
+            key: 'category',
+            header: 'Category',
+            render: (row) => row.category ?? '—',
         },
     ];
 
@@ -116,20 +116,40 @@ export default function ClientFinancePage({
         {
             key: 'reference',
             header: 'Reference',
-            render: (row) => row.reference,
+            render: (row) => (
+                <Link
+                    href={`/finance/invoices/${row.id}`}
+                    className="cursor-pointer font-medium underline-offset-4 hover:underline"
+                >
+                    {row.reference}
+                </Link>
+            ),
         },
         {
             key: 'project',
             header: 'Project',
-            render: (row) => row.project?.name ?? '—',
+            render: (row) => <FinanceProjectLabel project={row.project} />,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            render: (row) => <FinanceStatusBadge status={row.status} />,
+        },
+        {
+            key: 'issued_at',
+            header: 'Issued',
+            render: (row) => formatDateOnly(row.issued_at),
+        },
+        {
+            key: 'due_at',
+            header: 'Due',
+            render: (row) => formatDateOnly(row.due_at),
         },
         {
             key: 'amount',
             header: 'Amount',
             render: (row) => (
-                <span className="font-medium">
-                    {formatCurrencyAmount(row.amount, row.currency)}
-                </span>
+                <FinanceAmount amount={row.amount} currency={row.currency} />
             ),
         },
     ];
@@ -140,36 +160,19 @@ export default function ClientFinancePage({
             <CrudPage
                 title={`${client.name} Finance`}
                 description="Transactions and invoices across the client projects you can access."
+                actions={
+                    <div className="flex gap-2">
+                        <Button asChild variant="outline" size="sm">
+                            <Link href="/finance/transactions">
+                                Transactions
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                            <Link href="/finance/invoices">Invoices</Link>
+                        </Button>
+                    </div>
+                }
             >
-                <Card className="shadow-none">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <DollarSign className="size-5 text-emerald-500" />
-                            Client finance
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <p>
-                                This brings together transactions and invoices
-                                across the client projects you can access.
-                            </p>
-                            <div className="flex gap-2">
-                                <Button asChild variant="outline" size="sm">
-                                    <Link href="/finance/transactions">
-                                        Transactions
-                                    </Link>
-                                </Button>
-                                <Button asChild variant="outline" size="sm">
-                                    <Link href="/finance/invoices">
-                                        Invoices
-                                    </Link>
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
                 <CrudFilters
                     definitions={filterDefs}
                     state={crud}

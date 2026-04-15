@@ -1,10 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowDownRight, ArrowUpRight, Download, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { FinanceAmount } from '@/components/finance/finance-amount';
+import { FinanceProjectLabel } from '@/components/finance/finance-project-label';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -19,7 +21,6 @@ import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
-import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = {
     id: number;
@@ -142,33 +143,22 @@ export default function FinanceTransactions({
         {
             key: 'project',
             header: 'Project',
-            render: (transaction) =>
-                `${transaction.project.client.name} / ${transaction.project.name}`,
+            render: (transaction) => (
+                <FinanceProjectLabel stacked project={transaction.project} />
+            ),
         },
         {
             key: 'amount',
             header: 'Amount',
             sortable: true,
             sortKey: 'amount',
-            render: (transaction) => {
-                const num = Number(transaction.amount);
-                const isPositive = num >= 0;
-
-                return (
-                    <span
-                        className={`inline-flex items-center gap-1 font-medium ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}
-                    >
-                        {isPositive ? (
-                            <ArrowUpRight className="size-3" />
-                        ) : (
-                            <ArrowDownRight className="size-3" />
-                        )}
-                        {formatCurrencyAmount(num, transaction.currency, {
-                            absolute: true,
-                        })}
-                    </span>
-                );
-            },
+            render: (transaction) => (
+                <FinanceAmount
+                    amount={transaction.amount}
+                    currency={transaction.currency}
+                    variant="transaction"
+                />
+            ),
         },
         {
             key: 'occurred_date',
@@ -189,11 +179,11 @@ export default function FinanceTransactions({
 
     const bulkActions = [
         {
-            label: 'Download PDF',
+            label: 'Open PDF',
             disabled: selectedTransactionIds.length !== 1,
             disabledReason:
                 selectedTransactionIds.length > 1
-                    ? 'Select only 1 transaction to download.'
+                    ? 'Select only 1 transaction to open.'
                     : undefined,
             onClick: () => {
                 if (selectedTransactionIds.length === 1) {

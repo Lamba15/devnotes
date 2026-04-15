@@ -198,9 +198,10 @@ test('authenticated users can open transaction and invoice details pages', funct
     $invoice = Invoice::query()->create([
         'project_id' => $project->id,
         'reference' => 'INV-002',
-        'status' => 'sent',
+        'status' => 'pending',
         'amount' => 5000,
         'issued_at' => '2026-04-05',
+        'due_at' => '2026-04-20',
     ]);
 
     $this->actingAs($user)
@@ -211,6 +212,7 @@ test('authenticated users can open transaction and invoice details pages', funct
             ->where('transaction.description', 'Discovery session')
             ->where('transaction.project.name', 'Website rebuild')
             ->where('transaction.project.client.name', $client->name)
+            ->where('transaction.pdf_url', route('finance.transactions.pdf', $transaction))
         );
 
     $this->actingAs($user)
@@ -219,8 +221,11 @@ test('authenticated users can open transaction and invoice details pages', funct
         ->assertInertia(fn (Assert $page) => $page
             ->component('finance/invoices-show')
             ->where('invoice.reference', 'INV-002')
+            ->where('invoice.status', 'pending')
+            ->where('invoice.due_at', '2026-04-20')
             ->where('invoice.project.name', 'Website rebuild')
             ->where('invoice.project.client.name', $client->name)
+            ->has('invoice.items', 1)
         );
 });
 
@@ -488,7 +493,7 @@ test('finance invoices page includes project linked invoices', function () {
     Invoice::query()->create([
         'project_id' => $project->id,
         'reference' => 'INV-002',
-        'status' => 'sent',
+        'status' => 'pending',
         'amount' => 5000,
         'issued_at' => '2026-04-05',
     ]);
@@ -501,6 +506,129 @@ test('finance invoices page includes project linked invoices', function () {
             ->where('invoices.0.project.name', 'Website rebuild')
             ->where('invoices.0.project.client.name', $client->name)
         );
+});
+
+test('finance invoices index supports project status and currency filters', function () {
+    $user = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $activeStatus = ProjectStatus::query()->where('slug', 'active')->firstOrFail();
+    $projectAlpha = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => $activeStatus->id,
+        'name' => 'Alpha Project',
+    ]);
+    $projectBeta = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => $activeStatus->id,
+        'name' => 'Beta Project',
+    ]);
+
+    Invoice::query()->create([
+        'project_id' => $projectAlpha->id,
+        'reference' => 'INV-PENDING-USD',
+        'status' => 'pending',
+        'amount' => 1000,
+        'currency' => 'USD',
+        'issued_at' => '2026-04-01',
+        'due_at' => '2026-04-15',
+    ]);
+    Invoice::query()->create([
+        'project_id' => $projectAlpha->id,
+        'reference' => 'INV-PAID-USD',
+        'status' => 'paid',
+        'amount' => 1200,
+        'currency' => 'USD',
+        'issued_at' => '2026-04-02',
+        'paid_at' => '2026-04-18',
+    ]);
+    Invoice::query()->create([
+        'project_id' => $projectBeta->id,
+        'reference' => 'INV-OVERDUE-EUR',
+        'status' => 'overdue',
+        'amount' => 1400,
+        'currency' => 'EUR',
+        'issued_at' => '2026-04-03',
+        'due_at' => '2026-04-10',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('finance.invoices.index', [
+            'project_id' => [(string) $projectAlpha->id],
+            'status' => ['pending'],
+            'currency' => ['USD'],
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('finance/invoices')
+            ->has('invoices', 1)
+            ->where('invoices.0.reference', 'INV-PENDING-USD')
+            ->where('filters.project_id', [(string) $projectAlpha->id])
+            ->where('filters.status', ['pending'])
+            ->where('filters.currency', ['USD'])
+            ->where('project_filter_options.0.label', "{$client->name} / Alpha Project")
+            ->where('status_filter_options.1.value', 'pending')
+            ->where('currency_filter_options.0.value', 'EUR')
+        );
+});
+
+test('invoices persist status and payment dates from create and update flows', function () {
+    $user = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('finance.invoices.store'), [
+            'project_id' => $project->id,
+            'reference' => 'INV-DATES-001',
+            'status' => 'pending',
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-05',
+            'due_at' => '2026-04-20',
+            'items' => [
+                [
+                    'description' => 'Implementation',
+                    'amount' => '1000.00',
+                ],
+            ],
+        ])
+        ->assertRedirect(route('finance.invoices.index'));
+
+    $invoice = Invoice::query()->where('reference', 'INV-DATES-001')->firstOrFail();
+
+    expect($invoice->status)->toBe('pending')
+        ->and($invoice->due_at?->toDateString())->toBe('2026-04-20')
+        ->and($invoice->paid_at)->toBeNull();
+
+    $this->actingAs($user)
+        ->put(route('finance.invoices.update', $invoice), [
+            'project_id' => $project->id,
+            'reference' => 'INV-DATES-001',
+            'status' => 'paid',
+            'currency' => 'EGP',
+            'issued_at' => '2026-04-05',
+            'due_at' => '2026-04-20',
+            'paid_at' => '2026-04-22',
+            'items' => [
+                [
+                    'description' => 'Implementation',
+                    'amount' => '1000.00',
+                ],
+            ],
+        ])
+        ->assertRedirect(route('finance.invoices.index'));
+
+    $invoice->refresh();
+
+    expect($invoice->status)->toBe('paid')
+        ->and($invoice->due_at?->toDateString())->toBe('2026-04-20')
+        ->and($invoice->paid_at?->toDateString())->toBe('2026-04-22');
 });
 
 test('finance transactions index supports server backed search and sorting', function () {

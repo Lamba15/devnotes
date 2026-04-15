@@ -41,7 +41,7 @@ function clickDomElement(Browser $browser, string $selector): void
     $browser->script(
         "const element = document.querySelector({$encodedSelector});".
         "if (!element) { throw new Error('Unable to find DOM element to click'); }".
-        "element.click();"
+        'element.click();'
     );
 }
 
@@ -68,7 +68,7 @@ test('owner can create an issue from the project issue index', function () {
             ->visit(route('clients.projects.issues.index', [$client, $project], false))
             ->waitFor("a[href='{$createPath}']", 20)
             ->waitUsing(20, 100, fn () => (bool) $browser->script(
-                "return document.querySelector(".json_encode("a[href='{$createPath}']", JSON_THROW_ON_ERROR).") !== null;"
+                'return document.querySelector('.json_encode("a[href='{$createPath}']", JSON_THROW_ON_ERROR).') !== null;'
             )[0]);
 
         clickDomElement($browser, "a[href='{$createPath}']");

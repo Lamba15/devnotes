@@ -701,6 +701,7 @@ class AssistantConversationService
         // -1 means unlimited credits
         if ($user->ai_credits === -1) {
             $user->increment('ai_credits_used');
+
             return;
         }
 

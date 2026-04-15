@@ -683,6 +683,8 @@ class ClientController extends Controller
                 ->when($search !== '', function ($query) use ($search): void {
                     $query->where(function ($transactionQuery) use ($search): void {
                         $transactionQuery->where('description', 'like', "%{$search}%")
+                            ->orWhere('category', 'like', "%{$search}%")
+                            ->orWhere('currency', 'like', "%{$search}%")
                             ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
                     });
                 })
@@ -694,6 +696,7 @@ class ClientController extends Controller
                     'amount' => $transaction->amount,
                     'currency' => $transaction->currency,
                     'occurred_date' => $transaction->occurred_date?->toDateString(),
+                    'category' => $transaction->category,
                     'project' => $transaction->project?->only(['id', 'name']),
                 ])
                 ->all(),
@@ -704,10 +707,11 @@ class ClientController extends Controller
                     $query->where(function ($invoiceQuery) use ($search): void {
                         $invoiceQuery->where('reference', 'like', "%{$search}%")
                             ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhere('currency', 'like', "%{$search}%")
                             ->orWhereHas('project', fn ($projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"));
                     });
                 })
-                ->latest('id')
+                ->latest('issued_at')
                 ->get()
                 ->map(fn (Invoice $invoice) => [
                     'id' => $invoice->id,
@@ -715,6 +719,9 @@ class ClientController extends Controller
                     'status' => $invoice->status,
                     'amount' => $invoice->amount,
                     'currency' => $invoice->currency,
+                    'issued_at' => $invoice->issued_at?->toDateString(),
+                    'due_at' => $invoice->due_at?->toDateString(),
+                    'paid_at' => $invoice->paid_at?->toDateString(),
                     'project' => $invoice->project?->only(['id', 'name']),
                 ])
                 ->all(),

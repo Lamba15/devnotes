@@ -1,10 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Download, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { FinanceAmount } from '@/components/finance/finance-amount';
+import { FinanceProjectLabel } from '@/components/finance/finance-project-label';
+import { FinanceStatusBadge } from '@/components/finance/finance-status-badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -19,7 +22,6 @@ import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateOnly } from '@/lib/datetime';
-import { formatCurrencyAmount } from '@/lib/format-currency';
 
 type Client = { id: number; name: string };
 type Project = { id: number; name: string; client: Client };
@@ -37,11 +39,24 @@ type Invoice = {
 
 export default function FinanceInvoices({
     invoices,
+    project_filter_options,
+    status_filter_options,
+    currency_filter_options,
     filters,
     pagination,
 }: {
     invoices: Invoice[];
-    filters: { search: string; sort_by: string; sort_direction: string };
+    project_filter_options: Array<{ label: string; value: string }>;
+    status_filter_options: Array<{ label: string; value: string }>;
+    currency_filter_options: Array<{ label: string; value: string }>;
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        project_id: string[];
+        status: string[];
+        currency: string[];
+    };
     pagination: {
         current_page: number;
         last_page: number;
@@ -58,6 +73,27 @@ export default function FinanceInvoices({
 
     const filterDefs: CrudFilterDefinition[] = [
         { key: 'search', type: 'search', placeholder: 'Search invoices...' },
+        {
+            key: 'project_id',
+            type: 'select',
+            placeholder: 'Project',
+            options: project_filter_options,
+            className: 'lg:w-56',
+        },
+        {
+            key: 'status',
+            type: 'select',
+            placeholder: 'Status',
+            options: status_filter_options,
+            className: 'lg:w-40',
+        },
+        {
+            key: 'currency',
+            type: 'select',
+            placeholder: 'Currency',
+            options: currency_filter_options,
+            className: 'lg:w-36',
+        },
     ];
     const crud = useCrudFilters({
         url: '/finance/invoices',
@@ -87,8 +123,16 @@ export default function FinanceInvoices({
         {
             key: 'project',
             header: 'Project',
-            render: (invoice) =>
-                `${invoice.project.client.name} / ${invoice.project.name}`,
+            render: (invoice) => (
+                <FinanceProjectLabel stacked project={invoice.project} />
+            ),
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            sortable: true,
+            sortKey: 'status',
+            render: (invoice) => <FinanceStatusBadge status={invoice.status} />,
         },
         {
             key: 'issued_at',
@@ -98,23 +142,38 @@ export default function FinanceInvoices({
             render: (invoice) => formatDateOnly(invoice.issued_at),
         },
         {
+            key: 'due_at',
+            header: 'Due',
+            sortable: true,
+            sortKey: 'due_at',
+            render: (invoice) => formatDateOnly(invoice.due_at),
+        },
+        {
+            key: 'paid_at',
+            header: 'Paid',
+            sortable: true,
+            sortKey: 'paid_at',
+            render: (invoice) => formatDateOnly(invoice.paid_at),
+        },
+        {
             key: 'amount',
             header: 'Amount',
             sortable: true,
             sortKey: 'amount',
             render: (invoice) => (
-                <span className="font-medium">
-                    {formatCurrencyAmount(invoice.amount, invoice.currency)}
-                </span>
+                <FinanceAmount
+                    amount={invoice.amount}
+                    currency={invoice.currency}
+                />
             ),
         },
     ];
 
     const bulkActions = [
         {
-            label: 'Download PDF',
+            label: 'Open PDF',
             disabled: selectedInvoiceIds.length !== 1,
-            disabledReason: 'Select exactly one invoice to download.',
+            disabledReason: 'Select exactly one invoice to open.',
             onClick: () => {
                 if (selectedInvoiceIds.length === 1) {
                     window.open(

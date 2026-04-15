@@ -7,6 +7,7 @@ use App\Models\Board;
 use App\Models\BoardColumn;
 use App\Models\Client;
 use App\Models\Issue;
+use App\Models\Project;
 
 class AssistantConfirmationPresenter
 {
@@ -94,7 +95,7 @@ class AssistantConfirmationPresenter
     {
         $payload = $confirmation->payload_json ?? [];
         $client = Client::query()->find($payload['client_id'] ?? null);
-        $project = \App\Models\Project::query()->find($payload['project_id'] ?? null);
+        $project = Project::query()->find($payload['project_id'] ?? null);
 
         return [
             'title' => 'Create board',

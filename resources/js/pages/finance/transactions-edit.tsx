@@ -1,7 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
-import { DynamicForm } from '@/components/crud/dynamic-form';
-import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import {
+    TransactionFormEditor
+    
+} from '@/components/finance/transaction-form-editor';
+import type {TransactionFormData} from '@/components/finance/transaction-form-editor';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceTransactionsEdit({
@@ -25,7 +28,7 @@ export default function FinanceTransactionsEdit({
     }>;
     category_options: Array<{ label: string; value: string }>;
 }) {
-    const form = useForm({
+    const form = useForm<TransactionFormData>({
         project_id: String(transaction.project_id),
         description: transaction.description ?? '',
         amount: String(transaction.amount ?? ''),
@@ -34,67 +37,6 @@ export default function FinanceTransactionsEdit({
         currency: transaction.currency ?? 'EGP',
     });
 
-    const sections: DynamicFormSection[] = [
-        {
-            name: 'transaction',
-            title: 'Edit transaction',
-            description: 'Update this transaction on its own page.',
-            fields: [
-                {
-                    name: 'project_id',
-                    label: 'Project',
-                    type: 'select',
-                    wide: true,
-                    options: projects.map((project) => ({
-                        label: `${project.client.name} / ${project.name}`,
-                        value: project.id,
-                    })),
-                },
-                {
-                    name: 'description',
-                    label: 'Description',
-                    type: 'textarea',
-                    placeholder: 'Transaction description',
-                    wide: true,
-                },
-                {
-                    name: 'amount',
-                    label: 'Amount',
-                    type: 'text',
-                    placeholder: '0.00',
-                },
-                {
-                    name: 'occurred_date',
-                    label: 'Occurred on',
-                    type: 'date',
-                },
-                {
-                    name: 'category',
-                    label: 'Category',
-                    type: 'select',
-                    placeholder: 'Select or create category',
-                    creatable: true,
-                    options: category_options,
-                },
-                {
-                    name: 'currency',
-                    label: 'Currency',
-                    type: 'select',
-                    placeholder: 'Select or create currency',
-                    creatable: true,
-                    options: [
-                        { label: 'USD', value: 'USD' },
-                        { label: 'EUR', value: 'EUR' },
-                        { label: 'GBP', value: 'GBP' },
-                        { label: 'EGP', value: 'EGP' },
-                        { label: 'SAR', value: 'SAR' },
-                        { label: 'AED', value: 'AED' },
-                    ],
-                },
-            ],
-        },
-    ];
-
     return (
         <>
             <Head title="Edit Transaction" />
@@ -102,17 +44,19 @@ export default function FinanceTransactionsEdit({
                 title="Edit Transaction"
                 description="Update the transaction using a dedicated edit page."
             >
-                <DynamicForm
-                    sections={sections}
+                <TransactionFormEditor
+                    title="Edit transaction"
+                    description="Keep the transaction aligned with the shared finance presentation, amount treatment, and project context."
                     data={form.data}
                     errors={form.errors}
                     processing={form.processing}
                     submitLabel="Save transaction"
-                    cancelLabel="Back to transactions"
-                    onCancel={() => router.visit('/finance/transactions')}
-                    onChange={(name, value) =>
-                        form.setData(name as keyof typeof form.data, value)
+                    projects={projects}
+                    categoryOptions={category_options}
+                    onCancel={() =>
+                        router.visit(`/finance/transactions/${transaction.id}`)
                     }
+                    onChange={(data) => form.setData(data)}
                     onSubmit={() =>
                         form.put(`/finance/transactions/${transaction.id}`)
                     }

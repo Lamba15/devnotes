@@ -33,6 +33,7 @@ class TransactionController extends Controller
                 'occurred_date' => $transaction->occurred_date?->toDateString() ?? $transaction->occurred_date,
                 'category' => $transaction->category,
                 'created_at' => $transaction->created_at?->toISOString(),
+                'pdf_url' => route('finance.transactions.pdf', $transaction),
                 'project' => [
                     'id' => $transaction->project->id,
                     'name' => $transaction->project->name,
@@ -142,6 +143,9 @@ class TransactionController extends Controller
 
         $filename = 'transaction-'.$transaction->id.'-'.now()->format('Y-m-d').'.pdf';
 
-        return $pdf->download($filename);
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+        ]);
     }
 }

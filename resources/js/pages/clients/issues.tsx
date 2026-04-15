@@ -356,8 +356,8 @@ export default function ClientIssuesPage({
 
     const confirmDelete = async () => {
         if (!deleteIds) {
-return;
-}
+            return;
+        }
 
         for (const id of deleteIds) {
             const issue = issues.find((i) => i.id === id);
@@ -457,8 +457,8 @@ return;
                     open={deleteIds !== null}
                     onOpenChange={(open) => {
                         if (!open) {
-setDeleteIds(null);
-}
+                            setDeleteIds(null);
+                        }
                     }}
                 >
                     <DialogContent>

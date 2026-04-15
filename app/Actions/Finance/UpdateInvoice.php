@@ -29,8 +29,8 @@ class UpdateInvoice
                 'status' => $attributes['status'] ?? $invoice->status ?? 'draft',
                 'currency' => $attributes['currency'] ?? 'EGP',
                 'issued_at' => $attributes['issued_at'] ?? null,
-                'due_at' => null,
-                'paid_at' => null,
+                'due_at' => $attributes['due_at'] ?? null,
+                'paid_at' => $attributes['paid_at'] ?? null,
                 'notes' => $attributes['notes'] ?? null,
             ]);
             $invoice->save();
@@ -52,6 +52,9 @@ class UpdateInvoice
                     'subtotal_amount' => $invoice->subtotal_amount,
                     'discount_total_amount' => $invoice->discount_total_amount,
                     'amount' => $invoice->amount,
+                    'issued_at' => $invoice->issued_at?->toDateString(),
+                    'due_at' => $invoice->due_at?->toDateString(),
+                    'paid_at' => $invoice->paid_at?->toDateString(),
                 ],
             ]);
 

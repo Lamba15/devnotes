@@ -1,9 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
-    InvoiceFormEditor,
-    type InvoiceFormData,
+    InvoiceFormEditor
+    
 } from '@/components/finance/invoice-form-editor';
+import type {InvoiceFormData} from '@/components/finance/invoice-form-editor';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceInvoicesEdit({
@@ -25,8 +26,11 @@ export default function FinanceInvoicesEdit({
     const form = useForm<InvoiceFormData>({
         project_id: String(invoice.project_id),
         reference: invoice.reference,
+        status: invoice.status,
         currency: invoice.currency,
         issued_at: invoice.issued_at,
+        due_at: invoice.due_at,
+        paid_at: invoice.paid_at,
         notes: invoice.notes,
         items: invoice.items,
         discounts: invoice.discounts,
@@ -41,7 +45,7 @@ export default function FinanceInvoicesEdit({
             >
                 <InvoiceFormEditor
                     title="Edit invoice"
-                    description="Changes here regenerate the canonical PDF document and the public verification file."
+                    description="Changes here regenerate the canonical PDF document, the public verification file, and the shared finance presentation."
                     data={form.data}
                     errors={form.errors}
                     processing={form.processing}

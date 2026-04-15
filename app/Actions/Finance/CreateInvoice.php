@@ -36,8 +36,8 @@ class CreateInvoice
                 'discount_total_amount' => 0,
                 'amount' => 0,
                 'issued_at' => $attributes['issued_at'] ?? null,
-                'due_at' => null,
-                'paid_at' => null,
+                'due_at' => $attributes['due_at'] ?? null,
+                'paid_at' => $attributes['paid_at'] ?? null,
                 'notes' => $attributes['notes'] ?? null,
                 'public_id' => null,
             ]);

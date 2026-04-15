@@ -2,9 +2,10 @@ import { Head, router, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
     createEmptyInvoiceItem,
-    InvoiceFormEditor,
-    type InvoiceFormData,
+    InvoiceFormEditor
+    
 } from '@/components/finance/invoice-form-editor';
+import type {InvoiceFormData} from '@/components/finance/invoice-form-editor';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceInvoicesCreate({
@@ -19,8 +20,11 @@ export default function FinanceInvoicesCreate({
     const form = useForm<InvoiceFormData>({
         project_id: '',
         reference: '',
+        status: 'draft',
         currency: 'EGP',
         issued_at: '',
+        due_at: '',
+        paid_at: '',
         notes: '',
         items: [createEmptyInvoiceItem()],
         discounts: [],
@@ -35,7 +39,7 @@ export default function FinanceInvoicesCreate({
             >
                 <InvoiceFormEditor
                     title="Create invoice"
-                    description="Build the invoice as a document. Totals are calculated from the items and discounts you enter."
+                    description="Build the invoice as a document. Totals, status, and payment dates all flow into the shared finance surfaces."
                     data={form.data}
                     errors={form.errors}
                     processing={form.processing}
