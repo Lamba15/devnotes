@@ -135,8 +135,7 @@ class AssistantToolRegistry
                 'description' => 'Create an issue in a project the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -157,8 +156,7 @@ class AssistantToolRegistry
                 'description' => 'Update an issue the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -272,8 +270,7 @@ class AssistantToolRegistry
                 'description' => 'Create a board in a client the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -303,8 +300,7 @@ class AssistantToolRegistry
                 'description' => 'Update a board the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -335,8 +331,7 @@ class AssistantToolRegistry
                 'description' => 'Delete a board the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -602,8 +597,7 @@ class AssistantToolRegistry
                 'description' => 'Delete an issue the current user can manage.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -618,8 +612,7 @@ class AssistantToolRegistry
                 'description' => 'Update a project the current user can manage.',
                 'skill' => 'project_management',
                 'requires_confirmation' => true,
-                'guard' => fn (User $user): bool => $user->isPlatformOwner()
-                    || $user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists(),
+                'guard' => fn (User $user): bool => $this->hasProjectScopedWriteAccess($user),
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
@@ -809,6 +802,20 @@ class AssistantToolRegistry
                 ],
             ],
         ];
+    }
+
+    private function hasProjectScopedWriteAccess(User $user): bool
+    {
+        if ($user->isPlatformOwner()) {
+            return true;
+        }
+
+        if ($user->clientMemberships()->whereIn('role', ['owner', 'admin'])->exists()) {
+            return true;
+        }
+
+        return $user->clientMemberships()->where('role', 'member')->exists()
+            && $user->projectMemberships()->exists();
     }
 
     private function hasAnyFinanceAccess(User $user): bool

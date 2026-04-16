@@ -3373,6 +3373,56 @@ class AssistantFlowTest extends TestCase
         ]);
         $this->assertDatabaseCount('assistant_action_confirmations', 0);
     }
+
+    public function test_members_with_issues_write_can_access_create_issue_tool(): void
+    {
+        $client = Client::factory()->create([
+            'behavior_id' => Behavior::query()->firstOrFail()->id,
+        ]);
+        $member = User::factory()->create();
+        $project = Project::factory()->create([
+            'client_id' => $client->id,
+            'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        ]);
+
+        $membership = ClientMembership::query()->create([
+            'client_id' => $client->id,
+            'user_id' => $member->id,
+            'role' => 'member',
+        ]);
+        $this->grantPermissions($membership, [
+            ClientPermissionCatalog::PROJECTS_READ,
+            ClientPermissionCatalog::ISSUES_WRITE,
+        ]);
+
+        ProjectMembership::query()->create([
+            'project_id' => $project->id,
+            'user_id' => $member->id,
+        ]);
+
+        $this->app->instance(AssistantModelClient::class, new FakeAssistantModelClient([
+            'content' => 'I can create that issue once you confirm.',
+            'tool_calls' => [[
+                'id' => 'call_member_issue_create',
+                'name' => 'create_issue',
+                'arguments' => [
+                    'project_id' => $project->id,
+                    'title' => 'Member AI Issue',
+                    'status' => 'todo',
+                    'priority' => 'medium',
+                    'type' => 'task',
+                ],
+            ]],
+        ]));
+
+        $response = $this->actingAs($member)->postJson(route('assistant.messages.store'), [
+            'message' => 'Create issue Member AI Issue',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pending_confirmation.tool_name', 'create_issue')
+            ->assertJsonPath('data.pending_confirmation.status', 'pending');
+    }
 }
 
 class FakeAssistantModelClient implements AssistantModelClient
