@@ -3,8 +3,8 @@
 namespace App\AI;
 
 use App\AI\Contracts\AssistantModelClient;
+use App\Models\PlatformAiConfig;
 use Illuminate\Http\Client\Factory as HttpFactory;
-use Illuminate\Support\Facades\Auth;
 use RuntimeException;
 
 class OpenRouterAssistantModelClient implements AssistantModelClient
@@ -15,18 +15,18 @@ class OpenRouterAssistantModelClient implements AssistantModelClient
 
     public function respond(array $messages, array $tools = []): array
     {
-        $user = Auth::user();
-        $apiKey = $user?->openrouter_api_key ?: config('services.openrouter.api_key');
-        $model = $user?->openrouter_model ?: config('services.openrouter.model');
+        $config = PlatformAiConfig::current();
+        $apiKey = $config?->openrouter_api_key;
+        $model = $config?->openrouter_model;
 
         if (! $apiKey || ! $model) {
             return [
-                'content' => 'The assistant is not configured yet.',
+                'content' => 'The assistant is not configured yet. Ask the platform owner to set the API key and model in AI settings.',
                 'tool_calls' => [],
                 'trace' => [
                     'provider' => 'openrouter',
                     'model' => $model,
-                    'configured_via' => ($user?->openrouter_model || $user?->openrouter_api_key) ? 'user_settings' : 'env',
+                    'configured_via' => 'platform_settings',
                 ],
             ];
         }
@@ -62,7 +62,7 @@ class OpenRouterAssistantModelClient implements AssistantModelClient
             'trace' => [
                 'provider' => 'openrouter',
                 'model' => $model,
-                'configured_via' => ($user?->openrouter_model || $user?->openrouter_api_key) ? 'user_settings' : 'env',
+                'configured_via' => 'platform_settings',
                 'usage' => [
                     'prompt_tokens' => data_get($response, 'usage.prompt_tokens'),
                     'completion_tokens' => data_get($response, 'usage.completion_tokens'),

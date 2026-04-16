@@ -6,7 +6,7 @@ use App\AI\DefaultAssistantSystemPrompt;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\AISettingsUpdateRequest;
 use App\Models\AuditLog;
-use App\Models\User;
+use App\Models\PlatformAiConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
@@ -16,14 +16,14 @@ class AISettingsController extends Controller
 {
     public function edit(): Response
     {
-        $user = request()->user();
+        $config = PlatformAiConfig::current();
 
         return Inertia::render('settings/ai', [
-            'hasOpenRouterApiKey' => filled($user?->openrouter_api_key),
-            'openRouterModel' => $user?->openrouter_model ?: config('services.openrouter.model'),
-            'openRouterSystemPrompt' => $user?->openrouter_system_prompt,
+            'hasOpenRouterApiKey' => filled($config?->openrouter_api_key),
+            'openRouterModel' => $config?->openrouter_model,
+            'openRouterSystemPrompt' => $config?->openrouter_system_prompt,
             'defaultSystemPrompt' => DefaultAssistantSystemPrompt::make(),
-            'activeSystemPromptSource' => filled($user?->openrouter_system_prompt) ? 'custom' : 'default',
+            'activeSystemPromptSource' => filled($config?->openrouter_system_prompt) ? 'custom' : 'default',
             'openRouterModels' => $this->openRouterModels(),
         ]);
     }
@@ -31,27 +31,27 @@ class AISettingsController extends Controller
     public function update(AISettingsUpdateRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $user = $request->user();
+        $config = PlatformAiConfig::currentOrCreate();
 
-        $user->forceFill([
+        $config->forceFill([
             'openrouter_model' => $validated['openrouter_model'] ?: null,
             'openrouter_api_key' => filled($validated['openrouter_api_key'])
                 ? $validated['openrouter_api_key']
-                : $user->openrouter_api_key,
+                : $config->openrouter_api_key,
             'openrouter_system_prompt' => filled($validated['openrouter_system_prompt'] ?? null)
                 ? $validated['openrouter_system_prompt']
                 : null,
         ])->save();
 
         AuditLog::query()->create([
-            'user_id' => $user->id,
-            'event' => 'user.ai_settings_updated',
+            'user_id' => $request->user()->id,
+            'event' => 'platform.ai_settings_updated',
             'source' => 'web',
-            'subject_type' => User::class,
-            'subject_id' => $user->id,
+            'subject_type' => PlatformAiConfig::class,
+            'subject_id' => $config->id,
             'after_json' => [
-                'openrouter_model' => $user->openrouter_model,
-                'has_custom_prompt' => filled($user->openrouter_system_prompt),
+                'openrouter_model' => $config->openrouter_model,
+                'has_custom_prompt' => filled($config->openrouter_system_prompt),
             ],
         ]);
 

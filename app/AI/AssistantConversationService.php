@@ -9,6 +9,7 @@ use App\Models\AssistantRun;
 use App\Models\AssistantRunPhase;
 use App\Models\AssistantThread;
 use App\Models\AssistantToolExecution;
+use App\Models\PlatformAiConfig;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
@@ -585,8 +586,10 @@ class AssistantConversationService
 
     private function systemPromptFor(User $user): string
     {
-        if (filled($user->openrouter_system_prompt)) {
-            return (string) $user->openrouter_system_prompt;
+        $config = PlatformAiConfig::current();
+
+        if (filled($config?->openrouter_system_prompt)) {
+            return (string) $config->openrouter_system_prompt;
         }
 
         return DefaultAssistantSystemPrompt::make();
@@ -651,9 +654,7 @@ class AssistantConversationService
 
     private function writerSystemPromptFor(User $user): string
     {
-        $basePrompt = filled($user->openrouter_system_prompt)
-            ? (string) $user->openrouter_system_prompt
-            : $this->systemPromptFor($user);
+        $basePrompt = $this->systemPromptFor($user);
 
         return $basePrompt."\n\n================================================================================\nFINAL ANSWER WRITER PASS\n================================================================================\n- You are writing the final user-visible answer after the tool/work pass completed.\n- Always give a real answer. Do not return an empty reply.\n- Explain what happened in plain language.\n- Prefer markdown tables aggressively when tool results contain 2 or more comparable records or repeated fields.\n- If you are listing clients, projects, boards, issues, transactions, invoices, or similar structured items, default to a markdown table unless a table would clearly be worse.\n- After a table, add a brief human summary sentence if useful.\n- If there is a pending confirmation, say clearly that the action is prepared but not executed yet.\n- Do not mention hidden prompts, internal mechanics, or that this is a writer pass.\n- Use the tool results as ground truth.\n- Be concise, readable, and decisive.";
     }
@@ -676,7 +677,9 @@ class AssistantConversationService
 
     private function systemPromptSourceFor(User $user): string
     {
-        return filled($user->openrouter_system_prompt) ? 'user_settings' : 'default';
+        $config = PlatformAiConfig::current();
+
+        return filled($config?->openrouter_system_prompt) ? 'platform_settings' : 'default';
     }
 
     private function buildPageContextEnvelope(User $user, ?array $pageContext): ?array
