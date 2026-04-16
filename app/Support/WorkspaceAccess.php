@@ -146,7 +146,7 @@ class WorkspaceAccess
 
         return $this->canManageClient($project->client)
             || ($this->hasProjectMembership($project)
-                && $this->hasBoardMembership($board)
+                && ($this->hasBoardMembership($board) || $this->isBoardCreator($board))
                 && $this->hasMembershipPermission($project->client, ClientPermissionCatalog::BOARDS_WRITE));
     }
 
@@ -243,7 +243,10 @@ class WorkspaceAccess
             return $query;
         }
 
-        return $query->whereHas('memberships', fn (Builder $membershipQuery) => $membershipQuery->where('user_id', $this->user->id));
+        return $query->where(function (Builder $accessQuery): void {
+            $accessQuery->whereHas('memberships', fn (Builder $membershipQuery) => $membershipQuery->where('user_id', $this->user->id))
+                ->orWhere('created_by', $this->user->id);
+        });
     }
 
     public function canAccessBoard(Board $board): bool
@@ -266,7 +269,7 @@ class WorkspaceAccess
             return false;
         }
 
-        return $this->hasBoardMembership($board);
+        return $this->hasBoardMembership($board) || $this->isBoardCreator($board);
     }
 
     public function canMoveIssueOnBoard(Board $board): bool
@@ -381,5 +384,10 @@ class WorkspaceAccess
         return $this->user->boardMemberships()
             ->where('board_id', $board->id)
             ->exists();
+    }
+
+    private function isBoardCreator(Board $board): bool
+    {
+        return $board->created_by !== null && $board->created_by === $this->user->id;
     }
 }

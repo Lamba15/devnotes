@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Boards\CreateBoardMembership;
 use App\Actions\Boards\DeleteBoardMembership;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Board;
 use App\Models\BoardMembership;
 use App\Models\Client;
@@ -15,6 +16,8 @@ use Inertia\Response;
 
 class BoardMembershipController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function index(Request $request, Client $client, Board $board): Response
     {
         $board->loadMissing('project');
@@ -52,6 +55,13 @@ class BoardMembershipController extends Controller
         $memberships = $query->paginate(15)->withQueryString();
 
         return Inertia::render('boards/members/index', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->boardsCrumb($client),
+                $this->crumb($board->name, "/clients/{$client->id}/projects/{$board->project_id}/boards/{$board->id}"),
+                $this->crumb('Members', "/clients/{$client->id}/boards/{$board->id}/members"),
+            ),
             'client' => $client->only(['id', 'name']),
             'board' => [
                 'id' => $board->id,
@@ -81,7 +91,7 @@ class BoardMembershipController extends Controller
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
             ],
-            'can_manage_members' => $request->user()->canManageProject($board->project),
+            'can_manage_members' => $request->user()->canManageProject($board->project) || $request->user()->canManageBoard($board),
         ]);
     }
 
@@ -90,7 +100,10 @@ class BoardMembershipController extends Controller
         $board->loadMissing('project');
 
         abort_unless($board->project?->client_id === $client->id, 404);
-        abort_unless($request->user()->canManageProject($board->project), 403);
+        abort_unless(
+            $request->user()->canManageProject($board->project) || $request->user()->canManageBoard($board),
+            403,
+        );
 
         $eligibleUsers = User::query()
             ->whereHas('clientMemberships', fn ($q) => $q->where('client_id', $client->id))
@@ -99,6 +112,14 @@ class BoardMembershipController extends Controller
             ->get(['id', 'name', 'email']);
 
         return Inertia::render('boards/members/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->boardsCrumb($client),
+                $this->crumb($board->name, "/clients/{$client->id}/projects/{$board->project_id}/boards/{$board->id}"),
+                $this->crumb('Members', "/clients/{$client->id}/boards/{$board->id}/members"),
+                $this->crumb('Add Member', "/clients/{$client->id}/boards/{$board->id}/members/create"),
+            ),
             'client' => $client->only(['id', 'name']),
             'board' => [
                 'id' => $board->id,

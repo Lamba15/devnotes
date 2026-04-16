@@ -20,7 +20,7 @@ class CreateBoardMembership
     ): BoardMembership {
         $board->loadMissing('project.client');
 
-        if (! $actor->canManageProject($board->project)) {
+        if (! $actor->canManageProject($board->project) && ! $actor->canManageBoard($board)) {
             throw new AuthorizationException('You are not allowed to manage members on this board.');
         }
 

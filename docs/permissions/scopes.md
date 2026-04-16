@@ -101,7 +101,7 @@
     - `assistant.use`
 - Every `.write` permission implies the matching `.read` permission.
 - Project access still requires explicit project assignment.
-- Board access still requires explicit board assignment and the board must belong to an assigned project.
+- Board access requires explicit board assignment or board ownership (created_by) and the board must belong to an assigned project.
 - Project and board assignment controls apply to `member` only.
 - Web UI and AI tools should both read from the same centralized workspace access rules.
 

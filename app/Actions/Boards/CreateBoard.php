@@ -37,6 +37,7 @@ class CreateBoard
 
         $board = Board::query()->create([
             'project_id' => $project->id,
+            'created_by' => $actor->id,
             'name' => $attributes['name'],
         ]);
 

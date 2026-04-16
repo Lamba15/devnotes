@@ -13,7 +13,7 @@ class DeleteBoardMembership
     {
         $membership->loadMissing('board.project.client');
 
-        if (! $actor->canManageProject($membership->board->project)) {
+        if (! $actor->canManageProject($membership->board->project) && ! $actor->canManageBoard($membership->board)) {
             throw new AuthorizationException('You are not allowed to remove members from this board.');
         }
 

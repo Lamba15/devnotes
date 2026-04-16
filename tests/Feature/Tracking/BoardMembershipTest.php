@@ -7,10 +7,12 @@ use App\Models\Board;
 use App\Models\BoardMembership;
 use App\Models\Client;
 use App\Models\ClientMembership;
+use App\Models\ClientMembershipPermission;
 use App\Models\Project;
 use App\Models\ProjectMembership;
 use App\Models\ProjectStatus;
 use App\Models\User;
+use App\Support\ClientPermissionCatalog;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -296,11 +298,17 @@ test('non-managers can visit board members index in read only mode when they can
         'name' => 'Read only board',
     ]);
     $member = User::factory()->create();
-    ClientMembership::query()->create([
+    $membership = ClientMembership::query()->create([
         'client_id' => $client->id,
         'user_id' => $member->id,
         'role' => 'member',
     ]);
+    foreach (ClientPermissionCatalog::normalize([ClientPermissionCatalog::BOARDS_READ]) as $perm) {
+        ClientMembershipPermission::query()->create([
+            'client_membership_id' => $membership->id,
+            'permission_name' => $perm,
+        ]);
+    }
     ProjectMembership::query()->create([
         'project_id' => $project->id,
         'user_id' => $member->id,
