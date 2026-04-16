@@ -142,9 +142,14 @@ class OverviewController extends Controller
 
     private function buildMonthlyClosedIssues(): array
     {
+        $driver = Issue::query()->getConnection()->getDriverName();
+        $monthExpr = $driver === 'sqlite'
+            ? "strftime('%Y-%m', updated_at)"
+            : "DATE_FORMAT(updated_at, '%Y-%m')";
+
         return Issue::query()
             ->where('status', 'done')
-            ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")
+            ->selectRaw("{$monthExpr} as month, COUNT(*) as count")
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -219,13 +224,14 @@ class OverviewController extends Controller
     {
         $byStatus = ProjectStatus::query()
             ->withCount('projects')
-            ->having('projects_count', '>', 0)
             ->get()
+            ->filter(fn (ProjectStatus $status) => $status->projects_count > 0)
             ->map(fn (ProjectStatus $status) => [
                 'name' => $status->name,
                 'slug' => $status->slug,
                 'count' => $status->projects_count,
             ])
+            ->values()
             ->all();
 
         $activeCount = Project::query()
