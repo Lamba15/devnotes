@@ -32,15 +32,22 @@ export default function AllProjectsIndex({
     projects,
     filters,
     pagination,
+    status_filter_options,
 }: {
     projects: Project[];
-    filters: { search: string; sort_by: string; sort_direction: string };
+    filters: {
+        search: string;
+        sort_by: string;
+        sort_direction: string;
+        status: string[];
+    };
     pagination: {
         current_page: number;
         last_page: number;
         per_page: number;
         total: number;
     };
+    status_filter_options: { label: string; value: string }[];
 }) {
     const filterDefs: CrudFilterDefinition[] = useMemo(
         () => [
@@ -49,8 +56,15 @@ export default function AllProjectsIndex({
                 type: 'search',
                 placeholder: 'Search projects by name, description, or client',
             },
+            {
+                key: 'status',
+                type: 'select',
+                placeholder: 'Status',
+                options: status_filter_options,
+                className: 'lg:w-44',
+            },
         ],
-        [],
+        [status_filter_options],
     );
 
     const crud = useCrudFilters({

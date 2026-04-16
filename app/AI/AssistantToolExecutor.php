@@ -1077,16 +1077,51 @@ class AssistantToolExecutor
     {
         abort_unless($user->isPlatformOwner(), 403);
 
+        $issuesByStatus = Issue::query()
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+
+        $issuesByPriority = Issue::query()
+            ->selectRaw('priority, COUNT(*) as count')
+            ->whereNotNull('priority')
+            ->groupBy('priority')
+            ->pluck('count', 'priority')
+            ->all();
+
+        $invoicesByStatus = Invoice::query()
+            ->selectRaw('status, COUNT(*) as count, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('status')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->status => [
+                'count' => (int) $row->count,
+                'amount' => round((float) $row->total, 2),
+            ]])
+            ->all();
+
         return [
             'type' => 'platform_stats',
             'clients' => Client::count(),
             'projects' => Project::count(),
             'issues' => Issue::count(),
             'open_issues' => Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
+            'overdue_issues' => Issue::whereNotNull('due_date')
+                ->where('due_date', '<', now()->toDateString())
+                ->where('status', '!=', 'done')
+                ->count(),
+            'unassigned_issues' => Issue::whereNull('assignee_id')
+                ->where('status', '!=', 'done')
+                ->count(),
             'transactions' => Transaction::count(),
             'invoices' => Invoice::count(),
             'users' => User::count(),
             'boards' => Board::count(),
+            'issues_by_status' => $issuesByStatus,
+            'issues_by_priority' => $issuesByPriority,
+            'invoice_totals_by_status' => $invoicesByStatus,
+            'total_invoiced' => round((float) Invoice::sum('amount'), 2),
+            'total_transacted' => round((float) Transaction::sum('amount'), 2),
         ];
     }
 

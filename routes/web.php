@@ -15,22 +15,13 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\IssueCommentController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\PublicInvoiceController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserCreditsController;
-use App\Models\AuditLog;
-use App\Models\Board;
-use App\Models\Client;
-use App\Models\Invoice;
-use App\Models\Issue;
-use App\Models\Project;
-use App\Models\Transaction;
-use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::redirect('favicon.ico', '/branding/my-logo.svg');
 Route::redirect('favicon.svg', '/branding/my-logo.svg');
@@ -39,41 +30,7 @@ Route::inertia('/', 'welcome')->name('home');
 Route::get('invoices/{publicInvoiceId}', [PublicInvoiceController::class, 'show'])->name('invoices.public.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('overview', function (Request $request) {
-        if ($request->user()->isPlatformOwner()) {
-            return Inertia::render('overview', [
-                'stats' => [
-                    'clients' => Client::count(),
-                    'projects' => Project::count(),
-                    'issues' => Issue::count(),
-                    'open_issues' => Issue::where('status', 'todo')->orWhere('status', 'in_progress')->count(),
-                    'invoices' => Invoice::count(),
-                    'transactions' => Transaction::count(),
-                    'users' => User::count(),
-                    'boards' => Board::count(),
-                ],
-                'recent_activity' => AuditLog::with('user:id,name')
-                    ->orderByDesc('created_at')
-                    ->limit(8)
-                    ->get()
-                    ->map(fn ($log) => [
-                        'id' => $log->id,
-                        'event' => $log->event,
-                        'source' => $log->source,
-                        'subject_type' => class_basename($log->subject_type ?? ''),
-                        'subject_id' => $log->subject_id,
-                        'user_name' => $log->user?->name ?? 'System',
-                        'created_at' => $log->created_at->toISOString(),
-                    ]),
-            ]);
-        }
-
-        $firstClientId = $request->user()->clientMemberships()->orderBy('id')->value('client_id');
-
-        abort_unless($firstClientId !== null, 403);
-
-        return to_route('clients.show', $firstClientId);
-    })->name('overview');
+    Route::get('overview', OverviewController::class)->name('overview');
 
     Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
     Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');

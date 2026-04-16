@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Actions\Projects\CreateProject;
 use App\Actions\Projects\DeleteProject;
 use App\Actions\Projects\UpdateProject;
+use App\Http\Concerns\BuildsBreadcrumbs;
+use App\Http\Concerns\BuildsFinanceAnalysis;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\Invoice;
@@ -22,17 +24,23 @@ use Inertia\Response;
 
 class ProjectController extends Controller
 {
+    use BuildsBreadcrumbs;
+    use BuildsFinanceAnalysis;
+
     public function all(Request $request): Response
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'sort_by' => ['nullable', 'in:name,client_name,description,created_at'],
             'sort_direction' => ['nullable', 'in:asc,desc'],
+            'status' => ['array'],
+            'status.*' => ['string', 'max:255'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $search = trim((string) ($validated['search'] ?? ''));
         $sortBy = $validated['sort_by'] ?? 'created_at';
         $sortDirection = $validated['sort_direction'] ?? 'desc';
+        $statusFilter = $validated['status'] ?? [];
 
         $projects = Project::query()
             ->with(['client:id,name', 'status:id,name,slug'])
@@ -42,6 +50,9 @@ class ProjectController extends Controller
                         ->orWhere('projects.description', 'like', "%{$search}%")
                         ->orWhereHas('client', fn ($clientQuery) => $clientQuery->where('name', 'like', "%{$search}%"));
                 });
+            })
+            ->when($statusFilter !== [], function ($query) use ($statusFilter): void {
+                $query->whereHas('status', fn ($statusQuery) => $statusQuery->whereIn('slug', $statusFilter));
             });
 
         $paginatedProjects = match ($sortBy) {
@@ -61,6 +72,10 @@ class ProjectController extends Controller
         };
 
         return Inertia::render('projects/all', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->crumb('All Projects', '/clients/projects'),
+            ),
             'projects' => collect($paginatedProjects->items())
                 ->map(fn (Project $project) => [
                     'id' => $project->id,
@@ -77,10 +92,19 @@ class ProjectController extends Controller
                 'per_page' => $paginatedProjects->perPage(),
                 'total' => $paginatedProjects->total(),
             ],
+            'status_filter_options' => ProjectStatus::query()
+                ->orderBy('name')
+                ->get(['name', 'slug'])
+                ->map(fn (ProjectStatus $status) => [
+                    'label' => $status->name,
+                    'value' => $status->slug,
+                ])
+                ->all(),
             'filters' => [
                 'search' => $search,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
+                'status' => $statusFilter,
             ],
         ]);
     }
@@ -92,6 +116,12 @@ class ProjectController extends Controller
         abort_unless($user->canAccessClient($client), 403);
 
         return Inertia::render('projects/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+                $this->crumb('New Project', "/clients/{$client->id}/projects/create"),
+            ),
             'client' => $client->only(['id', 'name']),
             'statuses' => ProjectStatus::query()
                 ->where(function ($query) use ($client): void {
@@ -114,6 +144,13 @@ class ProjectController extends Controller
         $project->load(['skills:id,name', 'links', 'gitRepos']);
 
         return Inertia::render('projects/edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->crumb('Edit', "/clients/{$client->id}/projects/{$project->id}/edit"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => [
                 'id' => $project->id,
@@ -160,7 +197,46 @@ class ProjectController extends Controller
 
         $project->load(['status:id,name,slug', 'skills:id,name', 'links', 'gitRepos']);
 
+        $canViewFinance = $user->canAccessClientFinance($client);
+
+        $financeData = null;
+        $clientRelationshipVolume = null;
+
+        if ($canViewFinance) {
+            $projectTransactions = $project->transactions()
+                ->orderByRaw('COALESCE(occurred_date, created_at)')
+                ->get();
+
+            $projectInvoices = $project->invoices()
+                ->orderByRaw('COALESCE(issued_at, created_at)')
+                ->get();
+
+            $financeData = $this->buildFinanceAnalysis(
+                1,
+                $projectTransactions,
+                $projectInvoices,
+            );
+
+            $clientInvoiceTotal = Invoice::query()
+                ->whereHas('project', fn ($q) => $q->where('client_id', $client->id))
+                ->sum('amount');
+
+            $clientRelationshipVolume = [
+                'total' => round((float) $clientInvoiceTotal, 2),
+                'project' => $financeData['overall']['relationship_volume']['amount'],
+                'percentage' => $clientInvoiceTotal > 0
+                    ? round(($financeData['overall']['relationship_volume']['amount'] / (float) $clientInvoiceTotal) * 100, 1)
+                    : null,
+            ];
+        }
+
         return Inertia::render('projects/show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+                $this->projectCrumb($client, $project),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => [
                 'id' => $project->id,
@@ -199,9 +275,38 @@ class ProjectController extends Controller
             'summary' => [
                 'issues_count' => $project->issues()->count(),
                 'boards_count' => $project->boards()->count(),
+                'transactions_count' => $canViewFinance ? $project->transactions()->count() : null,
+                'invoices_count' => $canViewFinance ? $project->invoices()->count() : null,
             ],
+            'finance' => $financeData,
+            'transactions' => $canViewFinance
+                ? ($projectTransactions ?? collect())->map(fn (Transaction $t) => [
+                    'id' => $t->id,
+                    'description' => $t->description,
+                    'amount' => $t->amount,
+                    'currency' => $t->currency,
+                    'occurred_date' => $t->occurred_date?->toDateString(),
+                    'category' => $t->category,
+                ])->all()
+                : [],
+            'invoices' => $canViewFinance
+                ? ($projectInvoices ?? collect())->map(fn (Invoice $i) => [
+                    'id' => $i->id,
+                    'reference' => $i->reference,
+                    'status' => $i->status,
+                    'amount' => $i->amount,
+                    'currency' => $i->currency,
+                    'issued_at' => $i->issued_at?->toDateString(),
+                    'due_at' => $i->due_at?->toDateString(),
+                ])->all()
+                : [],
+            'client_relationship_volume' => $clientRelationshipVolume,
+            'viewer_perspective' => $canViewFinance
+                ? ($user->isPlatformOwner() ? 'platform_owner' : 'client_user')
+                : null,
             'can_manage_project' => $user->canManageProject($project),
             'can_manage_secrets' => $user->canAccessPlatform(),
+            'can_view_finance' => $canViewFinance,
         ]);
     }
 
@@ -280,6 +385,11 @@ class ProjectController extends Controller
         $financeSummaries = $this->financeSummariesForProjectIndex($projectModels);
 
         return Inertia::render('projects/index', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+            ),
             'client' => $client->only(['id', 'name']),
             'projects' => $projectModels
                 ->map(function (Project $project) use ($financeSummaries, $user) {
@@ -512,21 +622,6 @@ class ProjectController extends Controller
                 ],
             ])
             ->all();
-    }
-
-    private function summarizeMoneyCollection(Collection $rows, string $amountKey, string $currencyKey): array
-    {
-        $currencies = $rows
-            ->pluck($currencyKey)
-            ->filter()
-            ->unique()
-            ->values();
-
-        return [
-            'amount' => round($rows->sum(fn ($row) => (float) ($row->{$amountKey} ?? 0)), 2),
-            'currency' => $currencies->count() === 1 ? $currencies->first() : null,
-            'mixed_currencies' => $currencies->count() > 1,
-        ];
     }
 
     private function runningAccountTransactionSortSubquery()

@@ -571,7 +571,7 @@ class AssistantToolRegistry
             ],
             [
                 'name' => 'get_platform_stats',
-                'description' => 'Get platform-wide counts and summary stats. Platform owner only.',
+                'description' => 'Get platform-wide dashboard stats including entity counts, issue distributions (by status, priority), invoice totals by status, overdue/unassigned issue counts, and total invoiced/transacted amounts. Platform owner only.',
                 'skill' => 'platform_admin',
                 'requires_confirmation' => false,
                 'guard' => fn (User $user): bool => $user->isPlatformOwner(),

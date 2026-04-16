@@ -1,4 +1,5 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
 import { toUrl } from '@/lib/utils';
 
 export type IsCurrentUrlFn = (
@@ -25,16 +26,10 @@ export type UseCurrentUrlReturn = {
     whenCurrentUrl: WhenCurrentUrlFn;
 };
 
-function getCurrentUrlPath(): string {
-    if (typeof window === 'undefined') {
-        return '/';
-    }
-
-    return window.location.pathname;
-}
-
 export function useCurrentUrl(): UseCurrentUrlReturn {
-    const currentUrlPath = getCurrentUrlPath();
+    const page = usePage();
+    const pageUrl = page.url ?? '/';
+    const currentUrlPath = pageUrl.split('?')[0];
 
     const isCurrentUrl: IsCurrentUrlFn = (
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
