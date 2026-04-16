@@ -92,6 +92,10 @@ class ProjectController extends Controller
                 'per_page' => $paginatedProjects->perPage(),
                 'total' => $paginatedProjects->total(),
             ],
+            'statuses' => ProjectStatus::query()
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug'])
+                ->all(),
             'status_filter_options' => ProjectStatus::query()
                 ->orderBy('name')
                 ->get(['name', 'slug'])
@@ -107,6 +111,20 @@ class ProjectController extends Controller
                 'status' => $statusFilter,
             ],
         ]);
+    }
+
+    public function bulkUpdateStatus(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'project_ids' => ['required', 'array', 'min:1'],
+            'project_ids.*' => ['integer', 'exists:projects,id'],
+            'status_id' => ['required', 'integer', 'exists:project_statuses,id'],
+        ]);
+
+        Project::whereIn('id', $validated['project_ids'])
+            ->update(['status_id' => $validated['status_id']]);
+
+        return back();
     }
 
     public function create(Request $request, Client $client): Response
@@ -138,8 +156,8 @@ class ProjectController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->canManageClient($client), 403);
         abort_unless($project->client_id === $client->id, 404);
+        abort_unless($user->canManageProject($project), 403);
 
         $project->load(['skills:id,name', 'links', 'gitRepos']);
 

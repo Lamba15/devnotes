@@ -12,7 +12,7 @@ class UpdateProject
 {
     public function handle(User $actor, Project $project, array $attributes, string $source = 'manual_ui'): Project
     {
-        if (! $actor->canManageClient($project->client)) {
+        if (! $actor->canManageProject($project)) {
             throw new AuthorizationException('You are not allowed to update projects for this client.');
         }
 

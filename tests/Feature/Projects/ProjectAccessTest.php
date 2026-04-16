@@ -304,6 +304,86 @@ test('client scoped users cannot access the cross client projects index', functi
         ->assertForbidden();
 });
 
+test('member with projects.write permission can edit a project', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Original name',
+    ]);
+    $member = User::factory()->create();
+
+    $membership = ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    $membership->permissions()->create([
+        'permission_name' => ClientPermissionCatalog::PROJECTS_WRITE,
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.edit', [$client, $project]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('projects/edit')
+            ->where('project.id', $project->id)
+        );
+
+    $this->actingAs($member)
+        ->put(route('clients.projects.update', [$client, $project]), [
+            'name' => 'Updated name',
+            'status_id' => $project->status_id,
+        ])
+        ->assertRedirect(route('clients.projects.index', $client));
+
+    expect($project->fresh()->name)->toBe('Updated name');
+});
+
+test('member without projects.write permission cannot edit a project', function () {
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+        'name' => 'Original name',
+    ]);
+    $member = User::factory()->create();
+
+    ClientMembership::query()->create([
+        'client_id' => $client->id,
+        'user_id' => $member->id,
+        'role' => 'member',
+    ]);
+
+    ProjectMembership::query()->create([
+        'project_id' => $project->id,
+        'user_id' => $member->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('clients.projects.edit', [$client, $project]))
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->put(route('clients.projects.update', [$client, $project]), [
+            'name' => 'Updated name',
+            'status_id' => $project->status_id,
+        ])
+        ->assertForbidden();
+
+    expect($project->fresh()->name)->toBe('Original name');
+});
+
 test('members cannot create projects', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,
