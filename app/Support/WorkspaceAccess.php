@@ -18,13 +18,20 @@ class WorkspaceAccess
 
     public static function mainPlatformOwner(): ?User
     {
-        return Cache::remember('workspace.main_platform_owner', 60, function (): ?User {
-            return User::query()->platformOwners()->first();
+        $id = Cache::remember('workspace.main_platform_owner_id', 60, function (): ?int {
+            return User::query()->platformOwners()->value('id');
         });
+
+        if ($id === null) {
+            return null;
+        }
+
+        return User::query()->find($id);
     }
 
     public static function forgetMainPlatformOwnerCache(): void
     {
+        Cache::forget('workspace.main_platform_owner_id');
         Cache::forget('workspace.main_platform_owner');
     }
 
