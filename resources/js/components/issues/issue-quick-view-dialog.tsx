@@ -1,6 +1,8 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Calendar,
+    Check,
+    ChevronDown,
     Clock,
     ExternalLink,
     FileText,
@@ -24,6 +26,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
 
@@ -129,6 +137,73 @@ async function sendJson<T>(
     }
 
     return response.json() as Promise<T>;
+}
+
+function uniqueWithCurrent(defaults: string[], current: string): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const value of [...defaults, current]) {
+        if (!seen.has(value) && value !== '') {
+            seen.add(value);
+            result.push(value);
+        }
+    }
+
+    return result;
+}
+
+function EditableBadge({
+    value,
+    options,
+    canEdit,
+    onChange,
+    formatLabel,
+}: {
+    value: string;
+    options: string[];
+    canEdit: boolean;
+    onChange: (next: string) => void;
+    formatLabel?: (value: string) => string;
+}) {
+    const labelFor = (v: string) =>
+        formatLabel ? formatLabel(v) : v.replace('_', ' ');
+
+    if (!canEdit) {
+        return (
+            <Badge variant="outline" className="capitalize">
+                {labelFor(value)}
+            </Badge>
+        );
+    }
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <button
+                    type="button"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium capitalize transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                    {labelFor(value)}
+                    <ChevronDown className="size-3 opacity-60" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+                {options.map((option) => (
+                    <DropdownMenuItem
+                        key={option}
+                        onSelect={() => onChange(option)}
+                        className="cursor-pointer capitalize"
+                    >
+                        <span className="flex-1">{labelFor(option)}</span>
+                        {option === value ? (
+                            <Check className="ml-2 size-3.5 text-primary" />
+                        ) : null}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
 }
 
 export function IssueQuickViewDialog({
@@ -261,6 +336,67 @@ export function IssueQuickViewDialog({
             setDescriptionFiles([]);
         } finally {
             setSavingDescription(false);
+        }
+    };
+
+    const saveField = async (
+        field: 'status' | 'priority' | 'type',
+        value: string,
+    ) => {
+        const previous = workspaceIssue[field];
+
+        if (previous === value) {
+            return;
+        }
+
+        // Optimistic update
+        setWorkspaceIssue({ ...workspaceIssue, [field]: value });
+
+        try {
+            const formData = new FormData();
+            formData.append('_method', 'PUT');
+            formData.append('title', workspaceIssue.title);
+            formData.append('description', workspaceIssue.description ?? '');
+            formData.append(
+                'status',
+                field === 'status' ? value : workspaceIssue.status,
+            );
+            formData.append(
+                'priority',
+                field === 'priority' ? value : workspaceIssue.priority,
+            );
+            formData.append(
+                'type',
+                field === 'type' ? value : workspaceIssue.type,
+            );
+            formData.append(
+                'assignee_id',
+                workspaceIssue.assignee_id
+                    ? String(workspaceIssue.assignee_id)
+                    : '',
+            );
+            formData.append('label', workspaceIssue.label ?? '');
+            formData.append(
+                'estimated_hours',
+                workspaceIssue.estimated_hours ?? '',
+            );
+            formData.append('due_date', workspaceIssue.due_date ?? '');
+
+            const data = await sendJson<{ issue: QuickViewIssue }>(
+                `/clients/${clientId}/projects/${activeProjectId}/issues/${workspaceIssue.id}`,
+                'POST',
+                formData,
+            );
+
+            setWorkspaceIssue(data.issue);
+
+            // Refresh the list behind the modal
+            router.reload();
+        } catch (error) {
+            // Rollback on failure
+            setWorkspaceIssue({ ...workspaceIssue, [field]: previous });
+
+            throw error;
         }
     };
 
@@ -399,15 +535,34 @@ export function IssueQuickViewDialog({
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                                <Badge variant="outline" className="capitalize">
-                                    {workspaceIssue.status.replace('_', ' ')}
-                                </Badge>
-                                <Badge variant="outline" className="capitalize">
-                                    {workspaceIssue.priority}
-                                </Badge>
-                                <Badge variant="outline" className="capitalize">
-                                    {workspaceIssue.type}
-                                </Badge>
+                                <EditableBadge
+                                    value={workspaceIssue.status}
+                                    options={uniqueWithCurrent(
+                                        ['todo', 'in_progress', 'done'],
+                                        workspaceIssue.status,
+                                    )}
+                                    canEdit={canManageIssue}
+                                    onChange={(v) => saveField('status', v)}
+                                    formatLabel={(v) => v.replace('_', ' ')}
+                                />
+                                <EditableBadge
+                                    value={workspaceIssue.priority}
+                                    options={uniqueWithCurrent(
+                                        ['low', 'medium', 'high'],
+                                        workspaceIssue.priority,
+                                    )}
+                                    canEdit={canManageIssue}
+                                    onChange={(v) => saveField('priority', v)}
+                                />
+                                <EditableBadge
+                                    value={workspaceIssue.type}
+                                    options={uniqueWithCurrent(
+                                        ['task', 'bug', 'feature'],
+                                        workspaceIssue.type,
+                                    )}
+                                    canEdit={canManageIssue}
+                                    onChange={(v) => saveField('type', v)}
+                                />
                                 {workspaceIssue.label ? (
                                     <Badge variant="outline" className="gap-1">
                                         <Tag className="size-3" />
