@@ -1,3 +1,4 @@
+import { Link, router } from '@inertiajs/react';
 import {
     ArcElement,
     Chart as ChartJS,
@@ -5,6 +6,7 @@ import {
     Legend,
     Tooltip as ChartTooltip,
 } from 'chart.js';
+import { useRef } from 'react';
 import { Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(ArcElement, DoughnutController, ChartTooltip, Legend);
@@ -13,6 +15,7 @@ export type Segment = {
     label: string;
     value: number;
     color: string;
+    href?: string;
 };
 
 export function DistributionChart({
@@ -22,6 +25,7 @@ export function DistributionChart({
     segments: Segment[];
     label?: string;
 }) {
+    const chartRef = useRef<ChartJS<'doughnut'>>(null);
     const filtered = segments.filter((s) => s.value > 0);
 
     if (filtered.length === 0) {
@@ -51,6 +55,46 @@ export function DistributionChart({
         responsive: true,
         maintainAspectRatio: false,
         cutout: '60%',
+        onClick: (event: unknown) => {
+            const chart = chartRef.current;
+
+            if (!chart) {
+                return;
+            }
+
+            const points = chart.getElementsAtEventForMode(
+                event as Event,
+                'nearest',
+                { intersect: true },
+                false,
+            );
+
+            if (points.length > 0) {
+                const segment = filtered[points[0].index];
+
+                if (segment?.href) {
+                    router.visit(segment.href);
+                }
+            }
+        },
+        onHover: (event: unknown) => {
+            const chart = chartRef.current;
+
+            if (!chart) {
+                return;
+            }
+
+            const points = chart.getElementsAtEventForMode(
+                event as Event,
+                'nearest',
+                { intersect: true },
+                false,
+            );
+
+            const hoveredSegment = points.length > 0 ? filtered[points[0].index] : null;
+
+            chart.canvas.style.cursor = hoveredSegment?.href ? 'pointer' : 'default';
+        },
         plugins: {
             legend: { display: false },
             tooltip: {
@@ -80,7 +124,7 @@ export function DistributionChart({
     return (
         <div className="flex items-center gap-5">
             <div className="relative h-36 w-36 shrink-0">
-                <Doughnut data={data} options={options} />
+                <Doughnut ref={chartRef} data={data} options={options} />
                 {label ? (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                         <span className="text-lg font-bold tabular-nums">
@@ -90,20 +134,40 @@ export function DistributionChart({
                 ) : null}
             </div>
             <div className="min-w-0 space-y-1.5">
-                {filtered.map((s) => (
-                    <div key={s.label} className="flex items-center gap-2.5">
-                        <span
-                            className="block h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: s.color }}
-                        />
-                        <span className="truncate text-sm text-muted-foreground">
-                            {s.label}
-                        </span>
-                        <span className="ml-auto shrink-0 text-sm font-medium tabular-nums">
-                            {s.value}
-                        </span>
-                    </div>
-                ))}
+                {filtered.map((s) => {
+                    const row = (
+                        <>
+                            <span
+                                className="block h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: s.color }}
+                            />
+                            <span className="truncate text-sm text-muted-foreground">
+                                {s.label}
+                            </span>
+                            <span className="ml-auto shrink-0 text-sm font-medium tabular-nums">
+                                {s.value}
+                            </span>
+                        </>
+                    );
+
+                    if (s.href) {
+                        return (
+                            <Link
+                                key={s.label}
+                                href={s.href}
+                                className="-mx-1 flex items-center gap-2.5 rounded-md px-1 py-0.5 transition-colors hover:bg-muted/40"
+                            >
+                                {row}
+                            </Link>
+                        );
+                    }
+
+                    return (
+                        <div key={s.label} className="flex items-center gap-2.5">
+                            {row}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

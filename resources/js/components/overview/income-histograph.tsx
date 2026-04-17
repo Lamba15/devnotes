@@ -91,8 +91,10 @@ export function IncomeHistograph({
                         ).getDate();
                         const dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
-                        router.visit(
-                            `/finance/transactions?date_from=${dateFrom}&date_to=${dateTo}`,
+                        router.get(
+                            '/finance/transactions',
+                            { date_from: dateFrom, date_to: dateTo },
+                            { preserveState: false, preserveScroll: false },
                         );
                     }
                 }

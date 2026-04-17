@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import {
     BarController,
     BarElement,
@@ -52,6 +53,49 @@ export function ClosedIssuesChart({ data }: { data: MonthlyClosedIssue[] }) {
                 mode: 'index' as const,
                 intersect: false,
             },
+            onClick: (event: unknown) => {
+                const chart = chartRef.current;
+
+                if (!chart) {
+                    return;
+                }
+
+                const points = chart.getElementsAtEventForMode(
+                    event as Event,
+                    'nearest',
+                    { intersect: false },
+                    false,
+                );
+
+                if (points.length > 0) {
+                    const clicked = data[points[0].index];
+
+                    if (clicked) {
+                        router.get(
+                            '/tracking/issues',
+                            { 'status[]': 'done' },
+                            { preserveState: false, preserveScroll: false },
+                        );
+                    }
+                }
+            },
+            onHover: (event: unknown) => {
+                const chart = chartRef.current;
+
+                if (!chart) {
+                    return;
+                }
+
+                const points = chart.getElementsAtEventForMode(
+                    event as Event,
+                    'nearest',
+                    { intersect: false },
+                    false,
+                );
+
+                chart.canvas.style.cursor =
+                    points.length > 0 ? 'pointer' : 'default';
+            },
             scales: {
                 x: {
                     grid: { display: false },
@@ -95,6 +139,7 @@ export function ClosedIssuesChart({ data }: { data: MonthlyClosedIssue[] }) {
 
                             return `${val} issue${val === 1 ? '' : 's'} closed`;
                         },
+                        footer: () => 'Click to view closed issues',
                     },
                 },
             },

@@ -194,7 +194,7 @@ const statCards = [
         key: 'open_issues',
         label: 'Open Issues',
         icon: Activity,
-        href: '/tracking/issues',
+        href: '/tracking/issues?status%5B%5D=todo&status%5B%5D=in_progress',
         color: 'text-red-600 dark:text-red-400',
         bg: 'bg-red-100 dark:bg-red-900/30',
     },
@@ -314,6 +314,7 @@ export default function Overview({
                     label: formatStatusLabel(status),
                     value: count,
                     color: issueStatusColors[status] ?? '#94a3b8',
+                    href: `/tracking/issues?status%5B%5D=${encodeURIComponent(status)}`,
                 }),
             ),
         [issue_distribution.by_status],
@@ -326,6 +327,7 @@ export default function Overview({
                     label: formatStatusLabel(priority),
                     value: count,
                     color: issuePriorityColors[priority] ?? '#94a3b8',
+                    href: `/tracking/issues?priority%5B%5D=${encodeURIComponent(priority)}`,
                 }),
             ),
         [issue_distribution.by_priority],
@@ -337,6 +339,7 @@ export default function Overview({
                 label: formatStatusLabel(type),
                 value: count,
                 color: issueTypeColors[type] ?? '#94a3b8',
+                href: `/tracking/issues?type%5B%5D=${encodeURIComponent(type)}`,
             })),
         [issue_distribution.by_type],
     );
@@ -352,6 +355,7 @@ export default function Overview({
                 label: formatStatusLabel(status),
                 value: data.count,
                 color: invoiceStatusColors[status] ?? '#94a3b8',
+                href: `/finance/invoices?status%5B%5D=${encodeURIComponent(status)}`,
             }));
     }, [activeCurrencyAnalysis]);
 
@@ -394,16 +398,20 @@ export default function Overview({
                                                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                                                     {card.label}
                                                 </p>
-                                                <p className="text-2xl font-bold tabular-nums">
-                                                    {stat.count}
-                                                </p>
-                                                {stat.new_this_month > 0 ? (
-                                                    <p className="flex items-center gap-0.5 text-xs text-emerald-600 dark:text-emerald-400">
-                                                        <ArrowUpRight className="size-3" />
-                                                        +{stat.new_this_month}{' '}
-                                                        this month
+                                                <div className="flex items-baseline gap-2">
+                                                    <p className="text-2xl font-bold tabular-nums">
+                                                        {stat.count}
                                                     </p>
-                                                ) : null}
+                                                    {stat.new_this_month > 0 ? (
+                                                        <span
+                                                            title={`+${stat.new_this_month} this month`}
+                                                            className="inline-flex items-center gap-0.5 whitespace-nowrap text-xs text-emerald-600 dark:text-emerald-400"
+                                                        >
+                                                            <ArrowUpRight className="size-3" />
+                                                            +{stat.new_this_month}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -503,14 +511,14 @@ export default function Overview({
                                     label="Overdue"
                                     count={issue_distribution.overdue_count}
                                     tone="red"
-                                    href="/tracking/issues"
+                                    href="/tracking/issues?sort_by=due_date&sort_direction=asc"
                                 />
                                 <AlertIndicator
                                     icon={UserX}
                                     label="Unassigned"
                                     count={issue_distribution.unassigned_count}
                                     tone="amber"
-                                    href="/tracking/issues"
+                                    href="/tracking/issues?assignee%5B%5D=unassigned"
                                 />
                                 <AlertIndicator
                                     icon={Inbox}
@@ -722,6 +730,7 @@ export default function Overview({
                                         finance_analysis.overall
                                             .transaction_volume
                                     }
+                                    href="/finance/transactions"
                                 />
                                 <FinanceMetricCard
                                     title="Lifetime Invoiced"
@@ -730,6 +739,7 @@ export default function Overview({
                                         finance_analysis.overall
                                             .relationship_volume
                                     }
+                                    href="/finance/invoices"
                                 />
                                 <FinanceMetricCard
                                     title="Running Account"
@@ -737,26 +747,29 @@ export default function Overview({
                                     summary={
                                         finance_analysis.overall.running_account
                                     }
+                                    href="/finance/transactions"
                                 />
-                                <Card className="shadow-none">
-                                    <CardContent className="space-y-3 pt-6">
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                            <Receipt className="size-4" />
-                                            <span className="text-sm font-medium">
-                                                Open Invoices
-                                            </span>
-                                        </div>
-                                        <FinanceAmount
-                                            amount={
-                                                activeCurrencyAnalysis.open_invoice_total
-                                            }
-                                            currency={
-                                                activeCurrencyAnalysis.currency
-                                            }
-                                            className="text-xl"
-                                        />
-                                    </CardContent>
-                                </Card>
+                                <Link href="/finance/invoices?status%5B%5D=pending&status%5B%5D=overdue">
+                                    <Card className="shadow-none transition-all hover:bg-muted/30 hover:shadow-sm">
+                                        <CardContent className="space-y-3 pt-6">
+                                            <div className="flex items-center gap-2 text-muted-foreground">
+                                                <Receipt className="size-4" />
+                                                <span className="text-sm font-medium">
+                                                    Open Invoices
+                                                </span>
+                                            </div>
+                                            <FinanceAmount
+                                                amount={
+                                                    activeCurrencyAnalysis.open_invoice_total
+                                                }
+                                                currency={
+                                                    activeCurrencyAnalysis.currency
+                                                }
+                                                className="text-xl"
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                </Link>
                             </div>
 
                             <div className="grid gap-4 lg:grid-cols-2">
@@ -796,9 +809,10 @@ export default function Overview({
                                             }
 
                                             return (
-                                                <div
+                                                <Link
                                                     key={status}
-                                                    className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background/70 p-3"
+                                                    href={`/finance/invoices?status%5B%5D=${encodeURIComponent(status)}`}
+                                                    className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background/70 p-3 transition-colors hover:bg-muted/40"
                                                 >
                                                     <div className="space-y-1">
                                                         <FinanceStatusBadge
@@ -817,7 +831,7 @@ export default function Overview({
                                                             activeCurrencyAnalysis.currency
                                                         }
                                                     />
-                                                </div>
+                                                </Link>
                                             );
                                         })}
                                     </CardContent>
@@ -847,43 +861,50 @@ export default function Overview({
                                 </p>
                             ) : (
                                 <div className="space-y-3">
-                                    {recent_activity.map((entry) => (
-                                        <div
-                                            key={entry.id}
-                                            className="flex items-center gap-3 rounded-lg border px-3 py-2"
-                                        >
-                                            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                                                <Activity className="size-3.5 text-muted-foreground" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm">
-                                                    <span className="font-medium">
-                                                        {entry.user_name}
-                                                    </span>{' '}
-                                                    <span className="text-muted-foreground">
-                                                        {entry.event}
-                                                    </span>{' '}
-                                                    {entry.subject_type && (
+                                    {recent_activity.map((entry) => {
+                                        const href = entry.subject_type
+                                            ? `/audit-logs?subject_type%5B%5D=${encodeURIComponent(entry.subject_type)}`
+                                            : '/audit-logs';
+
+                                        return (
+                                            <Link
+                                                key={entry.id}
+                                                href={href}
+                                                className="flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/30"
+                                            >
+                                                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                                                    <Activity className="size-3.5 text-muted-foreground" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-sm">
                                                         <span className="font-medium">
-                                                            {entry.subject_type}
-                                                            {entry.subject_id
-                                                                ? ` #${entry.subject_id}`
-                                                                : ''}
-                                                        </span>
+                                                            {entry.user_name}
+                                                        </span>{' '}
+                                                        <span className="text-muted-foreground">
+                                                            {entry.event}
+                                                        </span>{' '}
+                                                        {entry.subject_type && (
+                                                            <span className="font-medium">
+                                                                {entry.subject_type}
+                                                                {entry.subject_id
+                                                                    ? ` #${entry.subject_id}`
+                                                                    : ''}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                                                    <Clock className="size-3" />
+                                                    {formatRelativeInstant(
+                                                        entry.created_at,
+                                                        {
+                                                            fallback: 'unknown',
+                                                        },
                                                     )}
-                                                </p>
-                                            </div>
-                                            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                                                <Clock className="size-3" />
-                                                {formatRelativeInstant(
-                                                    entry.created_at,
-                                                    {
-                                                        fallback: 'unknown',
-                                                    },
-                                                )}
-                                            </span>
-                                        </div>
-                                    ))}
+                                                </span>
+                                            </Link>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </CardContent>
@@ -1208,13 +1229,20 @@ function FinanceMetricCard({
     title,
     icon: Icon,
     summary,
+    href,
 }: {
     title: string;
     icon: typeof Wallet;
     summary: MoneySummary;
+    href?: string;
 }) {
-    return (
-        <Card className="shadow-none">
+    const card = (
+        <Card
+            className={cn(
+                'shadow-none',
+                href && 'transition-all hover:bg-muted/30 hover:shadow-sm',
+            )}
+        >
             <CardContent className="space-y-3 pt-6">
                 <div className="flex items-center gap-2 text-muted-foreground">
                     <Icon className="size-4" />
@@ -1234,6 +1262,12 @@ function FinanceMetricCard({
             </CardContent>
         </Card>
     );
+
+    if (href) {
+        return <Link href={href}>{card}</Link>;
+    }
+
+    return card;
 }
 
 function AlertIndicator({
