@@ -1,10 +1,12 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { IssueAttachmentsSection } from '@/components/issues/issue-attachments';
 import { IssueDetailsForm } from '@/components/issues/issue-details-form';
 import type { IssueFormValues } from '@/components/issues/issue-details-form';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import type { AssigneeOption, IssueAssignee } from '@/types/issue';
 
 export default function IssuesEdit({
     client,
@@ -24,8 +26,7 @@ export default function IssuesEdit({
         status: string;
         priority: string;
         type: string;
-        assignee_id: number | null;
-        assignee: { id: number; name: string } | null;
+        assignees: IssueAssignee[];
         due_date: string | null;
         estimated_hours: string | null;
         label: string | null;
@@ -39,16 +40,19 @@ export default function IssuesEdit({
             is_image?: boolean;
         }>;
     };
-    assignee_options: Array<{ label: string; value: string }>;
+    assignee_options: AssigneeOption[];
     status_options: string[];
     priority_options: string[];
     type_options: string[];
 }) {
     const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+    const goBack = useBackNavigation(
+        `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
+    );
     const form = useForm<IssueFormValues>({
         title: issue.title ?? '',
         description: issue.description ?? '<p></p>',
-        assignee_id: issue.assignee_id ? String(issue.assignee_id) : '',
+        assignee_ids: issue.assignees?.map((a) => a.id) ?? [],
         status: issue.status,
         priority: issue.priority,
         type: issue.type,
@@ -57,23 +61,12 @@ export default function IssuesEdit({
         label: issue.label ?? '',
     });
 
-    const goBack = () => {
-        if (window.history.length > 1) {
-            window.history.back();
-        } else {
-            router.visit(
-                `/clients/${client.id}/projects/${project.id}/issues/${issue.id}`,
-            );
-        }
-    };
-
     return (
         <>
             <Head title={`Edit ${issue.title}`} />
             <CrudPage
                 title={`Edit ${issue.title}`}
                 description={`${client.name} / ${project.name}`}
-                onBack={goBack}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
                     <IssueDetailsForm
@@ -83,7 +76,12 @@ export default function IssuesEdit({
                         submitLabel="Save issue"
                         cancelLabel="Back to issue"
                         onCancel={goBack}
-                        onChange={(name, value) => form.setData(name, value)}
+                        onChange={(name, value) =>
+                            form.setData(
+                                name as keyof IssueFormValues,
+                                value as never,
+                            )
+                        }
                         assigneeOptions={assignee_options}
                         statusOptions={status_options}
                         priorityOptions={priority_options}

@@ -6,12 +6,15 @@ use App\Actions\Boards\CreateBoard;
 use App\Actions\Boards\CreateBoardColumn;
 use App\Actions\Boards\DeleteBoard;
 use App\Actions\Boards\UpdateBoard;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\BoardIssuePlacement;
 use App\Models\Client;
 use App\Models\Issue;
 use App\Models\Project;
+use App\Support\IssueSerializer;
+use App\Support\WorkspaceAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,6 +22,8 @@ use Inertia\Response;
 
 class BoardController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function create(Request $request, Client $client): Response
     {
         $user = $request->user();
@@ -32,6 +37,12 @@ class BoardController extends Controller
         abort_unless($projects->isNotEmpty(), 403);
 
         return Inertia::render('boards/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->boardsCrumb($client),
+                $this->crumb('New Board', "/clients/{$client->id}/boards/create"),
+            ),
             'client' => $client->only(['id', 'name']),
             'projects' => $projects->map(fn (Project $project) => $project->only(['id', 'name']))->all(),
             'status_options' => ['todo', 'in_progress', 'done'],
@@ -68,6 +79,13 @@ class BoardController extends Controller
         abort_unless($request->user()->canManageBoard($board), 403);
 
         return Inertia::render('boards/edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->boardsCrumb($client),
+                $this->crumb($board->name, "/clients/{$client->id}/projects/{$board->project_id}/boards/{$board->id}"),
+                $this->crumb('Edit', "/clients/{$client->id}/boards/{$board->id}/edit"),
+            ),
             'client' => $client->only(['id', 'name']),
             'board' => [
                 'id' => $board->id,
@@ -143,7 +161,7 @@ class BoardController extends Controller
                 ->with([
                     'placements' => fn ($placementQuery) => $placementQuery
                         ->orderBy('position')
-                        ->with('issue.assignee:id,name,avatar_path', 'issue.attachments', 'issue.comments.user:id,name,avatar_path', 'issue.comments.attachments'),
+                        ->with('issue.assignees:id,name,avatar_path', 'issue.attachments', 'issue.comments.user:id,name,avatar_path', 'issue.comments.attachments'),
                 ]),
         ]);
 
@@ -152,6 +170,12 @@ class BoardController extends Controller
             ->pluck('issue_id');
 
         return Inertia::render('boards/show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->boardsCrumb($client),
+                $this->crumb($board->name, "/clients/{$client->id}/projects/{$project->id}/boards/{$board->id}"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'board' => [
@@ -162,7 +186,7 @@ class BoardController extends Controller
             'backlog' => Issue::query()
                 ->where('project_id', $project->id)
                 ->whereNotIn('id', $placedIssueIds)
-                ->with('assignee:id,name,avatar_path', 'attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
+                ->with('assignees:id,name,avatar_path', 'attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
                 ->orderBy('id')
                 ->get()
                 ->map(fn (Issue $issue) => $this->serializeIssue($issue))
@@ -230,7 +254,7 @@ class BoardController extends Controller
     private function serializeIssue(Issue $issue): array
     {
         $issue->loadMissing([
-            'assignee:id,name,avatar_path',
+            'assignees:id,name,avatar_path',
             'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
             'comments.user:id,name,avatar_path',
             'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
@@ -241,6 +265,7 @@ class BoardController extends Controller
             ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
             ->values();
         $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
         return [
             'id' => $issue->id,
@@ -249,8 +274,7 @@ class BoardController extends Controller
             'status' => $issue->status,
             'priority' => $issue->priority,
             'type' => $issue->type,
-            'assignee_id' => $issue->assignee_id,
-            'assignee' => $issue->assignee?->only(['id', 'name', 'avatar_path']),
+            'assignees' => IssueSerializer::assignees($issue, $mainOwnerId),
             'due_date' => $issue->due_date?->toDateString(),
             'estimated_hours' => $issue->estimated_hours,
             'label' => $issue->label,

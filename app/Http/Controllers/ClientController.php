@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Actions\Clients\CreateClient;
 use App\Actions\Clients\DeleteClient;
 use App\Actions\Clients\UpdateClient;
+use App\Http\Concerns\BuildsBreadcrumbs;
+use App\Http\Concerns\BuildsFinanceAnalysis;
 use App\Models\Attachment;
 use App\Models\AuditLog;
 use App\Models\Behavior;
@@ -18,7 +20,8 @@ use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
-use Carbon\CarbonImmutable;
+use App\Support\IssueSerializer;
+use App\Support\WorkspaceAccess;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +33,9 @@ use Inertia\Response;
 
 class ClientController extends Controller
 {
+    use BuildsBreadcrumbs;
+    use BuildsFinanceAnalysis;
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -88,6 +94,9 @@ class ClientController extends Controller
         $financeSummaries = $this->financeSummariesForClientIndex($user, $clientIds);
 
         return Inertia::render('clients/index', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+            ),
             'clients' => $clientModels
                 ->map(function (Client $client) use ($financeAccessClientIds, $financeSummaries) {
                     $financeSummary = $financeSummaries[$client->id] ?? null;
@@ -137,6 +146,10 @@ class ClientController extends Controller
         abort_unless($request->user()->isPlatformOwner(), 403);
 
         return Inertia::render('clients/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->crumb('New Client', '/clients/create'),
+            ),
             'behaviors' => Behavior::query()
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug']),
@@ -148,6 +161,11 @@ class ClientController extends Controller
         abort_unless($request->user()->canEditInternalClientProfile($client), 403);
 
         return Inertia::render('clients/edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->crumb('Edit', "/clients/{$client->id}/edit"),
+            ),
             'client' => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -281,6 +299,10 @@ class ClientController extends Controller
         $projectIds = $projects->pluck('id');
 
         return Inertia::render('clients/show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client, $canViewInternalProfile ? $client->behavior?->name : null),
+            ),
             'client' => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -407,6 +429,7 @@ class ClientController extends Controller
         $issues = Issue::query()
             ->with([
                 'project:id,name,client_id',
+                'assignees:id,name,avatar_path',
                 'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
                 'comments.user:id,name,avatar_path',
                 'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
@@ -436,6 +459,11 @@ class ClientController extends Controller
         $typeOptions = $this->serializeClientIssueClassificationFilterOptions($projectIds, 'type', ['task', 'bug', 'feature']);
 
         return Inertia::render('clients/issues', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->crumb('Issues', "/clients/{$client->id}/issues"),
+            ),
             'client' => $this->serializeClientForWorkspace($client),
             'issues' => collect($issues->items())
                 ->map(function (Issue $issue) use ($user) {
@@ -453,6 +481,8 @@ class ClientController extends Controller
                         ->values();
                     $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
 
+                    $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
+
                     return [
                         'id' => $issue->id,
                         'title' => $issue->title,
@@ -460,7 +490,7 @@ class ClientController extends Controller
                         'status' => $issue->status,
                         'priority' => $issue->priority,
                         'type' => $issue->type,
-                        'assignee_id' => $issue->assignee_id,
+                        'assignees' => IssueSerializer::assignees($issue, $mainOwnerId),
                         'due_date' => $issue->due_date?->toDateString(),
                         'estimated_hours' => $issue->estimated_hours,
                         'label' => $issue->label,
@@ -616,6 +646,11 @@ class ClientController extends Controller
         };
 
         return Inertia::render('clients/boards', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->crumb('Boards', "/clients/{$client->id}/boards"),
+            ),
             'client' => $this->serializeClientForWorkspace($client),
             'boards' => collect($paginatedBoards->items())
                 ->map(fn (Board $board) => [
@@ -648,6 +683,11 @@ class ClientController extends Controller
         abort_unless($request->user()->canAccessClient($client), 403);
 
         return Inertia::render('clients/statuses', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->crumb('Statuses', "/clients/{$client->id}/statuses"),
+            ),
             'client' => $this->serializeClientForWorkspace($client),
             'statuses' => ProjectStatus::query()
                 ->where(function ($query) use ($client): void {
@@ -690,13 +730,18 @@ class ClientController extends Controller
             ->get();
 
         return Inertia::render('clients/finance', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->crumb('Finance', "/clients/{$client->id}/finance"),
+            ),
             'client' => $this->serializeClientForWorkspace($client),
             'viewer_perspective' => $user->isPlatformOwner() ? 'platform_owner' : 'client_user',
             'filters' => [
                 'search' => $search,
             ],
-            'analysis' => $this->buildClientFinanceAnalysis(
-                $projectIds,
+            'analysis' => $this->buildFinanceAnalysis(
+                $projectIds->count(),
                 $allTransactions,
                 $allInvoices,
             ),
@@ -745,203 +790,6 @@ class ClientController extends Controller
                 ])
                 ->all(),
         ]);
-    }
-
-    private function buildClientFinanceAnalysis(
-        Collection $projectIds,
-        Collection $transactions,
-        Collection $invoices,
-    ): array {
-        $runningAccountRows = collect();
-
-        foreach ($transactions as $transaction) {
-            $runningAccountRows->push((object) [
-                'amount' => (float) $transaction->amount,
-                'currency' => $transaction->currency,
-            ]);
-        }
-
-        foreach ($invoices as $invoice) {
-            $runningAccountRows->push((object) [
-                'amount' => -(float) $invoice->amount,
-                'currency' => $invoice->currency,
-            ]);
-        }
-
-        $currencyKeys = $transactions
-            ->pluck('currency')
-            ->merge($invoices->pluck('currency'))
-            ->map(fn ($currency) => $this->normalizeMoneyCurrencyKey($currency))
-            ->unique()
-            ->sort()
-            ->values();
-
-        return [
-            'overall' => [
-                'project_count' => $projectIds->count(),
-                'transaction_count' => $transactions->count(),
-                'invoice_count' => $invoices->count(),
-                'currencies' => $currencyKeys
-                    ->map(fn (string $key) => $this->moneyCurrencyLabel($key))
-                    ->all(),
-                'running_account' => $this->summarizeMoneyCollection(
-                    $runningAccountRows,
-                    'amount',
-                    'currency',
-                ),
-                'relationship_volume' => $this->summarizeMoneyCollection(
-                    $invoices,
-                    'amount',
-                    'currency',
-                ),
-                'transaction_volume' => $this->summarizeMoneyCollection(
-                    $transactions,
-                    'amount',
-                    'currency',
-                ),
-            ],
-            'by_currency' => $currencyKeys
-                ->map(function (string $currencyKey) use ($transactions, $invoices): array {
-                    $currencyTransactions = $transactions
-                        ->filter(fn (Transaction $transaction) => $this->normalizeMoneyCurrencyKey($transaction->currency) === $currencyKey)
-                        ->values();
-                    $currencyInvoices = $invoices
-                        ->filter(fn (Invoice $invoice) => $this->normalizeMoneyCurrencyKey($invoice->currency) === $currencyKey)
-                        ->values();
-
-                    $transactionTotal = round($currencyTransactions->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2);
-                    $invoiceTotal = round($currencyInvoices->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2);
-                    $runningAccount = round($transactionTotal - $invoiceTotal, 2);
-                    $openStatuses = ['draft', 'pending', 'overdue'];
-
-                    return [
-                        'currency' => $currencyKey === 'UNSPECIFIED' ? null : $currencyKey,
-                        'label' => $this->moneyCurrencyLabel($currencyKey),
-                        'running_account' => $runningAccount,
-                        'client_owes_you' => max(round($invoiceTotal - $transactionTotal, 2), 0),
-                        'you_owe_client' => max($runningAccount, 0),
-                        'transaction_total' => $transactionTotal,
-                        'invoice_total' => $invoiceTotal,
-                        'received_total' => round($currencyTransactions
-                            ->filter(fn (Transaction $transaction) => (float) $transaction->amount > 0)
-                            ->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2),
-                        'refund_total' => round(abs($currencyTransactions
-                            ->filter(fn (Transaction $transaction) => (float) $transaction->amount < 0)
-                            ->sum(fn (Transaction $transaction) => (float) $transaction->amount)), 2),
-                        'open_invoice_total' => round($currencyInvoices
-                            ->filter(fn (Invoice $invoice) => in_array($invoice->status, $openStatuses, true))
-                            ->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2),
-                        'invoice_statuses' => collect(['draft', 'pending', 'paid', 'overdue'])
-                            ->mapWithKeys(fn (string $status) => [
-                                $status => [
-                                    'count' => $currencyInvoices->where('status', $status)->count(),
-                                    'amount' => round($currencyInvoices
-                                        ->where('status', $status)
-                                        ->sum(fn (Invoice $invoice) => (float) $invoice->amount), 2),
-                                ],
-                            ])
-                            ->all(),
-                        'timeline' => $this->buildClientFinanceTimeline(
-                            $currencyTransactions,
-                            $currencyInvoices,
-                        ),
-                    ];
-                })
-                ->all(),
-        ];
-    }
-
-    private function buildClientFinanceTimeline(
-        Collection $transactions,
-        Collection $invoices,
-    ): array {
-        $events = collect();
-
-        foreach ($transactions as $transaction) {
-            $date = $transaction->occurred_date
-                ? CarbonImmutable::parse($transaction->occurred_date)
-                : CarbonImmutable::parse($transaction->created_at);
-
-            $events->push([
-                'type' => 'transaction',
-                'date' => $date,
-                'amount' => (float) $transaction->amount,
-            ]);
-        }
-
-        foreach ($invoices as $invoice) {
-            $date = $invoice->issued_at
-                ? CarbonImmutable::parse($invoice->issued_at)
-                : CarbonImmutable::parse($invoice->created_at);
-
-            $events->push([
-                'type' => 'invoice',
-                'date' => $date,
-                'amount' => (float) $invoice->amount,
-            ]);
-        }
-
-        if ($events->isEmpty()) {
-            return [];
-        }
-
-        $firstMonth = $events->min('date')->startOfMonth();
-        $lastMonth = $events->max('date')->startOfMonth();
-        $rangeStart = $firstMonth->lessThan($lastMonth->subMonths(11))
-            ? $lastMonth->subMonths(11)
-            : $firstMonth;
-
-        $initialInvoiced = $events
-            ->filter(fn (array $event) => $event['type'] === 'invoice' && $event['date']->lessThan($rangeStart))
-            ->sum('amount');
-        $initialPaid = $events
-            ->filter(fn (array $event) => $event['type'] === 'transaction' && $event['date']->lessThan($rangeStart))
-            ->sum('amount');
-
-        $currentMonth = $rangeStart;
-        $cumulativeInvoiced = (float) $initialInvoiced;
-        $cumulativePaid = (float) $initialPaid;
-        $timeline = [];
-
-        while ($currentMonth->lessThanOrEqualTo($lastMonth)) {
-            $monthEvents = $events->filter(fn (array $event) => $event['date']->format('Y-m') === $currentMonth->format('Y-m'));
-
-            $monthlyInvoiced = (float) $monthEvents
-                ->filter(fn (array $event) => $event['type'] === 'invoice')
-                ->sum('amount');
-            $monthlyPaid = (float) $monthEvents
-                ->filter(fn (array $event) => $event['type'] === 'transaction')
-                ->sum('amount');
-
-            $cumulativeInvoiced += $monthlyInvoiced;
-            $cumulativePaid += $monthlyPaid;
-
-            $timeline[] = [
-                'period' => $currentMonth->format('Y-m'),
-                'label' => $currentMonth->format('M Y'),
-                'monthly_invoiced' => round($monthlyInvoiced, 2),
-                'monthly_paid' => round($monthlyPaid, 2),
-                'cumulative_invoiced' => round($cumulativeInvoiced, 2),
-                'cumulative_paid' => round($cumulativePaid, 2),
-                'running_account' => round($cumulativePaid - $cumulativeInvoiced, 2),
-            ];
-
-            $currentMonth = $currentMonth->addMonth();
-        }
-
-        return $timeline;
-    }
-
-    private function normalizeMoneyCurrencyKey(?string $currency): string
-    {
-        $normalized = strtoupper(trim((string) $currency));
-
-        return $normalized !== '' ? $normalized : 'UNSPECIFIED';
-    }
-
-    private function moneyCurrencyLabel(string $currencyKey): string
-    {
-        return $currencyKey === 'UNSPECIFIED' ? 'No currency' : $currencyKey;
     }
 
     private function accessibleProjectsQuery($user, Client $client)
@@ -1057,21 +905,6 @@ class ClientController extends Controller
                 ],
             ])
             ->all();
-    }
-
-    private function summarizeMoneyCollection(Collection $rows, string $amountKey, string $currencyKey): array
-    {
-        $currencies = $rows
-            ->pluck($currencyKey)
-            ->filter()
-            ->unique()
-            ->values();
-
-        return [
-            'amount' => round($rows->sum(fn ($row) => (float) ($row->{$amountKey} ?? 0)), 2),
-            'currency' => $currencies->count() === 1 ? $currencies->first() : null,
-            'mixed_currencies' => $currencies->count() > 1,
-        ];
     }
 
     private function runningAccountTransactionSumSubquery(User $user): QueryBuilder

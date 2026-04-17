@@ -32,7 +32,11 @@ function trackingClientProject(string $clientName = 'Client', string $projectNam
 
 function trackingIssue(Project $project, User $creator, array $overrides = []): Issue
 {
-    return Issue::query()->create(array_merge([
+    $assigneeId = $overrides['assignee_id'] ?? null;
+    $assigneeIds = $overrides['assignee_ids'] ?? null;
+    unset($overrides['assignee_id'], $overrides['assignee_ids']);
+
+    $issue = Issue::query()->create(array_merge([
         'project_id' => $project->id,
         'title' => 'Issue',
         'status' => 'todo',
@@ -40,6 +44,14 @@ function trackingIssue(Project $project, User $creator, array $overrides = []): 
         'type' => 'task',
         'creator_id' => $creator->id,
     ], $overrides));
+
+    if ($assigneeIds !== null) {
+        $issue->assignees()->sync($assigneeIds);
+    } elseif ($assigneeId !== null) {
+        $issue->assignees()->sync([$assigneeId]);
+    }
+
+    return $issue;
 }
 
 test('unauthenticated users are redirected from tracking issues to login', function () {
@@ -614,8 +626,9 @@ test('issue row exposes expected serialized shape', function () {
             ->where('issues.0.due_date', '2026-05-01')
             ->where('issues.0.comments_count', 0)
             ->where('issues.0.attachments_count', 0)
-            ->where('issues.0.assignee.id', $assignee->id)
-            ->where('issues.0.assignee.name', 'Alice')
+            ->has('issues.0.assignees', 1)
+            ->where('issues.0.assignees.0.id', $assignee->id)
+            ->where('issues.0.assignees.0.name', 'Alice')
             ->where('issues.0.creator.id', $owner->id)
             ->where('issues.0.project.id', $project->id)
             ->where('issues.0.project.name', 'SerProject')
@@ -627,7 +640,7 @@ test('issue row exposes expected serialized shape', function () {
         );
 });
 
-test('unassigned issue serializes assignee as null', function () {
+test('unassigned issue serializes assignees as empty array', function () {
     $owner = User::factory()->create();
     [, $project] = trackingClientProject();
 
@@ -635,7 +648,7 @@ test('unassigned issue serializes assignee as null', function () {
 
     $this->actingAs($owner)
         ->get(route('tracking.issues.index'))
-        ->assertInertia(fn (Assert $page) => $page->where('issues.0.assignee', null));
+        ->assertInertia(fn (Assert $page) => $page->where('issues.0.assignees', []));
 });
 
 // ─── N+1 guard ───────────────────────────────────────────────────────────────
@@ -662,9 +675,10 @@ test('issues index executes a bounded number of queries for a realistic dataset'
     DB::disableQueryLog();
 
     // Ceiling accounts for: auth, session, paginator count, main page, eager loads
-    // (project, client, assignee, creator), counts, and filter-option queries.
+    // (project, client, assignees pivot, creator, comments, attachments), counts,
+    // and filter-option queries (including pivot GROUP BY for assignees).
     // Raise with caution — this test guards against accidental N+1 regressions.
-    expect(count($log))->toBeLessThanOrEqual(35);
+    expect(count($log))->toBeLessThanOrEqual(40);
 });
 
 // ─── Bulk update endpoint ────────────────────────────────────────────────────
@@ -703,28 +717,44 @@ test('platform owner can bulk set priority', function () {
     expect($i->fresh()->priority)->toBe('high');
 });
 
-test('platform owner can bulk reassign including unassign sentinel', function () {
+test('platform owner can bulk reassign with replace semantics', function () {
     $owner = User::factory()->create();
     [, $project] = trackingClientProject();
     $alice = User::factory()->create();
+    $bob = User::factory()->create();
+    $charlie = User::factory()->create();
+
     $i = trackingIssue($project, $owner, ['title' => 'X']);
-    $j = trackingIssue($project, $owner, ['title' => 'Y', 'assignee_id' => $alice->id]);
+    $j = trackingIssue($project, $owner, ['title' => 'Y', 'assignee_ids' => [$charlie->id]]);
 
     $this->actingAs($owner)
         ->post(route('tracking.issues.bulkUpdate'), [
-            'issue_ids' => [$i->id],
-            'assignee_id' => (string) $alice->id,
+            'issue_ids' => [$i->id, $j->id],
+            'assignee_ids' => [$alice->id, $bob->id],
         ])
         ->assertRedirect();
-    expect($i->fresh()->assignee_id)->toBe($alice->id);
+
+    expect($i->fresh()->assignees()->pluck('users.id')->sort()->values()->all())
+        ->toEqual([$alice->id, $bob->id]);
+    expect($j->fresh()->assignees()->pluck('users.id')->sort()->values()->all())
+        ->toEqual([$alice->id, $bob->id]);
+});
+
+test('platform owner can bulk unassign with empty array', function () {
+    $owner = User::factory()->create();
+    [, $project] = trackingClientProject();
+    $alice = User::factory()->create();
+
+    $j = trackingIssue($project, $owner, ['title' => 'Y', 'assignee_ids' => [$alice->id]]);
 
     $this->actingAs($owner)
         ->post(route('tracking.issues.bulkUpdate'), [
             'issue_ids' => [$j->id],
-            'assignee_id' => 'unassigned',
+            'assignee_ids' => [],
         ])
         ->assertRedirect();
-    expect($j->fresh()->assignee_id)->toBeNull();
+
+    expect($j->fresh()->assignees)->toHaveCount(0);
 });
 
 test('bulk update ignores unknown fields like title', function () {

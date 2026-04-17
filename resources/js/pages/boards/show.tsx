@@ -50,6 +50,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
 import { cn, stripHtml } from '@/lib/utils';
+import type { IssueAssignee } from '@/types/issue';
 
 type Issue = {
     id: number;
@@ -58,12 +59,7 @@ type Issue = {
     status: string;
     priority: string;
     type: string;
-    assignee_id?: number | null;
-    assignee?: {
-        id: number;
-        name: string;
-        avatar_path?: string | null;
-    } | null;
+    assignees: IssueAssignee[];
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;

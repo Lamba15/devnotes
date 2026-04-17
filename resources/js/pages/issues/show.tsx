@@ -18,6 +18,7 @@ import { IssueDiscussionComment } from '@/components/issues/issue-discussion-com
 import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
 import { RichIssueContent } from '@/components/issues/rich-issue-content';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
+import { AvatarStack } from '@/components/ui/avatar-stack';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,9 +30,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
+import type { AssigneeOption, IssueAssignee } from '@/types/issue';
 
 type IssueAttachment = {
     id?: number;
@@ -50,11 +53,7 @@ type Issue = {
     status: string;
     priority: string;
     type: string;
-    assignee_id: number | null;
-    assignee: {
-        id: number;
-        name: string;
-    } | null;
+    assignees: IssueAssignee[];
     due_date: string | null;
     estimated_hours: string | null;
     label: string | null;
@@ -123,7 +122,7 @@ export default function IssueShow({
     can_comment: boolean;
     comments: SharedDiscussionComment[];
     attachments?: IssueAttachment[];
-    assignee_options: Array<{ label: string; value: string }>;
+    assignee_options: AssigneeOption[];
     status_options: string[];
     priority_options: string[];
     type_options: string[];
@@ -131,7 +130,7 @@ export default function IssueShow({
     const form = useForm<IssueFormValues>({
         title: issue.title,
         description: issue.description ?? '<p></p>',
-        assignee_id: issue.assignee_id ? String(issue.assignee_id) : '',
+        assignee_ids: issue.assignees?.map((a) => a.id) ?? [],
         status: issue.status,
         priority: issue.priority,
         type: issue.type,
@@ -151,37 +150,19 @@ export default function IssueShow({
     const { auth } = usePage<{ auth: Auth }>().props;
 
     const commentUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}/comments`;
-    const fallbackIssuesUrl = `/clients/${client.id}/projects/${project.id}/issues`;
     const deleteIssueUrl = `/clients/${client.id}/projects/${project.id}/issues/${issue.id}${return_to?.href ? `?return_to=${encodeURIComponent(return_to.href)}` : ''}`;
+
+    const breadcrumbBack = useBackNavigation(
+        `/clients/${client.id}/projects/${project.id}/issues`,
+    );
+    const goBack = return_to?.href
+        ? () => router.visit(return_to.href)
+        : breadcrumbBack;
 
     const mentionOptions = useMemo(
         () => collectMentionOptions(comments, auth.user),
         [comments, auth.user],
     );
-
-    const goBack = () => {
-        if (return_to?.href) {
-            router.visit(return_to.href);
-
-            return;
-        }
-
-        try {
-            if (window.history.length > 1 && document.referrer) {
-                const referrer = new URL(document.referrer);
-
-                if (referrer.origin === window.location.origin) {
-                    window.history.back();
-
-                    return;
-                }
-            }
-        } catch {
-            // Ignore malformed referrers and fall back to the issue index.
-        }
-
-        router.visit(fallbackIssuesUrl);
-    };
 
     const saveComment = () => {
         setSavingComment(true);
@@ -272,7 +253,6 @@ export default function IssueShow({
                     ) : undefined
                 }
                 description={`${client.name} / ${project.name}`}
-                onBack={goBack}
                 actions={
                     can_manage_issue ? (
                         <Button
@@ -297,7 +277,10 @@ export default function IssueShow({
                             cancelLabel={return_to?.label ?? 'Back'}
                             onCancel={goBack}
                             onChange={(name, value) =>
-                                form.setData(name, value)
+                                form.setData(
+                                    name as keyof IssueFormValues,
+                                    value as never,
+                                )
                             }
                             assigneeOptions={assignee_options}
                             statusOptions={status_options}
@@ -347,10 +330,17 @@ export default function IssueShow({
                                 >
                                     Type: {issue.type}
                                 </Badge>
-                                <Badge variant="outline">
-                                    Assignee:{' '}
-                                    {issue.assignee?.name ?? 'Unassigned'}
-                                </Badge>
+                                <div className="flex items-center gap-2 rounded border px-2 py-0.5 text-xs">
+                                    <span className="text-muted-foreground">
+                                        Assignees:
+                                    </span>
+                                    <AvatarStack
+                                        users={issue.assignees}
+                                        size="xs"
+                                        max={4}
+                                        emptyLabel="Unassigned"
+                                    />
+                                </div>
                                 {issue.due_date ? (
                                     <Badge variant="outline" className="gap-1">
                                         <Calendar className="size-3" />

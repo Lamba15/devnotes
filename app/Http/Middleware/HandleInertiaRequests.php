@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\WorkspaceAccess;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -43,9 +44,18 @@ class HandleInertiaRequests extends Middleware
                 ->first()
             : null;
 
+        $mainOwner = $user ? WorkspaceAccess::mainPlatformOwner() : null;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'platform' => [
+                'main_owner' => $mainOwner ? [
+                    'id' => $mainOwner->id,
+                    'name' => $mainOwner->name,
+                    'avatar_path' => $mainOwner->avatar_path,
+                ] : null,
+            ],
             'auth' => [
                 'user' => $user ? [
                     ...$user->toArray(),

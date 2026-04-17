@@ -22,8 +22,10 @@ import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
+import { IssueAssigneePicker } from '@/components/issues/issue-assignee-picker';
 import { IssueDueDate } from '@/components/issues/issue-due-date';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
+import { AvatarStack } from '@/components/ui/avatar-stack';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +43,7 @@ import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatDetailedTimestamp, formatRelativeInstant } from '@/lib/datetime';
 import { stripHtml } from '@/lib/utils';
+import type { AssigneeOption, IssueAssignee } from '@/types/issue';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +80,7 @@ type IssueRow = {
     priority: string;
     type: string;
     label: string | null;
-    assignee_id: number | null;
+    assignees: IssueAssignee[];
     due_date: string | null;
     estimated_hours: string | null;
     created_at: string | null;
@@ -91,7 +94,6 @@ type IssueRow = {
     attachments: IssueAttachment[];
     comments: IssueCommentPreview[];
     can_comment: boolean;
-    assignee: Person | null;
     creator: Person | null;
     project: { id: number; name: string } | null;
     client: { id: number; name: string } | null;
@@ -189,7 +191,7 @@ export default function TrackingIssuesPage({
     const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
     const [bulkStatus, setBulkStatus] = useState('');
     const [bulkPriority, setBulkPriority] = useState('');
-    const [bulkAssignee, setBulkAssignee] = useState('');
+    const [bulkAssigneeIds, setBulkAssigneeIds] = useState<number[]>([]);
 
     const availableProjectOptions = useMemo<ProjectFilterOption[]>(() => {
         if (filters.client_id.length === 0) {
@@ -202,6 +204,22 @@ export default function TrackingIssuesPage({
                 filters.client_id.includes(option.client_id),
         );
     }, [project_filter_options, filters.client_id]);
+
+    const bulkAssigneeOptions = useMemo<AssigneeOption[]>(() => {
+        return assignee_filter_options
+            .filter((opt) => opt.value !== 'unassigned')
+            .map((opt) => ({
+                id: Number(opt.value),
+                name: opt.label,
+                avatar_path: null,
+                is_main_owner: Boolean(
+                    (opt as FilterOption & { is_main_owner?: boolean })
+                        .is_main_owner,
+                ),
+                label: opt.label,
+                value: opt.value,
+            }));
+    }, [assignee_filter_options]);
 
     const hasAttachmentsOptions: FilterOption[] = [
         { label: 'With attachments', value: 'yes' },
@@ -445,27 +463,12 @@ export default function TrackingIssuesPage({
             },
         },
         {
-            key: 'assignee',
-            header: 'Assignee',
+            key: 'assignees',
+            header: 'Assignees',
             className: 'hidden md:table-cell',
             render: (issue) =>
-                issue.assignee ? (
-                    <div className="flex items-center gap-2">
-                        {issue.assignee.avatar_path ? (
-                            <img
-                                src={issue.assignee.avatar_path}
-                                alt={issue.assignee.name}
-                                className="size-6 rounded-full object-cover"
-                            />
-                        ) : (
-                            <div className="flex size-6 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
-                                {issue.assignee.name.charAt(0)}
-                            </div>
-                        )}
-                        <span className="truncate text-sm">
-                            {issue.assignee.name}
-                        </span>
-                    </div>
+                issue.assignees.length > 0 ? (
+                    <AvatarStack users={issue.assignees} size="sm" max={3} />
                 ) : (
                     <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                         <UserMinus className="size-3.5" />
@@ -544,7 +547,7 @@ export default function TrackingIssuesPage({
                 ? 'You do not have permission to update one or more selected issues.'
                 : 'Select one or more issues.',
             onClick: () => {
-                setBulkAssignee('');
+                setBulkAssigneeIds([]);
                 setAssigneeDialogOpen(true);
             },
         },
@@ -777,24 +780,32 @@ export default function TrackingIssuesPage({
                 {/* Reassign */}
                 <Dialog
                     open={assigneeDialogOpen}
-                    onOpenChange={setAssigneeDialogOpen}
+                    onOpenChange={(open) => {
+                        setAssigneeDialogOpen(open);
+
+                        if (!open) {
+                            setBulkAssigneeIds([]);
+                        }
+                    }}
                 >
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>
-                                Reassign {selectedIds.length} issue
+                                Set assignees on {selectedIds.length} issue
                                 {selectedIds.length === 1 ? '' : 's'}
                             </DialogTitle>
                             <DialogDescription>
-                                Pick a user or choose "Unassigned".
+                                These users will replace the current assignees
+                                on every selected issue. Select none to unassign
+                                all.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="py-2">
-                            <SearchableSelect
-                                options={assignee_filter_options}
-                                value={bulkAssignee}
-                                onValueChange={setBulkAssignee}
-                                placeholder="Select assignee..."
+                            <IssueAssigneePicker
+                                options={bulkAssigneeOptions}
+                                value={bulkAssigneeIds}
+                                onChange={setBulkAssigneeIds}
+                                placeholder="Assign to…"
                             />
                         </div>
                         <DialogFooter>
@@ -804,10 +815,9 @@ export default function TrackingIssuesPage({
                             <Button
                                 onClick={() =>
                                     submitBulkUpdate({
-                                        assignee_id: bulkAssignee,
+                                        assignee_ids: bulkAssigneeIds,
                                     })
                                 }
-                                disabled={bulkAssignee === ''}
                             >
                                 Apply
                             </Button>

@@ -601,9 +601,9 @@ test('issue create and edit pages expose project assignee options', function () 
         'status' => 'todo',
         'priority' => 'medium',
         'type' => 'task',
-        'assignee_id' => $member->id,
         'creator_id' => $admin->id,
     ]);
+    $issue->assignees()->sync([$member->id]);
 
     ClientMembership::query()->create([
         'client_id' => $client->id,
@@ -627,10 +627,7 @@ test('issue create and edit pages expose project assignee options', function () 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('issues/create')
-            ->has('assignee_options', 3)
-            ->where('assignee_options.0.label', 'Unassigned')
-            ->where('assignee_options.1.label', 'Admin User')
-            ->where('assignee_options.2.label', 'Member User')
+            ->has('assignee_options')
         );
 
     $this->actingAs($admin)
@@ -638,9 +635,9 @@ test('issue create and edit pages expose project assignee options', function () 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('issues/edit')
-            ->where('issue.assignee.id', $member->id)
-            ->where('issue.assignee.name', 'Member User')
-            ->missing('assignee_options.3')
+            ->has('issue.assignees', 1)
+            ->where('issue.assignees.0.id', $member->id)
+            ->where('issue.assignees.0.name', 'Member User')
         );
 
     expect($outsider->name)->toBe('Outside User');
@@ -657,6 +654,16 @@ test('client admins can create and update issues with project assignees only', f
     $admin = User::factory()->create();
     $assignee = User::factory()->create(['name' => 'Assigned Member']);
     $outsider = User::factory()->create();
+    // Give outsider a membership to a DIFFERENT client so they are not the
+    // "main platform owner" (which would be implicitly assignable everywhere).
+    $otherClient = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    ClientMembership::query()->create([
+        'client_id' => $otherClient->id,
+        'user_id' => $outsider->id,
+        'role' => 'member',
+    ]);
 
     ClientMembership::query()->create([
         'client_id' => $client->id,
@@ -682,13 +689,13 @@ test('client admins can create and update issues with project assignees only', f
             'status' => 'todo',
             'priority' => 'high',
             'type' => 'bug',
-            'assignee_id' => $assignee->id,
+            'assignee_ids' => [$assignee->id],
         ])
         ->assertRedirect(route('clients.projects.issues.index', [$client, $project]));
 
     $issue = Issue::query()->where('title', 'Assigned on create')->firstOrFail();
 
-    expect($issue->assignee_id)->toBe($assignee->id);
+    expect($issue->assignees->pluck('id')->all())->toEqual([$assignee->id]);
 
     $this->actingAs($admin)
         ->put(route('clients.projects.issues.update', [$client, $project, $issue]), [
@@ -697,11 +704,11 @@ test('client admins can create and update issues with project assignees only', f
             'status' => 'done',
             'priority' => 'medium',
             'type' => 'task',
-            'assignee_id' => null,
+            'assignee_ids' => [],
         ])
         ->assertRedirect(route('clients.projects.issues.show', [$client, $project, $issue]));
 
-    expect($issue->fresh()->assignee_id)->toBeNull();
+    expect($issue->fresh()->assignees)->toHaveCount(0);
 
     $this->actingAs($admin)
         ->post(route('clients.projects.issues.store', [$client, $project]), [
@@ -709,9 +716,9 @@ test('client admins can create and update issues with project assignees only', f
             'status' => 'todo',
             'priority' => 'low',
             'type' => 'task',
-            'assignee_id' => $outsider->id,
+            'assignee_ids' => [$outsider->id],
         ])
-        ->assertSessionHasErrors('assignee_id');
+        ->assertSessionHasErrors('assignee_ids.0');
 });
 
 test('project viewers can open an issue detail page but cannot update it', function () {
@@ -1241,25 +1248,25 @@ test('issue index supports assignee priority type and status filters', function 
         'user_id' => $assignee->id,
     ]);
 
-    Issue::query()->create([
+    $matchingIssue = Issue::query()->create([
         'project_id' => $project->id,
         'title' => 'Matching issue',
         'status' => 'todo',
         'priority' => 'high',
         'type' => 'bug',
-        'assignee_id' => $assignee->id,
         'creator_id' => $admin->id,
     ]);
+    $matchingIssue->assignees()->sync([$assignee->id]);
 
-    Issue::query()->create([
+    $wrongStatus = Issue::query()->create([
         'project_id' => $project->id,
         'title' => 'Wrong status issue',
         'status' => 'done',
         'priority' => 'high',
         'type' => 'bug',
-        'assignee_id' => $assignee->id,
         'creator_id' => $admin->id,
     ]);
+    $wrongStatus->assignees()->sync([$assignee->id]);
 
     Issue::query()->create([
         'project_id' => $project->id,

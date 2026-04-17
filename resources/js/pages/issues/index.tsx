@@ -19,6 +19,7 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
+import { AvatarStack } from '@/components/ui/avatar-stack';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,7 @@ import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { stripHtml } from '@/lib/utils';
+import type { IssueAssignee } from '@/types/issue';
 
 const statusConfig: Record<string, { icon: typeof Circle; color: string }> = {
     todo: { icon: Circle, color: 'text-muted-foreground' },
@@ -73,10 +75,7 @@ type Issue = {
     status: string;
     priority: string;
     type: string;
-    assignee: {
-        id: number;
-        name: string;
-    } | null;
+    assignees: IssueAssignee[];
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;
@@ -307,16 +306,15 @@ export default function IssuesIndex({
             },
         },
         {
-            key: 'assignee',
-            header: 'Assignee',
+            key: 'assignees',
+            header: 'Assignees',
             render: (issue) => (
-                <span
-                    className={
-                        issue.assignee ? 'font-medium' : 'text-muted-foreground'
-                    }
-                >
-                    {issue.assignee?.name ?? 'Unassigned'}
-                </span>
+                <AvatarStack
+                    users={issue.assignees}
+                    size="sm"
+                    max={3}
+                    emptyLabel="Unassigned"
+                />
             ),
         },
     ];

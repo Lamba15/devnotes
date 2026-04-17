@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Issue;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\WorkspaceAccess;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class CreateIssue
@@ -20,6 +21,8 @@ class CreateIssue
             throw new AuthorizationException('You are not allowed to create issues for this project.');
         }
 
+        $assigneeIds = $this->resolveAssigneeIds($attributes);
+
         $issue = Issue::query()->create([
             'project_id' => $project->id,
             'title' => $attributes['title'],
@@ -27,12 +30,13 @@ class CreateIssue
             'status' => $attributes['status'],
             'priority' => $attributes['priority'],
             'type' => $attributes['type'],
-            'assignee_id' => $attributes['assignee_id'] ?? null,
             'due_date' => $attributes['due_date'] ?? null,
             'estimated_hours' => $attributes['estimated_hours'] ?? null,
             'label' => $attributes['label'] ?? null,
             'creator_id' => $actor->id,
         ]);
+
+        $issue->assignees()->sync($assigneeIds);
 
         AuditLog::query()->create([
             'user_id' => $actor->id,
@@ -54,13 +58,32 @@ class CreateIssue
                 'status' => $issue->status,
                 'priority' => $issue->priority,
                 'type' => $issue->type,
-                'assignee_id' => $issue->assignee_id,
+                'assignee_ids' => $assigneeIds,
                 'due_date' => $issue->due_date?->toDateString(),
                 'estimated_hours' => $issue->estimated_hours,
                 'label' => $issue->label,
             ],
         ]);
 
-        return $issue->fresh();
+        return $issue->fresh(['assignees']);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function resolveAssigneeIds(array $attributes): array
+    {
+        if (array_key_exists('assignee_ids', $attributes)) {
+            return collect($attributes['assignee_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $mainOwner = WorkspaceAccess::mainPlatformOwner();
+
+        return $mainOwner ? [$mainOwner->id] : [];
     }
 }

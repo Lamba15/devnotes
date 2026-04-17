@@ -27,7 +27,7 @@ class DeleteIssue
                 'status' => $issue->status,
                 'priority' => $issue->priority,
                 'type' => $issue->type,
-                'assignee_id' => $issue->assignee_id,
+                'assignee_ids' => $issue->assignees()->pluck('users.id')->sort()->values()->all(),
             ],
         ]);
 

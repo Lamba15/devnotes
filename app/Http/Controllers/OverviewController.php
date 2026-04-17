@@ -193,7 +193,7 @@ class OverviewController extends Controller
                 ->where('status', '!=', 'done')
                 ->count(),
             'unassigned_count' => Issue::query()
-                ->whereNull('assignee_id')
+                ->doesntHave('assignees')
                 ->where('status', '!=', 'done')
                 ->count(),
         ];
@@ -292,7 +292,7 @@ class OverviewController extends Controller
     private function buildRecentIssues(): array
     {
         return Issue::query()
-            ->with(['project:id,name,client_id', 'project.client:id,name', 'assignee:id,name'])
+            ->with(['project:id,name,client_id', 'project.client:id,name', 'assignees:id,name'])
             ->latest()
             ->limit(5)
             ->get()
@@ -307,7 +307,7 @@ class OverviewController extends Controller
                 'client_id' => $issue->project?->client_id,
                 'project_name' => $issue->project?->name,
                 'client_name' => $issue->project?->client?->name,
-                'assignee_name' => $issue->assignee?->name,
+                'assignee_names' => $issue->assignees->pluck('name')->values()->all(),
                 'created_at' => $issue->created_at->toISOString(),
             ])
             ->all();

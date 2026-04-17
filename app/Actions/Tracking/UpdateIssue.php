@@ -19,13 +19,15 @@ class UpdateIssue
             throw new AuthorizationException('You are not allowed to update this issue.');
         }
 
+        $issue->loadMissing('assignees');
+
         $before = [
             'title' => $issue->title,
             'description' => $issue->description,
             'status' => $issue->status,
             'priority' => $issue->priority,
             'type' => $issue->type,
-            'assignee_id' => $issue->assignee_id,
+            'assignee_ids' => $issue->assignees->pluck('id')->sort()->values()->all(),
             'due_date' => $issue->due_date?->toDateString(),
             'estimated_hours' => $issue->estimated_hours,
             'label' => $issue->label,
@@ -37,11 +39,22 @@ class UpdateIssue
             'status' => $attributes['status'],
             'priority' => $attributes['priority'],
             'type' => $attributes['type'],
-            'assignee_id' => $attributes['assignee_id'] ?? null,
             'due_date' => $attributes['due_date'] ?? null,
             'estimated_hours' => $attributes['estimated_hours'] ?? null,
             'label' => $attributes['label'] ?? null,
         ])->save();
+
+        if (array_key_exists('assignee_ids', $attributes)) {
+            $assigneeIds = collect($attributes['assignee_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $issue->assignees()->sync($assigneeIds);
+        }
+
+        $issue->load('assignees');
 
         AuditLog::query()->create([
             'user_id' => $actor->id,
@@ -56,13 +69,13 @@ class UpdateIssue
                 'status' => $issue->status,
                 'priority' => $issue->priority,
                 'type' => $issue->type,
-                'assignee_id' => $issue->assignee_id,
+                'assignee_ids' => $issue->assignees->pluck('id')->sort()->values()->all(),
                 'due_date' => $issue->due_date?->toDateString(),
                 'estimated_hours' => $issue->estimated_hours,
                 'label' => $issue->label,
             ],
         ]);
 
-        return $issue->fresh();
+        return $issue->fresh(['assignees']);
     }
 }

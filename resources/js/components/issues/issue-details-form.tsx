@@ -1,13 +1,15 @@
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormField } from '@/components/crud/dynamic-form';
+import { IssueAssigneePicker } from '@/components/issues/issue-assignee-picker';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
+import type { AssigneeOption } from '@/types/issue';
 
 type MentionOption = { id: string; label: string };
 
 export type IssueFormValues = {
     title: string;
     description: string;
-    assignee_id: string;
+    assignee_ids: number[];
     status: string;
     priority: string;
     type: string;
@@ -40,9 +42,12 @@ export function IssueDetailsForm({
     submitLabel: string;
     cancelLabel?: string;
     onCancel?: () => void;
-    onChange: (name: keyof IssueFormValues, value: string) => void;
+    onChange: <K extends keyof IssueFormValues>(
+        name: K,
+        value: IssueFormValues[K],
+    ) => void;
     onSubmit: () => void;
-    assigneeOptions: Array<{ label: string; value: string }>;
+    assigneeOptions: AssigneeOption[];
     statusOptions: string[];
     priorityOptions: string[];
     typeOptions: string[];
@@ -82,10 +87,22 @@ export function IssueDetailsForm({
             ),
         },
         {
-            name: 'assignee_id',
-            label: 'Assignee',
-            type: 'select',
-            options: assigneeOptions,
+            name: 'assignee_ids',
+            label: 'Assignees',
+            type: 'custom',
+            render: ({ error }) => (
+                <div className="space-y-2">
+                    <IssueAssigneePicker
+                        options={assigneeOptions}
+                        value={data.assignee_ids}
+                        onChange={(ids) => onChange('assignee_ids', ids)}
+                        placeholder="Assign to…"
+                    />
+                    {error ? (
+                        <p className="text-sm text-destructive">{error}</p>
+                    ) : null}
+                </div>
+            ),
         },
         {
             name: 'status',
@@ -146,7 +163,10 @@ export function IssueDetailsForm({
             cancelLabel={cancelLabel}
             onCancel={onCancel}
             onChange={(name, value) =>
-                onChange(name as keyof IssueFormValues, value)
+                onChange(
+                    name as keyof IssueFormValues,
+                    value as IssueFormValues[keyof IssueFormValues],
+                )
             }
             onSubmit={onSubmit}
         />

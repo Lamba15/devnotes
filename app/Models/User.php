@@ -7,7 +7,9 @@ use App\Support\WorkspaceAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -58,6 +60,16 @@ class User extends Authenticatable
     public function boardMemberships(): HasMany
     {
         return $this->hasMany(BoardMembership::class);
+    }
+
+    public function assignedIssues(): BelongsToMany
+    {
+        return $this->belongsToMany(Issue::class, 'issue_assignees')->withTimestamps();
+    }
+
+    public function scopePlatformOwners(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('clientMemberships')->orderBy('id');
     }
 
     public function isPlatformOwner(): bool

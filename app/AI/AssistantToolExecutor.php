@@ -420,7 +420,7 @@ class AssistantToolExecutor
     private function executeGetIssueDetail(User $user, array $payload): array
     {
         $issue = $this->accessibleIssuesQuery($user)
-            ->with(['project.client', 'assignee:id,name', 'comments.user:id,name'])
+            ->with(['project.client', 'assignees:id,name', 'comments.user:id,name'])
             ->whereKey($payload['issue_id'])
             ->first();
 
@@ -443,7 +443,7 @@ class AssistantToolExecutor
                 'status' => $issue->status,
                 'priority' => $issue->priority,
                 'type' => $issue->type,
-                'assignee' => $issue->assignee?->only(['id', 'name']),
+                'assignees' => $issue->assignees->map(fn ($user) => $user->only(['id', 'name']))->values()->all(),
                 'project' => [
                     'id' => $issue->project?->id,
                     'name' => $issue->project?->name,
@@ -1110,7 +1110,7 @@ class AssistantToolExecutor
                 ->where('due_date', '<', now()->toDateString())
                 ->where('status', '!=', 'done')
                 ->count(),
-            'unassigned_issues' => Issue::whereNull('assignee_id')
+            'unassigned_issues' => Issue::doesntHave('assignees')
                 ->where('status', '!=', 'done')
                 ->count(),
             'transactions' => Transaction::count(),

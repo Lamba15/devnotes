@@ -37,6 +37,7 @@ import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import { useCrudFilters } from '@/hooks/use-crud-filters';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { stripHtml } from '@/lib/utils';
+import type { IssueAssignee } from '@/types/issue';
 
 type IssueCommentPreview = {
     id: number;
@@ -58,7 +59,7 @@ type IssueRow = {
     status: string;
     priority: string;
     type: string;
-    assignee_id?: number | null;
+    assignees: IssueAssignee[];
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;

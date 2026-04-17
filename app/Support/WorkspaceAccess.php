@@ -10,10 +10,23 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class WorkspaceAccess
 {
     public function __construct(private readonly User $user) {}
+
+    public static function mainPlatformOwner(): ?User
+    {
+        return Cache::remember('workspace.main_platform_owner', 60, function (): ?User {
+            return User::query()->platformOwners()->first();
+        });
+    }
+
+    public static function forgetMainPlatformOwnerCache(): void
+    {
+        Cache::forget('workspace.main_platform_owner');
+    }
 
     public function isPlatformOwner(): bool
     {

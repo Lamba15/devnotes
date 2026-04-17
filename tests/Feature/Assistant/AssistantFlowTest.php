@@ -1042,9 +1042,9 @@ class AssistantFlowTest extends TestCase
             'status' => 'in_progress',
             'priority' => 'high',
             'type' => 'bug',
-            'assignee_id' => $assignee->id,
             'creator_id' => $member->id,
         ]);
+        $issue->assignees()->sync([$assignee->id]);
 
         $membership = ClientMembership::query()->create([
             'client_id' => $client->id,
@@ -1098,7 +1098,7 @@ class AssistantFlowTest extends TestCase
             ->assertJsonPath('data.messages.1.tool_results.0.issue.priority', 'high')
             ->assertJsonPath('data.messages.1.tool_results.0.issue.type', 'bug')
             ->assertJsonPath('data.messages.1.tool_results.0.issue.project.name', 'Detail Project')
-            ->assertJsonPath('data.messages.1.tool_results.0.issue.assignee.id', $assignee->id)
+            ->assertJsonPath('data.messages.1.tool_results.0.issue.assignees.0.id', $assignee->id)
             ->assertJsonPath('data.messages.1.tool_results.0.comments.0.body', 'Detail root comment')
             ->assertJsonPath('data.messages.1.tool_results.0.comments.0.replies.0.body', 'Detail nested reply');
     }

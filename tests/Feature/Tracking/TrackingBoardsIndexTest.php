@@ -446,8 +446,9 @@ test('boards index executes a bounded number of queries for a realistic dataset'
     $count = count(DB::getQueryLog());
     DB::disableQueryLog();
 
-    // Ceiling guards against N+1 regressions; includes filter-option queries.
-    expect($count)->toBeLessThanOrEqual(25);
+    // Ceiling guards against N+1 regressions; includes filter-option queries
+    // plus the shared Inertia platform.main_owner lookup.
+    expect($count)->toBeLessThanOrEqual(27);
 });
 
 // ─── Bulk delete endpoint ────────────────────────────────────────────────────

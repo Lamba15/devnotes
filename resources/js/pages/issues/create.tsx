@@ -3,13 +3,16 @@ import { useState } from 'react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { IssueDetailsForm } from '@/components/issues/issue-details-form';
 import type { IssueFormValues } from '@/components/issues/issue-details-form';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
+import type { AssigneeOption } from '@/types/issue';
 
 export default function IssuesCreate({
     client,
     project,
     return_to,
     assignee_options,
+    default_assignee_ids,
     status_options,
     priority_options,
     type_options,
@@ -17,17 +20,24 @@ export default function IssuesCreate({
     client: { id: number; name: string };
     project: { id: number; name: string };
     return_to?: { href: string; label: string } | null;
-    assignee_options: Array<{ label: string; value: string }>;
+    assignee_options: AssigneeOption[];
+    default_assignee_ids: number[];
     status_options: string[];
     priority_options: string[];
     type_options: string[];
 }) {
     const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const fallbackIssuesUrl = `/clients/${client.id}/projects/${project.id}/issues`;
+    const breadcrumbBack = useBackNavigation(fallbackIssuesUrl);
+
+    const goBack = return_to?.href
+        ? () => router.visit(return_to.href)
+        : breadcrumbBack;
+
     const form = useForm<IssueFormValues>({
         title: '',
         description: '<p></p>',
-        assignee_id: '',
+        assignee_ids: default_assignee_ids ?? [],
         status: 'todo',
         priority: 'medium',
         type: 'task',
@@ -36,33 +46,12 @@ export default function IssuesCreate({
         label: '',
     });
 
-    const resolveClientReturnHref = () => {
-        if (return_to?.href) {
-            return return_to.href;
-        }
-
-        return null;
-    };
-
-    const goBack = () => {
-        const returnHref = resolveClientReturnHref();
-
-        if (returnHref) {
-            router.visit(returnHref);
-
-            return;
-        }
-
-        router.visit(fallbackIssuesUrl);
-    };
-
     return (
         <>
             <Head title={`Create Issue`} />
             <CrudPage
                 title={`Create Issue`}
                 description={`${client.name} / ${project.name}`}
-                onBack={goBack}
             >
                 <div className="w-full max-w-[1400px] space-y-8">
                     <IssueDetailsForm
@@ -72,7 +61,12 @@ export default function IssuesCreate({
                         submitLabel="Create issue"
                         cancelLabel={return_to?.label ?? 'Back'}
                         onCancel={goBack}
-                        onChange={(name, value) => form.setData(name, value)}
+                        onChange={(name, value) =>
+                            form.setData(
+                                name as keyof IssueFormValues,
+                                value as never,
+                            )
+                        }
                         assigneeOptions={assignee_options}
                         statusOptions={status_options}
                         priorityOptions={priority_options}
@@ -80,12 +74,10 @@ export default function IssuesCreate({
                         descriptionFiles={attachmentFiles}
                         onDescriptionFilesChange={setAttachmentFiles}
                         onSubmit={() => {
-                            const returnHref = resolveClientReturnHref();
-
                             form.transform((data) => ({
                                 ...data,
                                 attachments: attachmentFiles,
-                                return_to: returnHref ?? '',
+                                return_to: return_to?.href ?? '',
                             }));
 
                             form.post(

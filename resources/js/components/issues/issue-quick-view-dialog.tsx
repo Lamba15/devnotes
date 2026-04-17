@@ -17,6 +17,7 @@ import { IssueDiscussionComment } from '@/components/issues/issue-discussion-com
 import type { SharedDiscussionComment } from '@/components/issues/issue-discussion-comment';
 import { RichIssueContent } from '@/components/issues/rich-issue-content';
 import { RichIssueEditor } from '@/components/issues/rich-issue-editor';
+import { AvatarStack } from '@/components/ui/avatar-stack';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { formatDateOnly, formatDetailedTimestamp } from '@/lib/datetime';
 import type { Auth } from '@/types';
+import type { IssueAssignee } from '@/types/issue';
 
 type IssueAttachment = {
     id?: number;
@@ -54,7 +56,7 @@ type QuickViewIssue = {
     status: string;
     priority: string;
     type: string;
-    assignee_id?: number | null;
+    assignees?: IssueAssignee[];
     due_date?: string | null;
     estimated_hours?: string | null;
     label?: string | null;
@@ -308,11 +310,8 @@ export function IssueQuickViewDialog({
             formData.append('status', workspaceIssue.status);
             formData.append('priority', workspaceIssue.priority);
             formData.append('type', workspaceIssue.type);
-            formData.append(
-                'assignee_id',
-                workspaceIssue.assignee_id
-                    ? String(workspaceIssue.assignee_id)
-                    : '',
+            (workspaceIssue.assignees ?? []).forEach((user) =>
+                formData.append('assignee_ids[]', String(user.id)),
             );
             formData.append('label', workspaceIssue.label ?? '');
             formData.append(
@@ -369,11 +368,8 @@ export function IssueQuickViewDialog({
                 'type',
                 field === 'type' ? value : workspaceIssue.type,
             );
-            formData.append(
-                'assignee_id',
-                workspaceIssue.assignee_id
-                    ? String(workspaceIssue.assignee_id)
-                    : '',
+            (workspaceIssue.assignees ?? []).forEach((user) =>
+                formData.append('assignee_ids[]', String(user.id)),
             );
             formData.append('label', workspaceIssue.label ?? '');
             formData.append(
@@ -534,7 +530,18 @@ export function IssueQuickViewDialog({
                                 ) : null}
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-2 rounded border px-2 py-0.5 text-xs">
+                                    <span className="text-muted-foreground">
+                                        Assignees:
+                                    </span>
+                                    <AvatarStack
+                                        users={workspaceIssue.assignees ?? []}
+                                        size="xs"
+                                        max={4}
+                                        emptyLabel="Unassigned"
+                                    />
+                                </div>
                                 <EditableBadge
                                     value={workspaceIssue.status}
                                     options={uniqueWithCurrent(

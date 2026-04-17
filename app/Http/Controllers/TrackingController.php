@@ -10,10 +10,13 @@ use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\IssueSerializer;
+use App\Support\WorkspaceAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -99,7 +102,7 @@ class TrackingController extends Controller
             ->with([
                 'project:id,name,client_id',
                 'project.client:id,name',
-                'assignee:id,name,avatar_path',
+                'assignees:id,name,avatar_path',
                 'creator:id,name,avatar_path',
                 'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
                 'comments.user:id,name,avatar_path',
@@ -115,7 +118,7 @@ class TrackingController extends Controller
                         ->orWhere('issues.status', 'like', $like)
                         ->orWhere('issues.priority', 'like', $like)
                         ->orWhere('issues.type', 'like', $like)
-                        ->orWhereHas('assignee', fn (Builder $aq) => $aq->where('name', 'like', $like))
+                        ->orWhereHas('assignees', fn (Builder $aq) => $aq->where('users.name', 'like', $like))
                         ->orWhereHas('project', function (Builder $pq) use ($like): void {
                             $pq->where('name', 'like', $like)
                                 ->orWhereHas('client', fn (Builder $cq) => $cq->where('name', 'like', $like));
@@ -147,11 +150,14 @@ class TrackingController extends Controller
 
                 $query->where(function (Builder $aq) use ($ids, $includesUnassigned): void {
                     if ($includesUnassigned) {
-                        $aq->whereNull('issues.assignee_id');
+                        $aq->whereDoesntHave('assignees');
                     }
                     if ($ids->isNotEmpty()) {
-                        $method = $includesUnassigned ? 'orWhereIn' : 'whereIn';
-                        $aq->{$method}('issues.assignee_id', $ids->all());
+                        $method = $includesUnassigned ? 'orWhereHas' : 'whereHas';
+                        $aq->{$method}(
+                            'assignees',
+                            fn (Builder $q) => $q->whereIn('users.id', $ids->all()),
+                        );
                     }
                 });
             })
@@ -332,7 +338,8 @@ class TrackingController extends Controller
             'issue_ids.*' => ['integer', Rule::exists('issues', 'id')],
             'status' => ['sometimes', 'string', 'max:255'],
             'priority' => ['sometimes', 'string', 'max:255'],
-            'assignee_id' => ['sometimes', 'nullable', 'string', 'max:50', 'regex:/^(unassigned|\d+)$/'],
+            'assignee_ids' => ['sometimes', 'array'],
+            'assignee_ids.*' => ['integer', Rule::exists('users', 'id')],
         ]);
 
         $updates = [];
@@ -342,16 +349,26 @@ class TrackingController extends Controller
         if (array_key_exists('priority', $validated)) {
             $updates['priority'] = $validated['priority'];
         }
-        if (array_key_exists('assignee_id', $validated)) {
-            $raw = $validated['assignee_id'];
-            $updates['assignee_id'] = ($raw === null || $raw === 'unassigned') ? null : (int) $raw;
-        }
 
-        if ($updates === []) {
+        $hasAssigneeChange = array_key_exists('assignee_ids', $validated);
+        $assigneeIds = $hasAssigneeChange
+            ? collect($validated['assignee_ids'])->map(fn ($id) => (int) $id)->unique()->values()->all()
+            : [];
+
+        if ($updates === [] && ! $hasAssigneeChange) {
             return back()->withErrors(['form' => 'Select at least one field to update.']);
         }
 
-        Issue::query()->whereIn('id', $validated['issue_ids'])->update($updates);
+        if ($updates !== []) {
+            Issue::query()->whereIn('id', $validated['issue_ids'])->update($updates);
+        }
+
+        if ($hasAssigneeChange) {
+            $issues = Issue::query()->whereIn('id', $validated['issue_ids'])->get();
+            foreach ($issues as $issue) {
+                $issue->assignees()->sync($assigneeIds);
+            }
+        }
 
         return back()->with('success', 'Issues updated.');
     }
@@ -491,6 +508,7 @@ class TrackingController extends Controller
         $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
 
         $canComment = $project ? $user->workspaceAccess()->canViewIssues($project) : false;
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
         return [
             'id' => $issue->id,
@@ -500,7 +518,7 @@ class TrackingController extends Controller
             'priority' => $issue->priority,
             'type' => $issue->type,
             'label' => $issue->label,
-            'assignee_id' => $issue->assignee_id,
+            'assignees' => IssueSerializer::assignees($issue, $mainOwnerId),
             'due_date' => $issue->due_date?->toDateString(),
             'estimated_hours' => $issue->estimated_hours,
             'created_at' => $issue->created_at?->toISOString(),
@@ -514,11 +532,6 @@ class TrackingController extends Controller
             'comments' => $this->buildCommentTree($issue->comments, null),
             'comments_count' => $issue->comments->count(),
             'can_comment' => $canComment,
-            'assignee' => $issue->assignee ? [
-                'id' => $issue->assignee->id,
-                'name' => $issue->assignee->name,
-                'avatar_path' => $issue->assignee->avatar_path,
-            ] : null,
             'creator' => $issue->creator ? [
                 'id' => $issue->creator->id,
                 'name' => $issue->creator->name,
@@ -666,21 +679,22 @@ class TrackingController extends Controller
 
     private function issueAssigneeFilterOptions(): array
     {
-        $counts = Issue::query()
-            ->whereNotNull('assignee_id')
-            ->selectRaw('assignee_id, count(*) as cnt')
-            ->groupBy('assignee_id')
-            ->pluck('cnt', 'assignee_id');
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
-        $unassignedCount = Issue::query()->whereNull('assignee_id')->count();
+        $rows = DB::table('issue_assignees')
+            ->join('users', 'users.id', '=', 'issue_assignees.user_id')
+            ->selectRaw('users.id as id, users.name as name, count(*) as cnt')
+            ->groupBy('users.id', 'users.name')
+            ->get();
 
-        $options = User::query()
-            ->whereIn('id', $counts->keys())
-            ->get(['id', 'name'])
-            ->map(fn (User $u) => [
-                'label' => $u->name,
-                'value' => (string) $u->id,
-                'count' => (int) ($counts[$u->id] ?? 0),
+        $unassignedCount = Issue::query()->doesntHave('assignees')->count();
+
+        $options = $rows
+            ->map(fn ($row) => [
+                'label' => $row->name,
+                'value' => (string) $row->id,
+                'count' => (int) $row->cnt,
+                'is_main_owner' => $mainOwnerId !== null && (int) $row->id === $mainOwnerId,
             ])
             ->all();
 

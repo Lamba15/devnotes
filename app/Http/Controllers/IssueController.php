@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Tracking\CreateIssue;
 use App\Actions\Tracking\DeleteIssue;
 use App\Actions\Tracking\UpdateIssue;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Attachment;
 use App\Models\AuditLog;
 use App\Models\Board;
@@ -13,12 +14,15 @@ use App\Models\Issue;
 use App\Models\IssueComment;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\IssueSerializer;
+use App\Support\WorkspaceAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -26,16 +30,31 @@ use Inertia\Response;
 
 class IssueController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function create(Request $request, Client $client, Project $project): Response
     {
         abort_unless($project->client_id === $client->id, 404);
         abort_unless($request->user()->canManageIssues($project), 403);
 
+        $mainOwner = WorkspaceAccess::mainPlatformOwner();
+
         return Inertia::render('issues/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->issuesCrumb($client, $project),
+                $this->crumb('New Issue', "/clients/{$client->id}/projects/{$project->id}/issues/create"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'return_to' => $this->resolveReturnTarget($request, $client, $project),
             'assignee_options' => $this->serializeAssigneeOptions($project),
+            'default_assignee_ids' => $mainOwner
+                && $this->availableAssigneeIds($project)->contains($mainOwner->id)
+                    ? [$mainOwner->id]
+                    : [],
             'status_options' => ['todo', 'in_progress', 'done'],
             'priority_options' => ['low', 'medium', 'high'],
             'type_options' => ['task', 'bug', 'feature'],
@@ -80,7 +99,7 @@ class IssueController extends Controller
 
         $issues = $project->issues()
             ->with([
-                'assignee:id,name',
+                'assignees:id,name,avatar_path',
                 'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
                 'comments.user:id,name,avatar_path',
             ])
@@ -91,7 +110,7 @@ class IssueController extends Controller
                         ->orWhere('status', 'like', "%{$search}%")
                         ->orWhere('priority', 'like', "%{$search}%")
                         ->orWhere('type', 'like', "%{$search}%")
-                        ->orWhereHas('assignee', fn (Builder $assigneeQuery) => $assigneeQuery->where('name', 'like', "%{$search}%"));
+                        ->orWhereHas('assignees', fn (Builder $assigneeQuery) => $assigneeQuery->where('users.name', 'like', "%{$search}%"));
                 });
             })
             ->when($assignee !== [], function (Builder $query) use ($assignee): void {
@@ -103,12 +122,15 @@ class IssueController extends Controller
 
                 $query->where(function (Builder $assigneeQuery) use ($assigneeIds, $includesUnassigned): void {
                     if ($includesUnassigned) {
-                        $assigneeQuery->whereNull('assignee_id');
+                        $assigneeQuery->whereDoesntHave('assignees');
                     }
 
                     if ($assigneeIds->isNotEmpty()) {
-                        $method = $includesUnassigned ? 'orWhereIn' : 'whereIn';
-                        $assigneeQuery->{$method}('assignee_id', $assigneeIds->all());
+                        $method = $includesUnassigned ? 'orWhereHas' : 'whereHas';
+                        $assigneeQuery->{$method}(
+                            'assignees',
+                            fn (Builder $q) => $q->whereIn('users.id', $assigneeIds->all()),
+                        );
                     }
                 });
             })
@@ -120,6 +142,12 @@ class IssueController extends Controller
             ->withQueryString();
 
         return Inertia::render('issues/index', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->issuesCrumb($client, $project),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issues' => collect($issues->items())
@@ -177,7 +205,8 @@ class IssueController extends Controller
             'status' => ['required', 'string', 'max:255'],
             'priority' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
-            'assignee_id' => ['nullable', 'integer', Rule::in($this->availableAssigneeIds($project)->all())],
+            'assignee_ids' => ['array'],
+            'assignee_ids.*' => ['integer', Rule::in($this->availableAssigneeIds($project)->all())],
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'string', 'max:255'],
             'label' => ['nullable', 'string', 'max:255'],
@@ -205,6 +234,14 @@ class IssueController extends Controller
         abort_unless($request->user()->canManageIssues($project), 403);
 
         return Inertia::render('issues/edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->issuesCrumb($client, $project),
+                $this->crumb($issue->title, "/clients/{$client->id}/projects/{$project->id}/issues/{$issue->id}"),
+                $this->crumb('Edit', "/clients/{$client->id}/projects/{$project->id}/issues/{$issue->id}/edit"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
@@ -224,6 +261,13 @@ class IssueController extends Controller
         abort_unless($request->user()->hasProjectAccess($project), 403);
 
         return Inertia::render('issues/show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->issuesCrumb($client, $project),
+                $this->crumb($issue->title, "/clients/{$client->id}/projects/{$project->id}/issues/{$issue->id}"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'issue' => $this->serializeIssue($issue, $request->user()->canCommentOnIssue($issue)),
@@ -271,7 +315,8 @@ class IssueController extends Controller
             'status' => ['required', 'string', 'max:255'],
             'priority' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'max:255'],
-            'assignee_id' => ['nullable', 'integer', Rule::in($this->availableAssigneeIds($project, $issue)->all())],
+            'assignee_ids' => ['sometimes', 'array'],
+            'assignee_ids.*' => ['integer', Rule::in($this->availableAssigneeIds($project, $issue)->all())],
             'due_date' => ['nullable', 'date'],
             'estimated_hours' => ['nullable', 'string', 'max:255'],
             'label' => ['nullable', 'string', 'max:255'],
@@ -317,7 +362,7 @@ class IssueController extends Controller
     private function serializeIssue(Issue $issue, bool $canComment = false): array
     {
         $issue->loadMissing([
-            'assignee:id,name,avatar_path',
+            'assignees:id,name,avatar_path',
             'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
             'comments.user:id,name,avatar_path',
             'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
@@ -328,6 +373,7 @@ class IssueController extends Controller
             ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
             ->values();
         $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
         return [
             'id' => $issue->id,
@@ -336,8 +382,7 @@ class IssueController extends Controller
             'status' => $issue->status,
             'priority' => $issue->priority,
             'type' => $issue->type,
-            'assignee_id' => $issue->assignee_id,
-            'assignee' => $issue->assignee?->only(['id', 'name', 'avatar_path']),
+            'assignees' => IssueSerializer::assignees($issue, $mainOwnerId),
             'due_date' => $issue->due_date?->toDateString(),
             'estimated_hours' => $issue->estimated_hours,
             'label' => $issue->label,
@@ -450,42 +495,56 @@ class IssueController extends Controller
 
     private function serializeAssigneeOptions(Project $project, ?Issue $issue = null): array
     {
-        $options = [['label' => 'Unassigned', 'value' => '']];
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
-        return array_merge(
-            $options,
-            $this->availableAssignees($project, $issue)
-                ->map(fn (User $user) => [
-                    'label' => $user->name,
-                    'value' => (string) $user->id,
-                ])
-                ->all(),
-        );
+        return $this->availableAssignees($project, $issue)
+            ->map(fn (User $user) => [
+                'label' => $user->name,
+                'value' => (string) $user->id,
+                'id' => $user->id,
+                'name' => $user->name,
+                'avatar_path' => $user->avatar_path,
+                'is_main_owner' => $mainOwnerId !== null && $user->id === $mainOwnerId,
+            ])
+            ->all();
     }
 
     private function serializeIssueAssigneeFilterOptions(Project $project): array
     {
-        $assigneeIds = $project->issues()
-            ->whereNotNull('assignee_id')
-            ->distinct()
-            ->pluck('assignee_id')
-            ->map(fn ($id) => (int) $id)
-            ->values();
+        $issueIds = $project->issues()->pluck('id');
+        $mainOwnerId = WorkspaceAccess::mainPlatformOwner()?->id;
 
-        $assignees = User::query()
-            ->whereIn('id', $assigneeIds)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $rows = DB::table('issue_assignees')
+            ->join('users', 'users.id', '=', 'issue_assignees.user_id')
+            ->whereIn('issue_assignees.issue_id', $issueIds)
+            ->select('users.id', 'users.name', DB::raw('COUNT(*) as count'))
+            ->groupBy('users.id', 'users.name')
+            ->orderByDesc('count')
+            ->orderBy('users.name')
+            ->get();
 
-        return array_merge(
-            [['label' => 'Unassigned', 'value' => 'unassigned']],
-            $assignees
-                ->map(fn (User $user) => [
-                    'label' => $user->name,
-                    'value' => (string) $user->id,
-                ])
-                ->all(),
-        );
+        $unassignedCount = $project->issues()->doesntHave('assignees')->count();
+
+        $options = [];
+
+        if ($unassignedCount > 0) {
+            $options[] = [
+                'label' => 'Unassigned',
+                'value' => 'unassigned',
+                'count' => $unassignedCount,
+            ];
+        }
+
+        foreach ($rows as $row) {
+            $options[] = [
+                'label' => $row->name,
+                'value' => (string) $row->id,
+                'count' => (int) $row->count,
+                'is_main_owner' => $mainOwnerId !== null && (int) $row->id === $mainOwnerId,
+            ];
+        }
+
+        return $options;
     }
 
     private function serializeIssueClassificationFilterOptions(
@@ -537,17 +596,23 @@ class IssueController extends Controller
     {
         return $this->availableAssignees($project, $issue)
             ->pluck('id')
-            ->map(fn (int $id) => (string) $id)
+            ->map(fn (int $id) => (int) $id)
             ->values();
     }
 
     private function availableAssignees(Project $project, ?Issue $issue = null): Collection
     {
+        $existingAssigneeIds = collect();
+
+        if ($issue !== null) {
+            $issue->loadMissing('assignees:id');
+            $existingAssigneeIds = $issue->assignees->pluck('id');
+        }
+
+        $mainOwner = WorkspaceAccess::mainPlatformOwner();
+
         $assigneeQuery = User::query()
-            ->whereHas('clientMemberships', function (Builder $query) use ($project): void {
-                $query->where('client_id', $project->client_id);
-            })
-            ->where(function (Builder $query) use ($project): void {
+            ->where(function (Builder $query) use ($project, $existingAssigneeIds, $mainOwner): void {
                 $query->whereHas('clientMemberships', function (Builder $membershipQuery) use ($project): void {
                     $membershipQuery
                         ->where('client_id', $project->client_id)
@@ -555,15 +620,19 @@ class IssueController extends Controller
                 })->orWhereHas('projectMemberships', function (Builder $membershipQuery) use ($project): void {
                     $membershipQuery->where('project_id', $project->id);
                 });
-            });
 
-        if ($issue?->assignee_id !== null) {
-            $assigneeQuery->orWhere('id', $issue->assignee_id);
-        }
+                if ($mainOwner !== null) {
+                    $query->orWhere('users.id', $mainOwner->id);
+                }
+
+                if ($existingAssigneeIds->isNotEmpty()) {
+                    $query->orWhereIn('users.id', $existingAssigneeIds->all());
+                }
+            });
 
         return $assigneeQuery
             ->orderBy('name')
-            ->get(['users.id', 'users.name'])
+            ->get(['users.id', 'users.name', 'users.avatar_path'])
             ->unique('id')
             ->values();
     }
