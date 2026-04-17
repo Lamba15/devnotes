@@ -1,11 +1,12 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
     createEmptyInvoiceItem,
     InvoiceFormEditor
-    
+
 } from '@/components/finance/invoice-form-editor';
 import type {InvoiceFormData} from '@/components/finance/invoice-form-editor';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceInvoicesCreate({
@@ -17,6 +18,8 @@ export default function FinanceInvoicesCreate({
         client: { id: number; name: string };
     }>;
 }) {
+    const goBack = useBackNavigation('/finance/invoices')!;
+
     const form = useForm<InvoiceFormData>({
         project_id: '',
         reference: '',
@@ -45,7 +48,7 @@ export default function FinanceInvoicesCreate({
                     processing={form.processing}
                     submitLabel="Create invoice"
                     projects={projects}
-                    onCancel={() => router.visit('/finance/invoices')}
+                    onCancel={goBack}
                     onChange={(data) => form.setData(data)}
                     onSubmit={() => form.post('/finance/invoices')}
                 />

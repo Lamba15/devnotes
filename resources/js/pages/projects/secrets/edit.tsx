@@ -15,7 +15,6 @@ export default function ProjectSecretsEdit({
             title="Edit Project Secret"
             description={`Update a private secret for ${client.name} / ${project.name}.`}
             submitLabel="Save secret"
-            cancelHref={`/clients/${client.id}/projects/${project.id}`}
             submitUrl={`/clients/${client.id}/projects/${project.id}/secrets/${secret.id}`}
             method="put"
             initialData={{

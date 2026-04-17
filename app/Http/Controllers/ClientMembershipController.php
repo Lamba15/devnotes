@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Clients\CreateClientUser;
 use App\Actions\Clients\DeleteClientMembership;
 use App\Actions\Clients\UpdateClientMembership;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\AssistantMessage;
 use App\Models\AssistantRun;
 use App\Models\AssistantThread;
@@ -28,6 +29,8 @@ use Inertia\Response;
 
 class ClientMembershipController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     private const ROLES = ['owner', 'admin', 'member'];
 
     private const GRAPH_RANGES = ['30d', '90d', '365d', 'all'];
@@ -37,6 +40,12 @@ class ClientMembershipController extends Controller
         abort_unless($request->user()->canManageMembers($client), 403);
 
         return Inertia::render('clients/members/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->membersCrumb($client),
+                $this->crumb('New Member', "/clients/{$client->id}/members/create"),
+            ),
             'client' => $this->serializeClient($client),
             'roles' => $this->roleOptions(),
         ]);
@@ -87,6 +96,11 @@ class ClientMembershipController extends Controller
         $canManageMembers = $user->canManageMembers($client);
 
         return Inertia::render('clients/members/index', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->membersCrumb($client),
+            ),
             'client' => $this->serializeClient($client),
             'memberships' => collect($memberships->items())
                 ->map(fn (ClientMembership $membership) => $this->serializeMembershipListItem($membership))
@@ -143,6 +157,12 @@ class ClientMembershipController extends Controller
         $activityData = $this->memberActivityData($targetUser);
 
         return Inertia::render('clients/members/show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->membersCrumb($client),
+                $this->crumb($membership->user->name, "/clients/{$client->id}/members/{$membership->id}"),
+            ),
             'client' => $this->serializeClient($client),
             'membership' => $this->serializeMembershipProfile(
                 membership: $membership,

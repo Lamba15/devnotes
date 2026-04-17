@@ -76,11 +76,6 @@ export default function FinanceTransactionShow({
                         </Button>
                     </div>
                 }
-                onBack={() =>
-                    window.history.length > 1
-                        ? window.history.back()
-                        : window.location.assign('/finance/transactions')
-                }
             >
                 <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
                     <div className="space-y-4">

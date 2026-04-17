@@ -101,11 +101,6 @@ export default function FinanceInvoiceShow({ invoice }: InvoiceShowProps) {
                         </Button>
                     </div>
                 }
-                onBack={() =>
-                    window.history.length > 1
-                        ? window.history.back()
-                        : window.location.assign('/finance/invoices')
-                }
             >
                 <div className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
                     <div className="space-y-4">

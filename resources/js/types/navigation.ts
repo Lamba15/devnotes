@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 export type BreadcrumbItem = {
     title: string;
     href: NonNullable<InertiaLinkProps['href']>;
+    meta?: string | null;
 };
 
 export type NavItem = {

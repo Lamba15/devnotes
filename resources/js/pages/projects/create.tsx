@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
@@ -7,6 +7,7 @@ import type { ProjectGitRepoRow } from '@/components/projects/project-git-repos-
 import { ProjectLinksEditor } from '@/components/projects/project-links-editor';
 import type { ProjectLinkRow } from '@/components/projects/project-links-editor';
 import { ProjectSkillPicker } from '@/components/projects/project-skill-picker';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function ProjectsCreate({
@@ -23,6 +24,7 @@ export default function ProjectsCreate({
     statuses: Array<{ id: number; name: string; slug: string }>;
     skills: Array<{ id: number; name: string }>;
 }) {
+    const goBack = useBackNavigation(`/clients/${client.id}/projects`);
     const form = useForm<{
         name: string;
         description: string;
@@ -188,9 +190,7 @@ export default function ProjectsCreate({
                     processing={form.processing}
                     submitLabel="Create project"
                     cancelLabel="Back to projects"
-                    onCancel={() =>
-                        router.visit(`/clients/${client.id}/projects`)
-                    }
+                    onCancel={goBack}
                     onChange={(name, value) =>
                         form.setData(
                             name as keyof typeof form.data,

@@ -97,7 +97,7 @@
     </div>
 
     <!-- Font thickness bumped to 200, pushed vertically up, reduced tracking scale ~7% -->
-    <div style="position: absolute; top: 55px; right: 50px; font-size: 60px; color: #5b377a; letter-spacing: 4px; font-weight: 200;">
+    <div style="position: absolute; top: 60px; right: 50px; font-size: 52px; color: #5b377a; letter-spacing: 4px; font-weight: 200;">
         TRANSACTION
     </div>
 

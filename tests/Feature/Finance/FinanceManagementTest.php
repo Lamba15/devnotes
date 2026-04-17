@@ -203,12 +203,13 @@ test('client finance page exposes relationship analysis and timeline data', func
             ->where('analysis.by_currency.0.refund_total', 200)
             ->where('analysis.by_currency.0.invoice_statuses.pending.amount', 1500)
             ->where('analysis.by_currency.0.invoice_statuses.paid.amount', 500)
-            ->has('analysis.by_currency.0.timeline', 4)
-            ->where('analysis.by_currency.0.timeline.0.period', '2026-01')
-            ->where('analysis.by_currency.0.timeline.3.period', '2026-04')
-            ->where('analysis.by_currency.0.timeline.3.cumulative_invoiced', 2000)
-            ->where('analysis.by_currency.0.timeline.3.cumulative_paid', 800)
-            ->where('analysis.by_currency.0.timeline.3.running_account', -1200)
+            ->where('analysis.by_currency.0.timeline.default_granularity', 'month')
+            ->has('analysis.by_currency.0.timeline.points', 4)
+            ->where('analysis.by_currency.0.timeline.points.0.period', '2026-01')
+            ->where('analysis.by_currency.0.timeline.points.3.period', '2026-04')
+            ->where('analysis.by_currency.0.timeline.points.3.cumulative_invoiced', 2000)
+            ->where('analysis.by_currency.0.timeline.points.3.cumulative_paid', 800)
+            ->where('analysis.by_currency.0.timeline.points.3.running_account', -1200)
         );
 });
 

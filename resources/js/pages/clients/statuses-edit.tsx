@@ -1,7 +1,8 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function ClientStatusesEdit({
@@ -11,6 +12,7 @@ export default function ClientStatusesEdit({
     client: any;
     status: { id: number; name: string; slug: string };
 }) {
+    const goBack = useBackNavigation(`/clients/${client.id}/statuses`);
     const form = useForm({ name: status.name, slug: status.slug });
     const sections: DynamicFormSection[] = [
         {
@@ -48,9 +50,7 @@ export default function ClientStatusesEdit({
                     processing={form.processing}
                     submitLabel="Save status"
                     cancelLabel="Back to statuses"
-                    onCancel={() =>
-                        router.visit(`/clients/${client.id}/statuses`)
-                    }
+                    onCancel={goBack}
                     onChange={(name, value) =>
                         form.setData(name as 'name' | 'slug', value)
                     }

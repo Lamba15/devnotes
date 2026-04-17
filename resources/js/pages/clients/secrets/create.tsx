@@ -11,7 +11,6 @@ export default function ClientSecretsCreate({
             title="Create Client Secret"
             description={`Add a private secret for ${client.name}.`}
             submitLabel="Create secret"
-            cancelHref={`/clients/${client.id}`}
             submitUrl={`/clients/${client.id}/secrets`}
             method="post"
             initialData={{

@@ -2,31 +2,31 @@ import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { setCrudPageHeaderContent } from '@/components/crud/crud-page-header-slot';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 
 export function CrudPage({
     title,
     titleMeta,
     description,
     actions,
-    onBack,
     children,
 }: {
     title: string;
     titleMeta?: ReactNode;
     description?: string;
     actions?: ReactNode;
-    onBack?: () => void;
     children: ReactNode;
 }) {
+    const goBack = useBackNavigation();
+
     const headerContent = (
         <div className="flex min-w-0 items-center justify-between gap-6">
             <div className="flex min-w-0 items-center gap-3">
-                {onBack ? (
+                {goBack ? (
                     <button
                         type="button"
-                        onClick={onBack}
+                        onClick={goBack}
                         className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                        style={{ cursor: 'pointer' }}
                         aria-label="Go back"
                     >
                         <ArrowLeft className="size-4" />

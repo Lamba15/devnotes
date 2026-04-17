@@ -1,7 +1,8 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function ClientMembersCreate({
@@ -16,6 +17,7 @@ export default function ClientMembersCreate({
     };
     roles: Array<{ label: string; value: string }>;
 }) {
+    const goBack = useBackNavigation(`/clients/${client.id}/members`);
     const form = useForm({
         name: '',
         email: '',
@@ -67,9 +69,7 @@ export default function ClientMembersCreate({
                     processing={form.processing}
                     submitLabel="Create client user"
                     cancelLabel="Back to members"
-                    onCancel={() =>
-                        router.visit(`/clients/${client.id}/members`)
-                    }
+                    onCancel={goBack}
                     onChange={(name, value) =>
                         form.setData(
                             name as 'name' | 'email' | 'password' | 'role',

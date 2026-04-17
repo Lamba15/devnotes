@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Textarea } from '@/components/ui/textarea';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import AppLayout from '@/layouts/app-layout';
 
 export default function ClientsEdit({
@@ -45,6 +46,7 @@ export default function ClientsEdit({
         })),
     });
 
+    const goBack = useBackNavigation(`/clients/${client.id}`);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     const handleImageUpload = (file: File) => {
@@ -312,9 +314,7 @@ export default function ClientsEdit({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() =>
-                                router.visit(`/clients/${client.id}`)
-                            }
+                            onClick={goBack}
                         >
                             Back to client
                         </Button>

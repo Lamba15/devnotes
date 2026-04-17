@@ -13,7 +13,6 @@ export default function ProjectSecretsCreate({
             title="Create Project Secret"
             description={`Add a private secret for ${client.name} / ${project.name}.`}
             submitLabel="Create secret"
-            cancelHref={`/clients/${client.id}/projects/${project.id}`}
             submitUrl={`/clients/${client.id}/projects/${project.id}/secrets`}
             method="post"
             initialData={{

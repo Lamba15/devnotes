@@ -8,7 +8,10 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { getBrowserTimeZone } from '@/lib/datetime';
+import { initNavigationHistory } from '@/lib/navigation-history';
 import type { Auth } from '@/types';
+
+initNavigationHistory();
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const TIME_ZONE_SYNC_KEY = 'devnotes.timezone-sync';

@@ -1,14 +1,14 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import { DynamicForm } from '@/components/crud/dynamic-form';
 import type { DynamicFormSection } from '@/components/crud/dynamic-form';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function SecretFormPage({
     title,
     description,
     submitLabel,
-    cancelHref,
     submitUrl,
     method,
     initialData,
@@ -16,7 +16,6 @@ export default function SecretFormPage({
     title: string;
     description: string;
     submitLabel: string;
-    cancelHref: string;
     submitUrl: string;
     method: 'post' | 'put';
     initialData: {
@@ -25,6 +24,7 @@ export default function SecretFormPage({
         secret_value: string;
     };
 }) {
+    const goBack = useBackNavigation();
     const form = useForm(initialData);
 
     const sections: DynamicFormSection[] = [
@@ -68,7 +68,7 @@ export default function SecretFormPage({
                     processing={form.processing}
                     submitLabel={submitLabel}
                     cancelLabel="Back"
-                    onCancel={() => router.visit(cancelHref)}
+                    onCancel={goBack}
                     onChange={(name, value) =>
                         form.setData(name as keyof typeof form.data, value)
                     }

@@ -13,7 +13,6 @@ export default function ClientSecretsEdit({
             title="Edit Client Secret"
             description={`Update a private secret for ${client.name}.`}
             submitLabel="Save secret"
-            cancelHref={`/clients/${client.id}`}
             submitUrl={`/clients/${client.id}/secrets/${secret.id}`}
             method="put"
             initialData={{

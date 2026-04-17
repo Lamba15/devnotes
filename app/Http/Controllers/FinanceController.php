@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\Transaction;
@@ -12,11 +13,18 @@ use Inertia\Response;
 
 class FinanceController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function transactionsCreate(Request $request): Response
     {
         ['projects' => $projects] = $this->financeScope($request);
 
         return Inertia::render('finance/transactions-create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->transactionsCrumb(),
+                $this->crumb('New Transaction', '/finance/transactions/create'),
+            ),
             'projects' => $projects,
             'category_options' => $this->transactionCategoryOptions($request),
         ]);
@@ -30,9 +38,12 @@ class FinanceController extends Controller
             'sort_by' => $request->input('sort_by'),
             'sort_direction' => $request->input('sort_direction'),
             'project_id' => $this->normalizedFilterValues($request, 'project_id'),
+            'client_id' => $this->normalizedFilterValues($request, 'client_id'),
             'category' => $this->normalizedFilterValues($request, 'category'),
             'currency' => $this->normalizedFilterValues($request, 'currency'),
             'direction' => $this->normalizedFilterValues($request, 'direction'),
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
             'page' => $request->input('page'),
         ], [
             'search' => ['nullable', 'string', 'max:255'],
@@ -40,24 +51,31 @@ class FinanceController extends Controller
             'sort_direction' => ['nullable', 'in:asc,desc'],
             'project_id' => ['array'],
             'project_id.*' => ['string', 'regex:/^\d+$/'],
+            'client_id' => ['array'],
+            'client_id.*' => ['string', 'regex:/^\d+$/'],
             'category' => ['array'],
             'category.*' => ['string', 'max:255'],
             'currency' => ['array'],
             'currency.*' => ['string', 'size:3'],
             'direction' => ['array'],
             'direction.*' => ['string', 'in:income,expense'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
             'page' => ['nullable', 'integer', 'min:1'],
         ])->validate();
         $search = trim((string) ($validated['search'] ?? ''));
         $sortBy = $validated['sort_by'] ?? 'occurred_date';
         $sortDirection = $validated['sort_direction'] ?? 'desc';
         $projectIdFilter = $this->cleanFilterValues($validated['project_id'] ?? []);
+        $clientIdFilter = $this->cleanFilterValues($validated['client_id'] ?? []);
         $categoryFilter = $this->cleanFilterValues($validated['category'] ?? []);
         $currencyFilter = collect($this->cleanFilterValues($validated['currency'] ?? []))
             ->map(fn (string $value) => strtoupper($value))
             ->values()
             ->all();
         $directionFilter = $this->cleanFilterValues($validated['direction'] ?? []);
+        $dateFrom = $validated['date_from'] ?? '';
+        $dateTo = $validated['date_to'] ?? '';
 
         $transactions = Transaction::query()
             ->with('project.client')
@@ -77,6 +95,9 @@ class FinanceController extends Controller
                 });
             })
             ->when($projectIdFilter !== [], fn ($query) => $query->whereIn('project_id', array_map('intval', $projectIdFilter)))
+            ->when($clientIdFilter !== [], fn ($query) => $query->whereHas('project', fn ($q) => $q->whereIn('client_id', array_map('intval', $clientIdFilter))))
+            ->when($dateFrom !== '', fn ($query) => $query->where('occurred_date', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->where('occurred_date', '<=', $dateTo))
             ->when($categoryFilter !== [], fn ($query) => $query->whereIn('category', $categoryFilter))
             ->when($currencyFilter !== [], fn ($query) => $query->whereIn('currency', $currencyFilter))
             ->when($directionFilter !== [], function ($query) use ($directionFilter): void {
@@ -96,6 +117,10 @@ class FinanceController extends Controller
             ->withQueryString();
 
         return Inertia::render('finance/transactions', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->transactionsCrumb(),
+            ),
             'projects' => $projects,
             'transactions' => collect($transactions->items())
                 ->map(fn (Transaction $transaction) => [
@@ -111,6 +136,16 @@ class FinanceController extends Controller
                         'client' => $transaction->project?->client?->only(['id', 'name']),
                     ],
                 ])
+                ->values()
+                ->all(),
+            'client_filter_options' => $projects
+                ->filter(fn (Project $project) => $project->client !== null)
+                ->groupBy(fn (Project $project) => $project->client->id)
+                ->map(fn ($group) => [
+                    'label' => $group->first()->client->name,
+                    'value' => (string) $group->first()->client->id,
+                ])
+                ->sortBy('label')
                 ->values()
                 ->all(),
             'project_filter_options' => $projects
@@ -168,10 +203,13 @@ class FinanceController extends Controller
                 'search' => $search,
                 'sort_by' => $sortBy,
                 'sort_direction' => $sortDirection,
+                'client_id' => $clientIdFilter,
                 'project_id' => $projectIdFilter,
                 'category' => $categoryFilter,
                 'currency' => $currencyFilter,
                 'direction' => $directionFilter,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
             ],
         ]);
     }
@@ -236,6 +274,10 @@ class FinanceController extends Controller
             ->withQueryString();
 
         return Inertia::render('finance/invoices', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->invoicesCrumb(),
+            ),
             'projects' => $projects,
             'invoices' => collect($invoices->items())
                 ->map(fn (Invoice $invoice) => [
@@ -311,6 +353,11 @@ class FinanceController extends Controller
         ['projects' => $projects] = $this->financeScope($request);
 
         return Inertia::render('finance/invoices-create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->invoicesCrumb(),
+                $this->crumb('New Invoice', '/finance/invoices/create'),
+            ),
             'projects' => $projects,
         ]);
     }

@@ -11,6 +11,7 @@ import type { ProjectLinkRow } from '@/components/projects/project-links-editor'
 import { ProjectSkillPicker } from '@/components/projects/project-skill-picker';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 export default function ProjectsEdit({
@@ -42,6 +43,7 @@ export default function ProjectsEdit({
     statuses: Array<{ id: number; name: string; slug: string }>;
     skills: Array<{ id: number; name: string }>;
 }) {
+    const goBack = useBackNavigation(`/clients/${client.id}/projects`);
     const form = useForm<{
         name: string;
         description: string;
@@ -292,9 +294,7 @@ export default function ProjectsEdit({
                     processing={form.processing}
                     submitLabel="Save project"
                     cancelLabel="Back to projects"
-                    onCancel={() =>
-                        router.visit(`/clients/${client.id}/projects`)
-                    }
+                    onCancel={goBack}
                     onChange={(name, value) =>
                         form.setData(
                             name as keyof typeof form.data,

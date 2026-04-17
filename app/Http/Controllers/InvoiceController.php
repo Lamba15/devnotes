@@ -6,6 +6,7 @@ use App\Actions\Finance\CreateInvoice;
 use App\Actions\Finance\DeleteInvoice;
 use App\Actions\Finance\GenerateInvoicePdf;
 use App\Actions\Finance\UpdateInvoice;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Invoice;
 use App\Models\Project;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class InvoiceController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function show(Request $request, Invoice $invoice, GenerateInvoicePdf $generateInvoicePdf): Response
     {
         $user = $request->user();
@@ -32,6 +35,11 @@ class InvoiceController extends Controller
         $invoice->load(['project.client:id,name', 'items.discounts', 'discounts']);
 
         return Inertia::render('finance/invoices-show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->invoicesCrumb(),
+                $this->crumb($invoice->reference, "/finance/invoices/{$invoice->id}"),
+            ),
             'invoice' => [
                 'id' => $invoice->id,
                 'reference' => $invoice->reference,
@@ -96,6 +104,12 @@ class InvoiceController extends Controller
         $invoice->load(['items.discounts', 'discounts']);
 
         return Inertia::render('finance/invoices-edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->invoicesCrumb(),
+                $this->crumb($invoice->reference, "/finance/invoices/{$invoice->id}"),
+                $this->crumb('Edit', "/finance/invoices/{$invoice->id}/edit"),
+            ),
             'invoice' => [
                 'id' => $invoice->id,
                 'project_id' => $invoice->project_id,

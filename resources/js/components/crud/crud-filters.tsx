@@ -2,6 +2,7 @@ import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { FilterBar } from '@/components/crud/filter-bar';
 import { Button } from '@/components/ui/button';
+import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
@@ -109,6 +110,36 @@ export function CrudFilters({
                         />
                     );
                 })}
+                {definitions.some((d) => d.type === 'date') ? (
+                    <div className="flex items-center gap-2">
+                        {definitions
+                            .filter((d) => d.type === 'date')
+                            .map((def) => {
+                                if (def.type !== 'date') {
+                                    return null;
+                                }
+
+                                return (
+                                    <DateInput
+                                        key={def.key}
+                                        value={
+                                            (state.filters[def.key] as string) ??
+                                            ''
+                                        }
+                                        onChange={(value) =>
+                                            state.setFilter(def.key, value)
+                                        }
+                                        placeholderText={
+                                            def.placeholder ??
+                                            def.label ??
+                                            def.key
+                                        }
+                                        className={def.className ?? 'lg:w-40'}
+                                    />
+                                );
+                            })}
+                    </div>
+                ) : null}
                 {children}
             </div>
         </FilterBar>

@@ -1,10 +1,11 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
     TransactionFormEditor
-    
+
 } from '@/components/finance/transaction-form-editor';
 import type {TransactionFormData} from '@/components/finance/transaction-form-editor';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceTransactionsEdit({
@@ -28,6 +29,8 @@ export default function FinanceTransactionsEdit({
     }>;
     category_options: Array<{ label: string; value: string }>;
 }) {
+    const goBack = useBackNavigation(`/finance/transactions/${transaction.id}`)!;
+
     const form = useForm<TransactionFormData>({
         project_id: String(transaction.project_id),
         description: transaction.description ?? '',
@@ -53,9 +56,7 @@ export default function FinanceTransactionsEdit({
                     submitLabel="Save transaction"
                     projects={projects}
                     categoryOptions={category_options}
-                    onCancel={() =>
-                        router.visit(`/finance/transactions/${transaction.id}`)
-                    }
+                    onCancel={goBack}
                     onChange={(data) => form.setData(data)}
                     onSubmit={() =>
                         form.put(`/finance/transactions/${transaction.id}`)

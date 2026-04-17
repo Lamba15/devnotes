@@ -11,7 +11,6 @@ type Props = AppLayoutProps & {
 
 export default function AppSidebarLayout({
     children,
-    breadcrumbs = [],
     sidebarOpen,
 }: Props) {
     return (
@@ -19,7 +18,7 @@ export default function AppSidebarLayout({
             <AppSidebar />
             <AssistantPanel hideTrigger />
             <AppContent variant="sidebar" className="overflow-x-hidden">
-                <AppSidebarHeader breadcrumbs={breadcrumbs} />
+                <AppSidebarHeader />
                 {children}
             </AppContent>
         </AppShell>

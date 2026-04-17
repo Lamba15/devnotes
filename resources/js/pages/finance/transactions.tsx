@@ -1,5 +1,9 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import {
+    CalendarDays,
+    List,
+    Plus,
+} from 'lucide-react';
 import { useState } from 'react';
 import { CrudFilters } from '@/components/crud/crud-filters';
 import { CrudPage } from '@/components/crud/crud-page';
@@ -7,6 +11,7 @@ import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { FinanceAmount } from '@/components/finance/finance-amount';
 import { FinanceProjectLabel } from '@/components/finance/finance-project-label';
+import { TransactionCalendar } from '@/components/finance/transaction-calendar';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -45,6 +50,7 @@ type Transaction = {
 
 export default function FinanceTransactions({
     transactions,
+    client_filter_options,
     project_filter_options,
     category_filter_options,
     currency_filter_options,
@@ -53,6 +59,7 @@ export default function FinanceTransactions({
     pagination,
 }: {
     transactions: Transaction[];
+    client_filter_options: Array<{ label: string; value: string }>;
     project_filter_options: Array<{ label: string; value: string }>;
     category_filter_options: Array<{ label: string; value: string }>;
     currency_filter_options: Array<{ label: string; value: string }>;
@@ -61,10 +68,13 @@ export default function FinanceTransactions({
         search: string;
         sort_by: string;
         sort_direction: string;
+        client_id: string[];
         project_id: string[];
         category: string[];
         currency: string[];
         direction: string[];
+        date_from: string;
+        date_to: string;
     };
     pagination: {
         current_page: number;
@@ -79,12 +89,20 @@ export default function FinanceTransactions({
     const [selectedTransactionIds, setSelectedTransactionIds] = useState<
         Array<string | number>
     >([]);
+    const [view, setView] = useState<'table' | 'calendar'>('table');
 
     const filterDefs: CrudFilterDefinition[] = [
         {
             key: 'search',
             type: 'search',
             placeholder: 'Search transactions...',
+        },
+        {
+            key: 'client_id',
+            type: 'select',
+            placeholder: 'Client',
+            options: client_filter_options,
+            className: 'lg:w-48',
         },
         {
             key: 'project_id',
@@ -113,6 +131,18 @@ export default function FinanceTransactions({
             placeholder: 'Direction',
             options: direction_filter_options,
             className: 'lg:w-36',
+        },
+        {
+            key: 'date_from',
+            type: 'date',
+            placeholder: 'From date',
+            className: 'lg:w-40',
+        },
+        {
+            key: 'date_to',
+            type: 'date',
+            placeholder: 'To date',
+            className: 'lg:w-40',
         },
     ];
     const crud = useCrudFilters({
@@ -244,29 +274,61 @@ export default function FinanceTransactions({
                 title="Transactions"
                 description="Manage project-linked financial transactions."
                 actions={
-                    <Button asChild>
-                        <Link href="/finance/transactions/create">
-                            <Plus className="mr-1.5 size-4" />
-                            Create transaction
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex rounded-lg border border-border">
+                            <Button
+                                variant={
+                                    view === 'table' ? 'secondary' : 'ghost'
+                                }
+                                size="sm"
+                                onClick={() => setView('table')}
+                                className="rounded-r-none"
+                            >
+                                <List className="mr-1.5 size-3.5" />
+                                Table
+                            </Button>
+                            <Button
+                                variant={
+                                    view === 'calendar'
+                                        ? 'secondary'
+                                        : 'ghost'
+                                }
+                                size="sm"
+                                onClick={() => setView('calendar')}
+                                className="rounded-l-none"
+                            >
+                                <CalendarDays className="mr-1.5 size-3.5" />
+                                Calendar
+                            </Button>
+                        </div>
+                        <Button asChild>
+                            <Link href="/finance/transactions/create">
+                                <Plus className="mr-1.5 size-4" />
+                                Create transaction
+                            </Link>
+                        </Button>
+                    </div>
                 }
             >
                 <CrudFilters definitions={filterDefs} state={crud} />
 
-                <DataTable
-                    columns={columns}
-                    rows={transactions}
-                    emptyText="No transactions yet."
-                    getRowId={(transaction) => transaction.id}
-                    selectedRowIds={selectedTransactionIds}
-                    onSelectedRowIdsChange={setSelectedTransactionIds}
-                    bulkActions={bulkActions}
-                    currentSort={crud.sort}
-                    onSortChange={crud.handleSortChange}
-                    pagination={pagination}
-                    onPageChange={crud.visitPage}
-                />
+                {view === 'table' ? (
+                    <DataTable
+                        columns={columns}
+                        rows={transactions}
+                        emptyText="No transactions yet."
+                        getRowId={(transaction) => transaction.id}
+                        selectedRowIds={selectedTransactionIds}
+                        onSelectedRowIdsChange={setSelectedTransactionIds}
+                        bulkActions={bulkActions}
+                        currentSort={crud.sort}
+                        onSortChange={crud.handleSortChange}
+                        pagination={pagination}
+                        onPageChange={crud.visitPage}
+                    />
+                ) : (
+                    <TransactionCalendar transactions={transactions} />
+                )}
 
                 <Dialog
                     open={deleteIds !== null}
@@ -297,6 +359,7 @@ export default function FinanceTransactions({
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
             </CrudPage>
         </>
     );

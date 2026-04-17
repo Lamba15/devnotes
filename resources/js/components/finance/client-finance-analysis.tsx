@@ -8,23 +8,16 @@ import {
 } from 'lucide-react';
 import { FinanceAmount } from '@/components/finance/finance-amount';
 import { FinanceStatusBadge } from '@/components/finance/finance-status-badge';
+import { FinanceTrendChart } from '@/components/finance/finance-trend-chart';
+import type { Timeline } from '@/components/finance/finance-trend-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+
 
 type MoneySummary = {
     amount: number;
     currency: string | null;
     mixed_currencies: boolean;
-};
-
-type TimelinePoint = {
-    period: string;
-    label: string;
-    monthly_invoiced: number;
-    monthly_paid: number;
-    cumulative_invoiced: number;
-    cumulative_paid: number;
-    running_account: number;
 };
 
 type CurrencyAnalysis = {
@@ -39,11 +32,12 @@ type CurrencyAnalysis = {
     refund_total: number;
     open_invoice_total: number;
     invoice_statuses: Record<string, { count: number; amount: number }>;
-    timeline: TimelinePoint[];
+    timeline: Timeline;
 };
 
 type ClientFinanceAnalysisProps = {
     viewerPerspective: 'platform_owner' | 'client_user';
+    onMonthClick?: (period: string, label: string) => void;
     analysis: {
         overall: {
             project_count: number;
@@ -61,6 +55,7 @@ type ClientFinanceAnalysisProps = {
 export function ClientFinanceAnalysis({
     analysis,
     viewerPerspective,
+    onMonthClick,
 }: ClientFinanceAnalysisProps) {
     const overallBalance = analysis.overall.running_account;
     const hasSingleCurrency = !overallBalance.mixed_currencies;
@@ -145,6 +140,7 @@ export function ClientFinanceAnalysis({
                         key={currencyAnalysis.label}
                         analysis={currencyAnalysis}
                         viewerPerspective={viewerPerspective}
+                        onMonthClick={onMonthClick}
                     />
                 ))}
             </div>
@@ -155,9 +151,11 @@ export function ClientFinanceAnalysis({
 function CurrencyBreakdownSection({
     analysis,
     viewerPerspective,
+    onMonthClick,
 }: {
     analysis: CurrencyAnalysis;
     viewerPerspective: 'platform_owner' | 'client_user';
+    onMonthClick?: (period: string, label: string) => void;
 }) {
     return (
         <div className="space-y-4 rounded-2xl border border-border/60 bg-card/40 p-4 md:p-5">
@@ -215,6 +213,7 @@ function CurrencyBreakdownSection({
                 <TimelineChartCard
                     analysis={analysis}
                     viewerPerspective={viewerPerspective}
+                    onMonthClick={onMonthClick}
                 />
                 <Card>
                     <CardHeader>
@@ -299,10 +298,33 @@ function CurrencyBreakdownSection({
 function TimelineChartCard({
     analysis,
     viewerPerspective,
+    onMonthClick,
 }: {
     analysis: CurrencyAnalysis;
     viewerPerspective: 'platform_owner' | 'client_user';
+    onMonthClick?: (period: string, label: string) => void;
 }) {
+    const { timeline } = analysis;
+
+    if (timeline.points.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">
+                        {viewerPerspective === 'platform_owner'
+                            ? 'Billed vs paid over time'
+                            : 'Your billed vs paid history'}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                        Not enough dated records to chart this relationship yet.
+                    </p>
+                </CardContent>
+            </Card>
+        );
+    }
+
     return (
         <Card>
             <CardHeader className="space-y-2">
@@ -311,233 +333,16 @@ function TimelineChartCard({
                         ? 'Billed vs paid over time'
                         : 'Your billed vs paid history'}
                 </CardTitle>
-                <p className="text-sm leading-6 text-muted-foreground">
-                    {viewerPerspective === 'platform_owner'
-                        ? 'Cumulative invoice totals and cumulative net payments across'
-                        : 'Cumulative invoice totals and cumulative net payments across'}{' '}
-                    the last {analysis.timeline.length} month
-                    {analysis.timeline.length === 1 ? '' : 's'} with recorded
-                    activity.
-                </p>
             </CardHeader>
             <CardContent>
-                {analysis.timeline.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                        Not enough dated records to chart this relationship yet.
-                    </p>
-                ) : (
-                    <FinanceTrendChart
-                        timeline={analysis.timeline}
-                        currency={analysis.currency}
-                        viewerPerspective={viewerPerspective}
-                    />
-                )}
+                <FinanceTrendChart
+                    timeline={timeline}
+                    currency={analysis.currency}
+                    viewerPerspective={viewerPerspective}
+                    onMonthClick={onMonthClick}
+                />
             </CardContent>
         </Card>
-    );
-}
-
-function FinanceTrendChart({
-    timeline,
-    currency,
-    viewerPerspective,
-}: {
-    timeline: TimelinePoint[];
-    currency: string | null;
-    viewerPerspective: 'platform_owner' | 'client_user';
-}) {
-    const width = 760;
-    const height = 260;
-    const left = 18;
-    const right = 18;
-    const top = 12;
-    const bottom = 34;
-    const chartWidth = width - left - right;
-    const chartHeight = height - top - bottom;
-
-    const values = timeline.flatMap((point) => [
-        point.cumulative_invoiced,
-        point.cumulative_paid,
-    ]);
-    const minValue = Math.min(...values, 0);
-    const maxValue = Math.max(...values, 0);
-    const rangePadding = Math.max((maxValue - minValue) * 0.12, 1);
-    const scaledMin = minValue - rangePadding;
-    const scaledMax = maxValue + rangePadding;
-    const scaleX = (index: number) =>
-        left +
-        (timeline.length === 1
-            ? chartWidth / 2
-            : (index / (timeline.length - 1)) * chartWidth);
-    const scaleY = (value: number) =>
-        top +
-        chartHeight -
-        ((value - scaledMin) / (scaledMax - scaledMin || 1)) * chartHeight;
-    const baselineY = scaleY(0);
-
-    const invoicedPath = timeline
-        .map(
-            (point, index) =>
-                `${index === 0 ? 'M' : 'L'} ${scaleX(index)} ${scaleY(point.cumulative_invoiced)}`,
-        )
-        .join(' ');
-    const paidPath = timeline
-        .map(
-            (point, index) =>
-                `${index === 0 ? 'M' : 'L'} ${scaleX(index)} ${scaleY(point.cumulative_paid)}`,
-        )
-        .join(' ');
-
-    const yTicks = [0, 0.33, 0.66, 1].map(
-        (ratio) => scaledMin + (scaledMax - scaledMin) * ratio,
-    );
-    const xLabels = pickTimelineLabels(timeline);
-
-    return (
-        <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <LegendSwatch
-                    label={
-                        viewerPerspective === 'platform_owner'
-                            ? 'Invoiced'
-                            : 'Your invoices'
-                    }
-                    color="#8b5cf6"
-                />
-                <LegendSwatch
-                    label={
-                        viewerPerspective === 'platform_owner'
-                            ? 'Paid'
-                            : 'Your payments'
-                    }
-                    color="#0f766e"
-                />
-                <LegendSwatch label="Zero line" color="#94a3b8" />
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/70 p-3">
-                <svg
-                    viewBox={`0 0 ${width} ${height}`}
-                    className="h-64 w-full min-w-[42rem]"
-                    role="img"
-                    aria-label={
-                        viewerPerspective === 'platform_owner'
-                            ? 'Cumulative invoiced and paid amounts over time'
-                            : 'Your cumulative invoiced and paid amounts over time'
-                    }
-                >
-                    {yTicks.map((tick) => (
-                        <g key={tick}>
-                            <line
-                                x1={left}
-                                x2={width - right}
-                                y1={scaleY(tick)}
-                                y2={scaleY(tick)}
-                                stroke="currentColor"
-                                strokeWidth="1"
-                                className="text-border/70"
-                            />
-                            <text
-                                x={left + 4}
-                                y={scaleY(tick) - 6}
-                                className="fill-muted-foreground text-[10px]"
-                            >
-                                {formatCompactMoney(tick, currency)}
-                            </text>
-                        </g>
-                    ))}
-
-                    <line
-                        x1={left}
-                        x2={width - right}
-                        y1={baselineY}
-                        y2={baselineY}
-                        stroke="#94a3b8"
-                        strokeDasharray="4 4"
-                        strokeWidth="1.5"
-                    />
-
-                    <path
-                        d={invoicedPath}
-                        fill="none"
-                        stroke="#8b5cf6"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                    <path
-                        d={paidPath}
-                        fill="none"
-                        stroke="#0f766e"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-
-                    {timeline.map((point, index) => (
-                        <g key={point.period}>
-                            <circle
-                                cx={scaleX(index)}
-                                cy={scaleY(point.cumulative_invoiced)}
-                                r="4"
-                                fill="#8b5cf6"
-                            />
-                            <circle
-                                cx={scaleX(index)}
-                                cy={scaleY(point.cumulative_paid)}
-                                r="4"
-                                fill="#0f766e"
-                            />
-                        </g>
-                    ))}
-
-                    {xLabels.map((label) => (
-                        <text
-                            key={label.period}
-                            x={scaleX(label.index)}
-                            y={height - 10}
-                            textAnchor="middle"
-                            className="fill-muted-foreground text-[10px]"
-                        >
-                            {label.label}
-                        </text>
-                    ))}
-                </svg>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-                {timeline.slice(-3).map((point) => (
-                    <div
-                        key={point.period}
-                        className="rounded-xl border border-border/60 bg-background/70 p-3"
-                    >
-                        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                            {point.label}
-                        </p>
-                        <div className="mt-3 space-y-2 text-sm">
-                            <InlineMetric
-                                label={
-                                    viewerPerspective === 'platform_owner'
-                                        ? 'Invoiced'
-                                        : 'Invoiced to you'
-                                }
-                                amount={point.monthly_invoiced}
-                                currency={currency}
-                            />
-                            <InlineMetric
-                                label={
-                                    viewerPerspective === 'platform_owner'
-                                        ? 'Paid'
-                                        : 'You paid'
-                                }
-                                amount={point.monthly_paid}
-                                currency={currency}
-                            />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
     );
 }
 
@@ -670,18 +475,6 @@ function InlineMetric({
     );
 }
 
-function LegendSwatch({ label, color }: { label: string; color: string }) {
-    return (
-        <span className="inline-flex items-center gap-2">
-            <span
-                className="block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: color }}
-            />
-            {label}
-        </span>
-    );
-}
-
 function describeOverallBalance(
     summary: MoneySummary,
     viewerPerspective: 'platform_owner' | 'client_user',
@@ -765,38 +558,3 @@ function describeCurrencyBalance(
         : `In ${analysis.label}, your recorded invoices and net payments are currently balanced.`;
 }
 
-function formatCompactMoney(amount: number, currency: string | null) {
-    const value = Math.abs(amount);
-
-    if (value >= 1000) {
-        return `${amount < 0 ? '-' : ''}${Math.round(value / 100) / 10}${currency ? ` ${currency}` : ''}`;
-    }
-
-    return `${amount < 0 ? '-' : ''}${Math.round(value)}${currency ? ` ${currency}` : ''}`;
-}
-
-function pickTimelineLabels(timeline: TimelinePoint[]) {
-    if (timeline.length <= 3) {
-        return timeline.map((point, index) => ({
-            period: point.period,
-            label: point.label,
-            index,
-        }));
-    }
-
-    const middleIndex = Math.floor((timeline.length - 1) / 2);
-
-    return [
-        { period: timeline[0].period, label: timeline[0].label, index: 0 },
-        {
-            period: timeline[middleIndex].period,
-            label: timeline[middleIndex].label,
-            index: middleIndex,
-        },
-        {
-            period: timeline[timeline.length - 1].period,
-            label: timeline[timeline.length - 1].label,
-            index: timeline.length - 1,
-        },
-    ];
-}

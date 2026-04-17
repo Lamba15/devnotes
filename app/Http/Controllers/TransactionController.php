@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Finance\CreateTransaction;
 use App\Actions\Finance\DeleteTransaction;
 use App\Actions\Finance\UpdateTransaction;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Project;
 use App\Models\Transaction;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -16,6 +17,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class TransactionController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function show(Request $request, Transaction $transaction): Response
     {
         $user = $request->user();
@@ -25,6 +28,11 @@ class TransactionController extends Controller
         $transaction->load('project.client:id,name');
 
         return Inertia::render('finance/transactions-show', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->transactionsCrumb(),
+                $this->crumb($transaction->description, "/finance/transactions/{$transaction->id}"),
+            ),
             'transaction' => [
                 'id' => $transaction->id,
                 'description' => $transaction->description,
@@ -50,6 +58,12 @@ class TransactionController extends Controller
         abort_unless($user->canManageProjectFinance($transaction->project), 403);
 
         return Inertia::render('finance/transactions-edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->financeCrumb(),
+                $this->transactionsCrumb(),
+                $this->crumb($transaction->description, "/finance/transactions/{$transaction->id}"),
+                $this->crumb('Edit', "/finance/transactions/{$transaction->id}/edit"),
+            ),
             'transaction' => [
                 'id' => $transaction->id,
                 'project_id' => $transaction->project_id,

@@ -6,6 +6,7 @@ use App\Actions\Secrets\CreateSecretEntry;
 use App\Actions\Secrets\DeleteSecretEntry;
 use App\Actions\Secrets\RevealSecretEntry;
 use App\Actions\Secrets\UpdateSecretEntry;
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\SecretEntry;
@@ -17,12 +18,21 @@ use Inertia\Response;
 
 class ProjectSecretController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function create(Request $request, Client $client, Project $project): Response
     {
         abort_unless($request->user()->canAccessPlatform(), 403);
         abort_unless($project->client_id === $client->id, 404);
 
         return Inertia::render('projects/secrets/create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->crumb('New Secret', "/clients/{$client->id}/projects/{$project->id}/secrets/create"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
         ]);
@@ -51,6 +61,13 @@ class ProjectSecretController extends Controller
         abort_unless($secret->secretable_type === Project::class && $secret->secretable_id === $project->id, 404);
 
         return Inertia::render('projects/secrets/edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->projectsCrumb($client),
+                $this->projectCrumb($client, $project),
+                $this->crumb($secret->label, "/clients/{$client->id}/projects/{$project->id}/secrets/{$secret->id}/edit"),
+            ),
             'client' => $client->only(['id', 'name']),
             'project' => $project->only(['id', 'name']),
             'secret' => [

@@ -1,10 +1,11 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { CrudPage } from '@/components/crud/crud-page';
 import {
     InvoiceFormEditor
-    
+
 } from '@/components/finance/invoice-form-editor';
 import type {InvoiceFormData} from '@/components/finance/invoice-form-editor';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import AppLayout from '@/layouts/app-layout';
 
 export default function FinanceInvoicesEdit({
@@ -23,6 +24,8 @@ export default function FinanceInvoicesEdit({
         client: { id: number; name: string };
     }>;
 }) {
+    const goBack = useBackNavigation(`/finance/invoices/${invoice.id}`)!;
+
     const form = useForm<InvoiceFormData>({
         project_id: String(invoice.project_id),
         reference: invoice.reference,
@@ -51,9 +54,7 @@ export default function FinanceInvoicesEdit({
                     processing={form.processing}
                     submitLabel="Save invoice"
                     projects={projects}
-                    onCancel={() =>
-                        router.visit(`/finance/invoices/${invoice.id}`)
-                    }
+                    onCancel={goBack}
                     onChange={(data) => form.setData(data)}
                     onSubmit={() => form.put(`/finance/invoices/${invoice.id}`)}
                 />

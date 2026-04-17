@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { BoardColumnListEditor } from '@/components/boards/board-column-list-editor';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
 type BoardCreateForm = {
@@ -33,6 +34,7 @@ export default function BoardsCreate({
     projects: Array<{ id: number; name: string }>;
     status_options: string[];
 }) {
+    const goBack = useBackNavigation(`/clients/${client.id}/boards`);
     const form = useForm<BoardCreateForm>({
         name: '',
         project_id: '',
@@ -159,9 +161,7 @@ export default function BoardsCreate({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() =>
-                                router.visit(`/clients/${client.id}/boards`)
-                            }
+                            onClick={goBack}
                         >
                             Back to boards
                         </Button>

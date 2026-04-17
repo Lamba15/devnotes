@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Concerns\BuildsBreadcrumbs;
 use App\Models\AuditLog;
 use App\Models\Client;
 use App\Models\ProjectStatus;
@@ -12,6 +13,8 @@ use Inertia\Response;
 
 class ClientStatusController extends Controller
 {
+    use BuildsBreadcrumbs;
+
     public function index(Request $request, Client $client): Response
     {
         abort_unless($request->user()->canAccessClient($client), 403);
@@ -43,6 +46,11 @@ class ClientStatusController extends Controller
             ->withQueryString();
 
         return Inertia::render('clients/statuses', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->statusesCrumb($client),
+            ),
             'client' => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -70,6 +78,12 @@ class ClientStatusController extends Controller
         abort_unless($request->user()->canManageClient($client), 403);
 
         return Inertia::render('clients/statuses-create', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->statusesCrumb($client),
+                $this->crumb('New Status', "/clients/{$client->id}/statuses/create"),
+            ),
             'client' => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -113,6 +127,12 @@ class ClientStatusController extends Controller
         abort_unless($status->client_id === $client->id, 404);
 
         return Inertia::render('clients/statuses-edit', [
+            'breadcrumbs' => $this->breadcrumbs(
+                $this->clientsCrumb(),
+                $this->clientCrumb($client),
+                $this->statusesCrumb($client),
+                $this->crumb($status->name, "/clients/{$client->id}/statuses/{$status->id}/edit"),
+            ),
             'client' => [
                 'id' => $client->id,
                 'name' => $client->name,

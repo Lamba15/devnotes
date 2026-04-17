@@ -36,6 +36,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('clients', [ClientController::class, 'index'])->name('clients.index');
     Route::get('clients/create', [ClientController::class, 'create'])->name('clients.create');
     Route::get('clients/projects', [ProjectController::class, 'all'])->middleware('platform.owner')->name('clients.projects.all');
+    Route::post('clients/projects/bulk-status', [ProjectController::class, 'bulkUpdateStatus'])->middleware('platform.owner')->name('clients.projects.bulk-status');
     Route::inertia('clients/tags', 'placeholder/section', [
         'title' => 'Client Tags',
         'description' => 'This section will manage reusable client tags and classifications.',
