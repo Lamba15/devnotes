@@ -242,7 +242,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Client',
             icon: Building2,
             options: client_filter_options,
-            className: 'lg:w-48',
         },
         {
             key: 'project_id',
@@ -250,7 +249,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Project',
             icon: FolderKanban,
             options: availableProjectOptions,
-            className: 'lg:w-56',
         },
         {
             key: 'status',
@@ -258,7 +256,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Status',
             icon: Circle,
             options: status_filter_options,
-            className: 'lg:w-40',
         },
         {
             key: 'priority',
@@ -266,7 +263,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Priority',
             icon: Flame,
             options: priority_filter_options,
-            className: 'lg:w-40',
         },
         {
             key: 'type',
@@ -274,7 +270,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Type',
             icon: Tag,
             options: type_filter_options,
-            className: 'lg:w-40',
         },
         {
             key: 'assignee',
@@ -282,7 +277,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Assignee',
             icon: UserIcon,
             options: assignee_filter_options,
-            className: 'lg:w-44',
         },
         {
             key: 'creator_id',
@@ -290,7 +284,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Created by',
             icon: UserIcon,
             options: creator_filter_options,
-            className: 'lg:w-44',
         },
         {
             key: 'label',
@@ -298,7 +291,6 @@ export default function TrackingIssuesPage({
             placeholder: 'Label',
             icon: Tag,
             options: label_filter_options,
-            className: 'lg:w-40',
         },
         {
             key: 'has_attachments',
@@ -307,7 +299,6 @@ export default function TrackingIssuesPage({
             icon: Paperclip,
             multi: false,
             options: hasAttachmentsOptions,
-            className: 'lg:w-44',
         },
         {
             key: 'has_comments',
@@ -316,7 +307,6 @@ export default function TrackingIssuesPage({
             icon: MessageSquare,
             multi: false,
             options: hasCommentsOptions,
-            className: 'lg:w-44',
         },
         { key: 'due_date_from', type: 'date', placeholder: 'Due from' },
         { key: 'due_date_to', type: 'date', placeholder: 'Due to' },

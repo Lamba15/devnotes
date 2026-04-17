@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { CrudFilterDefinition } from '@/hooks/use-crud-filters';
 import type { UseCrudFiltersReturn } from '@/hooks/use-crud-filters';
+import { cn } from '@/lib/utils';
 
 export function CrudFilters({
     definitions,
@@ -50,23 +51,31 @@ export function CrudFilters({
 
     return (
         <FilterBar meta={metaContent}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
                 {searchDef ? (
-                    <div className="relative md:max-w-sm">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={
-                                (state.filters[searchDef.key] as string) ?? ''
-                            }
-                            onChange={(event) =>
-                                state.setFilter(
-                                    searchDef.key,
-                                    event.target.value,
-                                )
-                            }
-                            placeholder={searchDef.placeholder ?? 'Search...'}
-                            className="pl-9"
-                        />
+                    <div className="flex flex-col gap-1 md:max-w-sm md:flex-1">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                            {searchDef.placeholder ?? 'Search'}
+                        </span>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                value={
+                                    (state.filters[searchDef.key] as string) ??
+                                    ''
+                                }
+                                onChange={(event) =>
+                                    state.setFilter(
+                                        searchDef.key,
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder={
+                                    searchDef.placeholder ?? 'Search...'
+                                }
+                                className="pl-9"
+                            />
+                        </div>
                     </div>
                 ) : null}
                 {selectDefs.map((def) => {
@@ -75,71 +84,88 @@ export function CrudFilters({
                     }
 
                     const isMulti = def.multi !== false;
+                    const labelText = def.label ?? def.placeholder ?? def.key;
                     const sharedProps = {
-                        className: def.className ?? 'lg:w-44',
+                        className: 'w-full',
                         size: 'lg' as const,
                         placeholder: def.placeholder ?? def.label ?? def.key,
                         options: def.options,
                         ...(def.icon ? { icon: def.icon } : {}),
                     };
 
-                    if (isMulti) {
-                        return (
-                            <SearchableSelect
-                                key={def.key}
-                                {...sharedProps}
-                                isMulti
-                                value={
-                                    (state.filters[def.key] as string[]) ?? []
-                                }
-                                onValueChange={(value: string[]) =>
-                                    state.setFilter(def.key, value)
-                                }
-                            />
-                        );
-                    }
-
                     return (
-                        <SearchableSelect
+                        <div
                             key={def.key}
-                            {...sharedProps}
-                            value={(state.filters[def.key] as string) ?? ''}
-                            onValueChange={(value: string) =>
-                                state.setFilter(def.key, value)
-                            }
-                        />
+                            className={cn(
+                                'flex flex-col gap-1',
+                                def.className ?? 'lg:w-56',
+                            )}
+                        >
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                                {labelText}
+                            </span>
+                            {isMulti ? (
+                                <SearchableSelect
+                                    {...sharedProps}
+                                    isMulti
+                                    value={
+                                        (state.filters[def.key] as string[]) ??
+                                        []
+                                    }
+                                    onValueChange={(value: string[]) =>
+                                        state.setFilter(def.key, value)
+                                    }
+                                />
+                            ) : (
+                                <SearchableSelect
+                                    {...sharedProps}
+                                    value={
+                                        (state.filters[def.key] as string) ?? ''
+                                    }
+                                    onValueChange={(value: string) =>
+                                        state.setFilter(def.key, value)
+                                    }
+                                />
+                            )}
+                        </div>
                     );
                 })}
-                {definitions.some((d) => d.type === 'date') ? (
-                    <div className="flex items-center gap-2">
-                        {definitions
-                            .filter((d) => d.type === 'date')
-                            .map((def) => {
-                                if (def.type !== 'date') {
-                                    return null;
-                                }
+                {definitions
+                    .filter((d) => d.type === 'date')
+                    .map((def) => {
+                        if (def.type !== 'date') {
+                            return null;
+                        }
 
-                                return (
-                                    <DateInput
-                                        key={def.key}
-                                        value={
-                                            (state.filters[def.key] as string) ??
-                                            ''
-                                        }
-                                        onChange={(value) =>
-                                            state.setFilter(def.key, value)
-                                        }
-                                        placeholderText={
-                                            def.placeholder ??
-                                            def.label ??
-                                            def.key
-                                        }
-                                        className={def.className ?? 'lg:w-40'}
-                                    />
-                                );
-                            })}
-                    </div>
-                ) : null}
+                        const labelText =
+                            def.label ?? def.placeholder ?? def.key;
+
+                        return (
+                            <div
+                                key={def.key}
+                                className={cn(
+                                    'flex flex-col gap-1',
+                                    def.className ?? 'lg:w-44',
+                                )}
+                            >
+                                <span className="text-[11px] font-medium text-muted-foreground">
+                                    {labelText}
+                                </span>
+                                <DateInput
+                                    value={
+                                        (state.filters[def.key] as string) ?? ''
+                                    }
+                                    onChange={(value) =>
+                                        state.setFilter(def.key, value)
+                                    }
+                                    placeholderText={
+                                        def.placeholder ?? def.label ?? def.key
+                                    }
+                                    className="w-full"
+                                />
+                            </div>
+                        );
+                    })}
                 {children}
             </div>
         </FilterBar>
