@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 export type SearchableSelectOption = {
     value: string;
     label: string;
+    /** Optional count; when present, rendered as a bubble next to the label. */
+    count?: number;
 };
 
 type SearchableSelectBaseProps = {
@@ -154,7 +156,7 @@ export function SearchableSelect({
                     {Icon ? (
                         <Icon
                             className={cn(
-                                'shrink-0 text-muted-foreground',
+                                'ml-3 shrink-0 text-muted-foreground',
                                 isMulti && selectedValues.length > 0 && 'self-start mt-2',
                                 sizing.icon,
                             )}
@@ -193,6 +195,35 @@ export function SearchableSelect({
         }),
         [Icon, dataTestId, isMulti, selectedValues.length, sizing.icon],
     );
+
+    const hasCounts = normalizedOptions.some(
+        (option) => typeof option.count === 'number',
+    );
+    const formatOptionLabel = hasCounts
+        ? (option: SearchableSelectOption, meta: { context: string }) => {
+              if (meta.context === 'value') {
+                  return <span>{option.label}</span>;
+              }
+
+              return (
+                  <span className="flex min-w-0 items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">{option.label}</span>
+                      {typeof option.count === 'number' ? (
+                          <span
+                              className={cn(
+                                  'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+                                  option.count > 0
+                                      ? 'bg-primary/10 text-primary'
+                                      : 'bg-muted text-muted-foreground',
+                              )}
+                          >
+                              {option.count}
+                          </span>
+                      ) : null}
+                  </span>
+              );
+          }
+        : undefined;
 
     const sharedProps = {
         unstyled: true,
@@ -271,6 +302,7 @@ export function SearchableSelect({
             }),
         },
         components: selectComponents,
+        formatOptionLabel,
         onChange: (
             nextOption:
                 | MultiValue<SearchableSelectOption>

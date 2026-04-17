@@ -23,6 +23,7 @@ import { CrudPage } from '@/components/crud/crud-page';
 import { DataTable } from '@/components/crud/data-table';
 import type { DataTableColumn } from '@/components/crud/data-table';
 import { IssueDueDate } from '@/components/issues/issue-due-date';
+import { IssueQuickViewDialog } from '@/components/issues/issue-quick-view-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,10 +44,30 @@ import { stripHtml } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type FilterOption = { label: string; value: string };
+type FilterOption = { label: string; value: string; count?: number };
 type ProjectFilterOption = FilterOption & { client_id?: string };
 
 type Person = { id: number; name: string; avatar_path?: string | null };
+
+type IssueAttachment = {
+    id?: number;
+    file_name: string;
+    file_path?: string | null;
+    mime_type: string;
+    file_size: number;
+    url?: string | null;
+    is_image?: boolean;
+};
+
+type IssueCommentPreview = {
+    id: number;
+    body: string;
+    parent_id: number | null;
+    created_at?: string;
+    user: Person | null;
+    attachments?: IssueAttachment[];
+    replies: IssueCommentPreview[];
+};
 
 type IssueRow = {
     id: number;
@@ -56,11 +77,20 @@ type IssueRow = {
     priority: string;
     type: string;
     label: string | null;
+    assignee_id: number | null;
     due_date: string | null;
+    estimated_hours: string | null;
     created_at: string | null;
     updated_at: string | null;
     comments_count: number;
+    attachment_count: number;
     attachments_count: number;
+    image_count: number;
+    file_count: number;
+    preview_image_url: string | null;
+    attachments: IssueAttachment[];
+    comments: IssueCommentPreview[];
+    can_comment: boolean;
     assignee: Person | null;
     creator: Person | null;
     project: { id: number; name: string } | null;
@@ -68,6 +98,7 @@ type IssueRow = {
     show_url: string | null;
     edit_url: string | null;
     can_manage: boolean;
+    can_manage_issue: boolean;
 };
 
 type Filters = {
@@ -148,6 +179,11 @@ export default function TrackingIssuesPage({
     const [deleteIds, setDeleteIds] = useState<Array<string | number> | null>(
         null,
     );
+    const [quickViewIssueId, setQuickViewIssueId] = useState<number | null>(
+        null,
+    );
+    const quickViewIssue =
+        issues.find((i) => i.id === quickViewIssueId) ?? null;
     const [statusDialogOpen, setStatusDialogOpen] = useState(false);
     const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
     const [assigneeDialogOpen, setAssigneeDialogOpen] = useState(false);
@@ -291,13 +327,14 @@ export default function TrackingIssuesPage({
             render: (issue) => (
                 <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
-                        {issue.show_url ? (
-                            <a
-                                href={issue.show_url}
-                                className="cursor-pointer font-medium underline-offset-4 hover:underline"
+                        {issue.project ? (
+                            <button
+                                type="button"
+                                className="cursor-pointer text-left font-medium underline-offset-4 hover:underline"
+                                onClick={() => setQuickViewIssueId(issue.id)}
                             >
                                 {issue.title}
-                            </a>
+                            </button>
                         ) : (
                             <span className="font-medium text-muted-foreground">
                                 {issue.title}
@@ -778,6 +815,18 @@ export default function TrackingIssuesPage({
                     </DialogContent>
                 </Dialog>
             </CrudPage>
+            <IssueQuickViewDialog
+                issue={quickViewIssue}
+                open={quickViewIssue !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setQuickViewIssueId(null);
+                    }
+                }}
+                clientId={quickViewIssue?.client?.id ?? 0}
+                projectId={quickViewIssue?.project?.id ?? 0}
+                canManageIssue={Boolean(quickViewIssue?.can_manage_issue)}
+            />
         </>
     );
 }

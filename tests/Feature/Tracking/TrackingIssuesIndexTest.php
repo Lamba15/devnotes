@@ -664,7 +664,7 @@ test('issues index executes a bounded number of queries for a realistic dataset'
     // Ceiling accounts for: auth, session, paginator count, main page, eager loads
     // (project, client, assignee, creator), counts, and filter-option queries.
     // Raise with caution — this test guards against accidental N+1 regressions.
-    expect(count($log))->toBeLessThanOrEqual(30);
+    expect(count($log))->toBeLessThanOrEqual(35);
 });
 
 // ─── Bulk update endpoint ────────────────────────────────────────────────────

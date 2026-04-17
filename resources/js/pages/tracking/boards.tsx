@@ -27,7 +27,7 @@ import { useCrudFilters } from '@/hooks/use-crud-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatDetailedTimestamp, formatRelativeInstant } from '@/lib/datetime';
 
-type FilterOption = { label: string; value: string };
+type FilterOption = { label: string; value: string; count?: number };
 type ProjectFilterOption = FilterOption & { client_id?: string };
 
 type Person = { id: number; name: string; avatar_path?: string | null };

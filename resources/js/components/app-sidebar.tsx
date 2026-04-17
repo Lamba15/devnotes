@@ -137,10 +137,6 @@ export function AppSidebar() {
                               title: 'Boards',
                               href: '/tracking/boards',
                           },
-                          {
-                              title: 'Statuses',
-                              href: '/tracking/statuses',
-                          },
                       ],
                   },
                   {

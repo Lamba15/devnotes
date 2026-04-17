@@ -19,8 +19,15 @@ export type CrudFilterDefinition =
           placeholder?: string;
           label?: string;
           multi?: boolean;
-          options: Array<{ label: string; value: string }>;
+          options: Array<{ label: string; value: string; count?: number }>;
           icon?: LucideIcon;
+          className?: string;
+      }
+    | {
+          key: string;
+          type: 'date';
+          placeholder?: string;
+          label?: string;
           className?: string;
       };
 
@@ -155,6 +162,8 @@ export function useCrudFilters({
                 } else {
                     seed[def.key] = typeof initial === 'string' ? initial : '';
                 }
+            } else if (def.type === 'date') {
+                seed[def.key] = typeof initial === 'string' ? initial : '';
             }
         }
 
@@ -244,6 +253,8 @@ export function useCrudFilters({
                 cleared[def.key] = '';
             } else if (def.type === 'select') {
                 cleared[def.key] = def.multi !== false ? [] : '';
+            } else if (def.type === 'date') {
+                cleared[def.key] = '';
             }
         }
 

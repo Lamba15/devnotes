@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Concerns\BuildsBreadcrumbs;
+use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\Client;
 use App\Models\Issue;
+use App\Models\IssueComment;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -99,8 +101,10 @@ class TrackingController extends Controller
                 'project.client:id,name',
                 'assignee:id,name,avatar_path',
                 'creator:id,name,avatar_path',
+                'attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
+                'comments.user:id,name,avatar_path',
+                'comments.attachments:id,attachable_id,attachable_type,file_name,file_path,mime_type,file_size',
             ])
-            ->withCount(['comments', 'attachments'])
             // @todo non-platform-owner access: plug Issue::visibleTo($user) scope here.
             ->when(! $user->isPlatformOwner(), fn (Builder $q) => $q->whereRaw('0 = 1'))
             ->when($search !== '', function (Builder $query) use ($search): void {
@@ -315,8 +319,8 @@ class TrackingController extends Controller
                 'created_from' => $createdFrom,
                 'created_to' => $createdTo,
             ],
-            'client_filter_options' => $this->issueClientFilterOptions(),
-            'project_filter_options' => $this->issueProjectFilterOptions(),
+            'client_filter_options' => $this->boardClientFilterOptions(),
+            'project_filter_options' => $this->boardProjectFilterOptions(),
             'creator_filter_options' => $this->boardCreatorFilterOptions(),
         ]);
     }
@@ -480,6 +484,14 @@ class TrackingController extends Controller
         $project = $issue->project;
         $client = $project?->client;
 
+        $attachments = $issue->attachments
+            ->sortBy('id')
+            ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
+            ->values();
+        $images = $attachments->filter(fn (array $attachment) => $attachment['is_image'])->values();
+
+        $canComment = $project ? $user->workspaceAccess()->canViewIssues($project) : false;
+
         return [
             'id' => $issue->id,
             'title' => $issue->title,
@@ -488,11 +500,20 @@ class TrackingController extends Controller
             'priority' => $issue->priority,
             'type' => $issue->type,
             'label' => $issue->label,
+            'assignee_id' => $issue->assignee_id,
             'due_date' => $issue->due_date?->toDateString(),
+            'estimated_hours' => $issue->estimated_hours,
             'created_at' => $issue->created_at?->toISOString(),
             'updated_at' => $issue->updated_at?->toISOString(),
-            'comments_count' => (int) $issue->comments_count,
-            'attachments_count' => (int) $issue->attachments_count,
+            'attachments' => $attachments->all(),
+            'attachment_count' => $attachments->count(),
+            'attachments_count' => $attachments->count(),
+            'image_count' => $images->count(),
+            'file_count' => $attachments->count() - $images->count(),
+            'preview_image_url' => $images->first()['url'] ?? null,
+            'comments' => $this->buildCommentTree($issue->comments, null),
+            'comments_count' => $issue->comments->count(),
+            'can_comment' => $canComment,
             'assignee' => $issue->assignee ? [
                 'id' => $issue->assignee->id,
                 'name' => $issue->assignee->name,
@@ -518,115 +539,263 @@ class TrackingController extends Controller
                 ? "/clients/{$client->id}/projects/{$project->id}/issues/{$issue->id}/edit"
                 : null,
             'can_manage' => $project ? $user->workspaceAccess()->canManageIssues($project) : false,
+            'can_manage_issue' => $project ? $user->workspaceAccess()->canManageIssues($project) : false,
         ];
+    }
+
+    private function serializeAttachment(Attachment $attachment): array
+    {
+        return [
+            'id' => $attachment->id,
+            'file_name' => $attachment->file_name,
+            'file_path' => $attachment->file_path,
+            'mime_type' => $attachment->mime_type,
+            'file_size' => $attachment->file_size,
+            'url' => asset('storage/'.$attachment->file_path),
+            'is_image' => $attachment->isImage(),
+        ];
+    }
+
+    private function buildCommentTree($comments, ?int $parentId): array
+    {
+        return $comments
+            ->where('parent_id', $parentId)
+            ->map(fn (IssueComment $comment) => [
+                'id' => $comment->id,
+                'body' => $comment->body,
+                'parent_id' => $comment->parent_id,
+                'user' => $comment->user?->only(['id', 'name', 'avatar_path']),
+                'created_at' => $comment->created_at?->toISOString(),
+                'attachments' => $comment->attachments
+                    ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment))
+                    ->values()
+                    ->all(),
+                'replies' => $this->buildCommentTree($comments, $comment->id),
+            ])
+            ->values()
+            ->all();
     }
 
     // ─── Filter options ───────────────────────────────────────────
 
+    /**
+     * Sort options by count desc (most-used on top), then label asc as tiebreak.
+     * Options without positive count still appear, below the counted ones.
+     */
+    private function sortOptionsByCount(array $options): array
+    {
+        usort($options, function ($a, $b) {
+            $cb = (int) ($b['count'] ?? 0);
+            $ca = (int) ($a['count'] ?? 0);
+            if ($cb !== $ca) {
+                return $cb <=> $ca;
+            }
+
+            return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+        });
+
+        return $options;
+    }
+
     private function issueClientFilterOptions(): array
     {
-        return Client::query()
-            ->orderBy('name')
+        $counts = Issue::query()
+            ->join('projects', 'projects.id', '=', 'issues.project_id')
+            ->selectRaw('projects.client_id as client_id, count(*) as cnt')
+            ->groupBy('projects.client_id')
+            ->pluck('cnt', 'client_id');
+
+        $options = Client::query()
             ->get(['id', 'name'])
-            ->map(fn (Client $c) => ['label' => $c->name, 'value' => (string) $c->id])
+            ->map(fn (Client $c) => [
+                'label' => $c->name,
+                'value' => (string) $c->id,
+                'count' => (int) ($counts[$c->id] ?? 0),
+            ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     private function issueProjectFilterOptions(): array
     {
-        return Project::query()
+        $counts = Issue::query()
+            ->selectRaw('project_id, count(*) as cnt')
+            ->groupBy('project_id')
+            ->pluck('cnt', 'project_id');
+
+        $options = Project::query()
             ->with('client:id,name')
-            ->orderBy('name')
             ->get(['id', 'name', 'client_id'])
             ->map(fn (Project $p) => [
                 'label' => $p->client?->name ? "{$p->client->name} / {$p->name}" : $p->name,
                 'value' => (string) $p->id,
                 'client_id' => (string) $p->client_id,
+                'count' => (int) ($counts[$p->id] ?? 0),
             ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     private function distinctIssueColumnOptions(string $column, array $defaults): array
     {
-        $values = Issue::query()
+        $counts = Issue::query()
             ->whereNotNull($column)
             ->where($column, '!=', '')
-            ->distinct()
-            ->orderBy($column)
-            ->pluck($column)
+            ->selectRaw("{$column} as value, count(*) as cnt")
+            ->groupBy($column)
+            ->pluck('cnt', 'value');
+
+        $values = collect($counts->keys())
             ->map(fn ($v) => (string) $v)
             ->merge($defaults)
             ->unique()
             ->values();
 
-        return $values
+        $options = $values
             ->map(fn (string $v) => [
                 'label' => Str::headline(str_replace('_', ' ', $v)),
                 'value' => $v,
+                'count' => (int) ($counts[$v] ?? 0),
             ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     private function issueAssigneeFilterOptions(): array
     {
-        $ids = Issue::query()
+        $counts = Issue::query()
             ->whereNotNull('assignee_id')
-            ->distinct()
-            ->pluck('assignee_id');
+            ->selectRaw('assignee_id, count(*) as cnt')
+            ->groupBy('assignee_id')
+            ->pluck('cnt', 'assignee_id');
+
+        $unassignedCount = Issue::query()->whereNull('assignee_id')->count();
 
         $options = User::query()
-            ->whereIn('id', $ids)
-            ->orderBy('name')
+            ->whereIn('id', $counts->keys())
             ->get(['id', 'name'])
-            ->map(fn (User $u) => ['label' => $u->name, 'value' => (string) $u->id])
+            ->map(fn (User $u) => [
+                'label' => $u->name,
+                'value' => (string) $u->id,
+                'count' => (int) ($counts[$u->id] ?? 0),
+            ])
             ->all();
 
-        array_unshift($options, ['label' => 'Unassigned', 'value' => 'unassigned']);
+        $sorted = $this->sortOptionsByCount($options);
 
-        return $options;
+        array_unshift($sorted, [
+            'label' => 'Unassigned',
+            'value' => 'unassigned',
+            'count' => (int) $unassignedCount,
+        ]);
+
+        return $sorted;
     }
 
     private function issueCreatorFilterOptions(): array
     {
-        $ids = Issue::query()
+        $counts = Issue::query()
             ->whereNotNull('creator_id')
-            ->distinct()
-            ->pluck('creator_id');
+            ->selectRaw('creator_id, count(*) as cnt')
+            ->groupBy('creator_id')
+            ->pluck('cnt', 'creator_id');
 
-        return User::query()
-            ->whereIn('id', $ids)
-            ->orderBy('name')
+        $options = User::query()
+            ->whereIn('id', $counts->keys())
             ->get(['id', 'name'])
-            ->map(fn (User $u) => ['label' => $u->name, 'value' => (string) $u->id])
+            ->map(fn (User $u) => [
+                'label' => $u->name,
+                'value' => (string) $u->id,
+                'count' => (int) ($counts[$u->id] ?? 0),
+            ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     private function issueLabelFilterOptions(): array
     {
-        return Issue::query()
+        $counts = Issue::query()
             ->whereNotNull('label')
             ->where('label', '!=', '')
-            ->distinct()
-            ->orderBy('label')
-            ->pluck('label')
-            ->map(fn (string $l) => ['label' => $l, 'value' => $l])
-            ->values()
+            ->selectRaw('label as value, count(*) as cnt')
+            ->groupBy('label')
+            ->pluck('cnt', 'value');
+
+        $options = $counts->keys()
+            ->map(fn ($v) => [
+                'label' => (string) $v,
+                'value' => (string) $v,
+                'count' => (int) $counts[$v],
+            ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
+    }
+
+    private function boardClientFilterOptions(): array
+    {
+        $counts = Board::query()
+            ->join('projects', 'projects.id', '=', 'boards.project_id')
+            ->selectRaw('projects.client_id as client_id, count(*) as cnt')
+            ->groupBy('projects.client_id')
+            ->pluck('cnt', 'client_id');
+
+        $options = Client::query()
+            ->get(['id', 'name'])
+            ->map(fn (Client $c) => [
+                'label' => $c->name,
+                'value' => (string) $c->id,
+                'count' => (int) ($counts[$c->id] ?? 0),
+            ])
+            ->all();
+
+        return $this->sortOptionsByCount($options);
+    }
+
+    private function boardProjectFilterOptions(): array
+    {
+        $counts = Board::query()
+            ->selectRaw('project_id, count(*) as cnt')
+            ->groupBy('project_id')
+            ->pluck('cnt', 'project_id');
+
+        $options = Project::query()
+            ->with('client:id,name')
+            ->get(['id', 'name', 'client_id'])
+            ->map(fn (Project $p) => [
+                'label' => $p->client?->name ? "{$p->client->name} / {$p->name}" : $p->name,
+                'value' => (string) $p->id,
+                'client_id' => (string) $p->client_id,
+                'count' => (int) ($counts[$p->id] ?? 0),
+            ])
+            ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     private function boardCreatorFilterOptions(): array
     {
-        $ids = Board::query()
+        $counts = Board::query()
             ->whereNotNull('created_by')
-            ->distinct()
-            ->pluck('created_by');
+            ->selectRaw('created_by, count(*) as cnt')
+            ->groupBy('created_by')
+            ->pluck('cnt', 'created_by');
 
-        return User::query()
-            ->whereIn('id', $ids)
-            ->orderBy('name')
+        $options = User::query()
+            ->whereIn('id', $counts->keys())
             ->get(['id', 'name'])
-            ->map(fn (User $u) => ['label' => $u->name, 'value' => (string) $u->id])
+            ->map(fn (User $u) => [
+                'label' => $u->name,
+                'value' => (string) $u->id,
+                'count' => (int) ($counts[$u->id] ?? 0),
+            ])
             ->all();
+
+        return $this->sortOptionsByCount($options);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
