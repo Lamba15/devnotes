@@ -19,6 +19,7 @@ use App\Http\Controllers\OverviewController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectSecretController;
 use App\Http\Controllers\PublicInvoiceController;
+use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserCreditsController;
 use Illuminate\Support\Facades\Route;
@@ -161,8 +162,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::middleware('platform.owner')->group(function () {
-        Route::inertia('tracking/issues', 'tracking/issues')->name('tracking.issues.index');
-        Route::inertia('tracking/boards', 'tracking/boards')->name('tracking.boards.index');
+        Route::get('tracking/issues', [TrackingController::class, 'issues'])->name('tracking.issues.index');
+        Route::post('tracking/issues/bulk-update', [TrackingController::class, 'bulkUpdateIssues'])->name('tracking.issues.bulkUpdate');
+        Route::delete('tracking/issues/bulk-delete', [TrackingController::class, 'bulkDeleteIssues'])->name('tracking.issues.bulkDelete');
+        Route::get('tracking/boards', [TrackingController::class, 'boards'])->name('tracking.boards.index');
+        Route::delete('tracking/boards/bulk-delete', [TrackingController::class, 'bulkDeleteBoards'])->name('tracking.boards.bulkDelete');
         Route::inertia('tracking/statuses', 'placeholder/section', [
             'title' => 'Tracking Statuses',
             'description' => 'This section will manage reusable tracking statuses and related classifications.',

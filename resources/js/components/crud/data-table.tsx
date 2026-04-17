@@ -14,6 +14,8 @@ export type DataTableColumn<T> = {
     render: (item: T) => ReactNode;
     sortable?: boolean;
     sortKey?: string;
+    /** Applied to both <th> and <td> (e.g. "hidden md:table-cell" for responsive hide). */
+    className?: string;
 };
 
 type PaginationMeta = {
@@ -116,7 +118,7 @@ export function DataTable<T>({
 }: {
     columns: DataTableColumn<T>[];
     rows: T[];
-    emptyText?: string;
+    emptyText?: ReactNode;
     getRowId?: (row: T) => string | number;
     selectedRowIds?: Array<string | number>;
     onSelectedRowIdsChange?: (ids: Array<string | number>) => void;
@@ -161,7 +163,7 @@ export function DataTable<T>({
         <div className="space-y-4">
             <div
                 ref={tableContainerRef}
-                className="overflow-hidden rounded-xl bg-card shadow-sm"
+                className="overflow-x-auto rounded-xl bg-card shadow-sm"
             >
                 <table className="w-full text-left text-sm">
                     <thead className="bg-muted">
@@ -188,7 +190,7 @@ export function DataTable<T>({
                             {columns.map((column) => (
                                 <th
                                     key={column.key}
-                                    className="px-4 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    className={`px-4 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase${column.className ? ` ${column.className}` : ''}`}
                                 >
                                     {column.sortable &&
                                     column.sortKey &&
@@ -270,7 +272,10 @@ export function DataTable<T>({
                                     </td>
                                 ) : null}
                                 {columns.map((column) => (
-                                    <td key={column.key} className="px-4 py-3">
+                                    <td
+                                        key={column.key}
+                                        className={`px-4 py-3${column.className ? ` ${column.className}` : ''}`}
+                                    >
                                         {column.render(row)}
                                     </td>
                                 ))}
