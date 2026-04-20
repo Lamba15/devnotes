@@ -31,18 +31,27 @@ export type MonthlyIncome = {
 export function IncomeHistograph({
     data,
     currency,
+    seriesLabel = 'Income',
+    emptyText = 'No transactions recorded yet.',
+    onMonthClick,
+    footerHint,
 }: {
     data: MonthlyIncome[];
     currency: string | null;
+    seriesLabel?: string;
+    emptyText?: string;
+    onMonthClick?: ((month: MonthlyIncome) => void) | null;
+    footerHint?: string;
 }) {
     const chartRef = useRef<ChartJS<'bar'>>(null);
+    const isInteractive = onMonthClick !== null;
 
     const chartData = useMemo(
         () => ({
             labels: data.map((d) => d.label),
             datasets: [
                 {
-                    label: 'Income',
+                    label: seriesLabel,
                     data: data.map((d) => d.income),
                     backgroundColor: 'rgba(16, 185, 129, 0.7)',
                     borderColor: '#10b981',
@@ -52,7 +61,7 @@ export function IncomeHistograph({
                 },
             ],
         }),
-        [data],
+        [data, seriesLabel],
     );
 
     const chartOptions = useMemo(
@@ -82,6 +91,16 @@ export function IncomeHistograph({
                     const clicked = data[idx];
 
                     if (clicked) {
+                        if (typeof onMonthClick === 'function') {
+                            onMonthClick(clicked);
+
+                            return;
+                        }
+
+                        if (!isInteractive) {
+                            return;
+                        }
+
                         const [year, month] = clicked.month.split('-');
                         const dateFrom = `${year}-${month}-01`;
                         const lastDay = new Date(
@@ -114,7 +133,8 @@ export function IncomeHistograph({
                 );
                 const canvas = chart.canvas;
 
-                canvas.style.cursor = points.length > 0 ? 'pointer' : 'default';
+                canvas.style.cursor =
+                    isInteractive && points.length > 0 ? 'pointer' : 'default';
             },
             scales: {
                 x: {
@@ -162,7 +182,10 @@ export function IncomeHistograph({
                             parsed: { y: number | null };
                         }) =>
                             `${ctx.dataset.label}: ${formatCurrencyAmount(ctx.parsed.y ?? 0, currency)}`,
-                        footer: () => 'Click to view transactions',
+                        footer: () =>
+                            isInteractive
+                                ? (footerHint ?? 'Click to view transactions')
+                                : '',
                     },
                 },
             },
@@ -171,13 +194,13 @@ export function IncomeHistograph({
                 easing: 'easeInOutCubic' as const,
             },
         }),
-        [data, currency],
+        [currency, data, footerHint, isInteractive, onMonthClick],
     );
 
     if (data.length === 0) {
         return (
             <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                No transactions recorded yet.
+                {emptyText}
             </div>
         );
     }
@@ -188,12 +211,14 @@ export function IncomeHistograph({
                 <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                         <span className="block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                        Income
+                        {seriesLabel}
                     </span>
                 </div>
-                <span className="text-[11px] text-muted-foreground/60">
-                    Click a month to view transactions
-                </span>
+                {isInteractive ? (
+                    <span className="text-[11px] text-muted-foreground/60">
+                        {footerHint ?? 'Click a month to view transactions'}
+                    </span>
+                ) : null}
             </div>
 
             <div className="rounded-xl border border-border/60 bg-background/70 p-4">

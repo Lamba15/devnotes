@@ -145,6 +145,15 @@ A transaction represents real cash movement between you and the client for a pro
 
 The clients index shows two aggregate numbers per client, computed over the projects the current user has finance access to.
 
+## Client Portal Finance Presentation
+
+When finance appears in a client-scoped dashboard or workspace:
+
+- Copy must be written from the client's point of view, not the platform owner's.
+- Labels should emphasize what the client paid, what was invoiced to them, and their running account.
+- Avoid owner-centric wording such as `income` or `revenue` in the client portal unless the view is explicitly about the owner's business.
+- In the client portal, finance belongs near the top of the dashboard because it is one of the primary concerns from the client's side of the relationship.
+
 ### Running Account
 
 `running_account = SUM(transactions.amount) − SUM(invoices.amount)` across the client's accessible projects. Every invoice counts regardless of its status (`draft`, `pending`, `paid`, `overdue`).

@@ -31,6 +31,7 @@ import type { ReactNode } from 'react';
 import { useMemo, useRef } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { CrudPage } from '@/components/crud/crud-page';
+import { ClientFinanceAnalysis } from '@/components/finance/client-finance-analysis';
 import { FinanceAmount } from '@/components/finance/finance-amount';
 import { FinanceStatusBadge } from '@/components/finance/finance-status-badge';
 import type { Timeline } from '@/components/finance/finance-trend-chart';
@@ -217,13 +218,6 @@ const projectStatusColors = [
     '#84cc16',
 ];
 
-const invoiceStatusColors: Record<string, string> = {
-    draft: '#94a3b8',
-    pending: '#f59e0b',
-    paid: '#10b981',
-    overdue: '#ef4444',
-};
-
 const projectCardGradients = [
     'from-violet-500/10 to-violet-500/5 border-violet-200/60 dark:border-violet-800/40',
     'from-blue-500/10 to-blue-500/5 border-blue-200/60 dark:border-blue-800/40',
@@ -353,20 +347,6 @@ export default function ClientShow({
             })),
         [client.id, issue_distribution.by_type],
     );
-    const invoiceStatusSegments = useMemo(() => {
-        if (!activeCurrencyAnalysis) {
-            return [];
-        }
-
-        return Object.entries(activeCurrencyAnalysis.invoice_statuses)
-            .filter(([, data]) => data.count > 0)
-            .map(([status, data]) => ({
-                label: formatStatusLabel(status),
-                value: data.count,
-                color: invoiceStatusColors[status] ?? '#94a3b8',
-                href: `/clients/${client.id}/finance`,
-            }));
-    }, [activeCurrencyAnalysis, client.id]);
     const statCards = [
         {
             key: 'members',
@@ -422,24 +402,6 @@ export default function ClientShow({
             bg: 'bg-emerald-100 dark:bg-emerald-900/30',
             visible: Boolean(stats.statuses),
         },
-        {
-            key: 'invoices',
-            label: 'Invoices',
-            icon: Receipt,
-            href: `/clients/${client.id}/finance`,
-            color: 'text-pink-600 dark:text-pink-400',
-            bg: 'bg-pink-100 dark:bg-pink-900/30',
-            visible: can_view_finance && Boolean(stats.invoices),
-        },
-        {
-            key: 'transactions',
-            label: 'Transactions',
-            icon: Wallet,
-            href: `/clients/${client.id}/finance`,
-            color: 'text-teal-600 dark:text-teal-400',
-            bg: 'bg-teal-100 dark:bg-teal-900/30',
-            visible: can_view_finance && Boolean(stats.transactions),
-        },
     ] as const;
 
     return (
@@ -450,11 +412,166 @@ export default function ClientShow({
                 title={client.name}
                 description={
                     can_view_internal_client_profile
-                        ? 'Client workspace overview, finance pulse, and relationship context.'
-                        : 'Your workspace overview, recent work, and money pulse with Nour.'
+                        ? 'Client account, payments, current work, and relationship context.'
+                        : 'Your account, payments, current work, and delivery status with Nour.'
                 }
             >
                 <div className="space-y-8">
+                    {can_view_finance ? (
+                        <div className="space-y-4">
+                            <h2 className="flex items-center gap-2 text-lg font-semibold">
+                                <Scale className="size-5 text-emerald-500" />
+                                Finance Overview
+                            </h2>
+
+                            <ClientFinanceAnalysis
+                                analysis={finance_analysis}
+                                viewerPerspective="client_user"
+                            />
+
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+                                <Card className="shadow-none">
+                                    <CardHeader>
+                                        <div className="flex items-center gap-2">
+                                            <BarChart3 className="size-5 text-emerald-500" />
+                                            <CardTitle>
+                                                Payments You Made by Month
+                                            </CardTitle>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <IncomeHistograph
+                                            data={monthly_income}
+                                            currency={
+                                                activeCurrencyAnalysis?.currency ??
+                                                null
+                                            }
+                                            seriesLabel="Payments"
+                                            emptyText="No payments recorded yet."
+                                            onMonthClick={null}
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <div className="grid gap-4">
+                                    <Card className="shadow-none">
+                                        <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                                Recent Invoices
+                                            </CardTitle>
+                                            <Link
+                                                href={`/clients/${client.id}/finance`}
+                                                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                                            >
+                                                Open finance
+                                            </Link>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            {recent_invoices.length === 0 ? (
+                                                <p className="py-8 text-center text-sm text-muted-foreground">
+                                                    No invoices yet.
+                                                </p>
+                                            ) : (
+                                                recent_invoices.map(
+                                                    (invoice) => (
+                                                        <Link
+                                                            key={invoice.id}
+                                                            href={`/clients/${client.id}/finance`}
+                                                            className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3 transition-colors hover:bg-muted/40"
+                                                        >
+                                                            <div className="space-y-1">
+                                                                <p className="text-sm font-medium">
+                                                                    {
+                                                                        invoice.reference
+                                                                    }
+                                                                </p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <FinanceStatusBadge
+                                                                        status={
+                                                                            invoice.status
+                                                                        }
+                                                                    />
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {formatDateOnly(
+                                                                            invoice.issued_at,
+                                                                        ) ??
+                                                                            'No issue date'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <FinanceAmount
+                                                                amount={
+                                                                    invoice.amount
+                                                                }
+                                                                currency={
+                                                                    invoice.currency
+                                                                }
+                                                            />
+                                                        </Link>
+                                                    ),
+                                                )
+                                            )}
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card className="shadow-none">
+                                        <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+                                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                                Recent Payments
+                                            </CardTitle>
+                                            <Link
+                                                href={`/clients/${client.id}/finance`}
+                                                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                                            >
+                                                Open finance
+                                            </Link>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            {recent_transactions.length ===
+                                            0 ? (
+                                                <p className="py-8 text-center text-sm text-muted-foreground">
+                                                    No payments yet.
+                                                </p>
+                                            ) : (
+                                                recent_transactions.map(
+                                                    (transaction) => (
+                                                        <Link
+                                                            key={transaction.id}
+                                                            href={`/clients/${client.id}/finance`}
+                                                            className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3 transition-colors hover:bg-muted/40"
+                                                        >
+                                                            <div className="space-y-1">
+                                                                <p className="text-sm font-medium">
+                                                                    {
+                                                                        transaction.description
+                                                                    }
+                                                                </p>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {formatDateOnly(
+                                                                        transaction.occurred_date,
+                                                                    ) ??
+                                                                        'No date'}
+                                                                </span>
+                                                            </div>
+                                                            <FinanceAmount
+                                                                amount={
+                                                                    transaction.amount
+                                                                }
+                                                                currency={
+                                                                    transaction.currency
+                                                                }
+                                                            />
+                                                        </Link>
+                                                    ),
+                                                )
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         {statCards
                             .filter((card) => card.visible)
@@ -506,25 +623,6 @@ export default function ClientShow({
                                 );
                             })}
                     </div>
-
-                    {can_view_finance ? (
-                        <Card className="shadow-none">
-                            <CardHeader>
-                                <div className="flex items-center gap-2">
-                                    <BarChart3 className="size-5 text-emerald-500" />
-                                    <CardTitle>Monthly Income</CardTitle>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <IncomeHistograph
-                                    data={monthly_income}
-                                    currency={
-                                        activeCurrencyAnalysis?.currency ?? null
-                                    }
-                                />
-                            </CardContent>
-                        </Card>
-                    ) : null}
 
                     <Card className="shadow-none">
                         <CardHeader>
@@ -893,180 +991,6 @@ export default function ClientShow({
                             ) : null}
                         </div>
                     </div>
-
-                    {can_view_finance ? (
-                        <div className="space-y-4">
-                            <h2 className="flex items-center gap-2 text-lg font-semibold">
-                                <Scale className="size-5 text-emerald-500" />
-                                Financial Summary
-                            </h2>
-
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                                <FinanceMetricCard
-                                    title="Total Revenue"
-                                    icon={Wallet}
-                                    summary={
-                                        finance_analysis.overall
-                                            .transaction_volume
-                                    }
-                                    href={`/clients/${client.id}/finance`}
-                                />
-                                <FinanceMetricCard
-                                    title="Lifetime Invoiced"
-                                    icon={CreditCard}
-                                    summary={
-                                        finance_analysis.overall
-                                            .relationship_volume
-                                    }
-                                    href={`/clients/${client.id}/finance`}
-                                />
-                                <FinanceMetricCard
-                                    title="Running Account"
-                                    icon={Scale}
-                                    summary={
-                                        finance_analysis.overall.running_account
-                                    }
-                                    href={`/clients/${client.id}/finance`}
-                                />
-                                <Link href={`/clients/${client.id}/finance`}>
-                                    <Card className="shadow-none transition-all hover:bg-muted/30 hover:shadow-sm">
-                                        <CardContent className="space-y-3 pt-6">
-                                            <div className="flex items-center gap-2 text-muted-foreground">
-                                                <Receipt className="size-4" />
-                                                <span className="text-sm font-medium">
-                                                    Open Invoices
-                                                </span>
-                                            </div>
-                                            <FinanceAmount
-                                                amount={
-                                                    activeCurrencyAnalysis?.open_invoice_total ??
-                                                    0
-                                                }
-                                                currency={
-                                                    activeCurrencyAnalysis?.currency ??
-                                                    null
-                                                }
-                                                className="text-xl"
-                                            />
-                                        </CardContent>
-                                    </Card>
-                                </Link>
-                            </div>
-
-                            <div className="grid gap-4 xl:grid-cols-3">
-                                <DistributionCard
-                                    title="Invoice Status Breakdown"
-                                    segments={invoiceStatusSegments}
-                                />
-
-                                <Card className="shadow-none">
-                                    <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                                            Recent Invoices
-                                        </CardTitle>
-                                        <Link
-                                            href={`/clients/${client.id}/finance`}
-                                            className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-                                        >
-                                            View all
-                                        </Link>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3">
-                                        {recent_invoices.length === 0 ? (
-                                            <p className="py-8 text-center text-sm text-muted-foreground">
-                                                No invoices yet.
-                                            </p>
-                                        ) : (
-                                            recent_invoices.map((invoice) => (
-                                                <Link
-                                                    key={invoice.id}
-                                                    href={`/clients/${client.id}/finance`}
-                                                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3 transition-colors hover:bg-muted/40"
-                                                >
-                                                    <div className="space-y-1">
-                                                        <p className="text-sm font-medium">
-                                                            {invoice.reference}
-                                                        </p>
-                                                        <div className="flex items-center gap-2">
-                                                            <FinanceStatusBadge
-                                                                status={
-                                                                    invoice.status
-                                                                }
-                                                            />
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {formatDateOnly(
-                                                                    invoice.issued_at,
-                                                                ) ??
-                                                                    'No issue date'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <FinanceAmount
-                                                        amount={invoice.amount}
-                                                        currency={
-                                                            invoice.currency
-                                                        }
-                                                    />
-                                                </Link>
-                                            ))
-                                        )}
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="shadow-none">
-                                    <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                                            Recent Transactions
-                                        </CardTitle>
-                                        <Link
-                                            href={`/clients/${client.id}/finance`}
-                                            className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-                                        >
-                                            View all
-                                        </Link>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3">
-                                        {recent_transactions.length === 0 ? (
-                                            <p className="py-8 text-center text-sm text-muted-foreground">
-                                                No transactions yet.
-                                            </p>
-                                        ) : (
-                                            recent_transactions.map(
-                                                (transaction) => (
-                                                    <Link
-                                                        key={transaction.id}
-                                                        href={`/clients/${client.id}/finance`}
-                                                        className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 p-3 transition-colors hover:bg-muted/40"
-                                                    >
-                                                        <div className="space-y-1">
-                                                            <p className="text-sm font-medium">
-                                                                {
-                                                                    transaction.description
-                                                                }
-                                                            </p>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {formatDateOnly(
-                                                                    transaction.occurred_date,
-                                                                ) ?? 'No date'}
-                                                            </span>
-                                                        </div>
-                                                        <FinanceAmount
-                                                            amount={
-                                                                transaction.amount
-                                                            }
-                                                            currency={
-                                                                transaction.currency
-                                                            }
-                                                        />
-                                                    </Link>
-                                                ),
-                                            )
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
-                    ) : null}
 
                     <Card className="shadow-none">
                         <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -1448,51 +1372,6 @@ function ProjectStatusChart({
             <Bar ref={chartRef} data={chartData} options={chartOptions} />
         </div>
     );
-}
-
-function FinanceMetricCard({
-    title,
-    icon: Icon,
-    summary,
-    href,
-}: {
-    title: string;
-    icon: typeof Wallet;
-    summary: MoneySummary;
-    href?: string;
-}) {
-    const card = (
-        <Card
-            className={cn(
-                'shadow-none',
-                href ? 'transition-all hover:bg-muted/30 hover:shadow-sm' : '',
-            )}
-        >
-            <CardContent className="space-y-3 pt-6">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                    <Icon className="size-4" />
-                    <span className="text-sm font-medium">{title}</span>
-                </div>
-                {summary.mixed_currencies ? (
-                    <p className="text-sm leading-6 text-muted-foreground">
-                        Mixed currencies
-                    </p>
-                ) : (
-                    <FinanceAmount
-                        amount={summary.amount}
-                        currency={summary.currency}
-                        className="text-xl"
-                    />
-                )}
-            </CardContent>
-        </Card>
-    );
-
-    if (href) {
-        return <Link href={href}>{card}</Link>;
-    }
-
-    return card;
 }
 
 function AlertIndicator({

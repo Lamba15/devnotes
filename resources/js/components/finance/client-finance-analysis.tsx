@@ -13,7 +13,6 @@ import type { Timeline } from '@/components/finance/finance-trend-chart';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-
 type MoneySummary = {
     amount: number;
     currency: string | null;
@@ -68,7 +67,9 @@ export function ClientFinanceAnalysis({
                         <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
                             <Scale className="size-4" />
                             <span className="text-sm font-semibold">
-                                Relationship balance
+                                {viewerPerspective === 'platform_owner'
+                                    ? 'Relationship balance'
+                                    : 'Running account'}
                             </span>
                         </div>
                         <CardTitle className="text-2xl leading-tight">
@@ -113,12 +114,20 @@ export function ClientFinanceAnalysis({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     <SummaryMoneyCard
-                        title="Lifetime invoiced"
+                        title={
+                            viewerPerspective === 'platform_owner'
+                                ? 'Lifetime invoiced'
+                                : 'Total invoiced to you'
+                        }
                         summary={analysis.overall.relationship_volume}
                         icon={CreditCard}
                     />
                     <SummaryMoneyCard
-                        title="Net cash movement"
+                        title={
+                            viewerPerspective === 'platform_owner'
+                                ? 'Net cash movement'
+                                : 'Total paid by you'
+                        }
                         summary={analysis.overall.transaction_volume}
                         icon={Wallet}
                     />
@@ -181,7 +190,7 @@ function CurrencyBreakdownSection({
                     title={
                         viewerPerspective === 'platform_owner'
                             ? 'Client owes you'
-                            : 'You owe'
+                            : 'Outstanding balance'
                     }
                     amount={analysis.client_owes_you}
                     currency={analysis.currency}
@@ -198,12 +207,20 @@ function CurrencyBreakdownSection({
                     tone="success"
                 />
                 <AmountMetricCard
-                    title="Lifetime invoiced"
+                    title={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Lifetime invoiced'
+                            : 'Total invoiced to you'
+                    }
                     amount={analysis.invoice_total}
                     currency={analysis.currency}
                 />
                 <AmountMetricCard
-                    title="Net paid"
+                    title={
+                        viewerPerspective === 'platform_owner'
+                            ? 'Net paid'
+                            : 'Total paid by you'
+                    }
                     amount={analysis.transaction_total}
                     currency={analysis.currency}
                 />
@@ -557,4 +574,3 @@ function describeCurrencyBalance(
         ? `In ${analysis.label}, recorded invoices and net payments are currently balanced.`
         : `In ${analysis.label}, your recorded invoices and net payments are currently balanced.`;
 }
-

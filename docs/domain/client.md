@@ -11,6 +11,8 @@ The intent is not a narrow CRM card. A client record should be able to hold a ri
 - `Client` is still the correct domain term for modeling from the owner's side.
 - But when the other side logs in, the system should not feel like they are browsing a record inside someone else's CRM.
 - The client-scoped workspace should be shaped as their collaborative work portal with Nour.
+- The client dashboard must use the client's perspective for copy and priority, not a filtered copy of the platform-owner dashboard.
+- For client users, finance should lead with what they have paid, what they have been invoiced, and their current running account before broader operational metrics.
 - That means the client domain should not stop at profile data. It should gather the work that matters to them in one place, such as:
     - members
     - projects
