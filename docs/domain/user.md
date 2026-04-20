@@ -130,6 +130,7 @@ This pattern appears in:
 - Can view audit logs.
 - Cannot delete their own account from settings.
 - Can manage AI credits for all users.
+- Can set login passwords for client users from member profile pages.
 - Can manage member credits from the member profile page.
 
 ## Client Membership Assignment Rules

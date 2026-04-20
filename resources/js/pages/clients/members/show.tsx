@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import PasswordInput from '@/components/password-input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 import { formatDetailedTimestamp } from '@/lib/datetime';
@@ -153,6 +154,7 @@ export default function ClientMemberShow({
     available_boards,
     can_manage_members,
     can_manage_ai_credits,
+    can_manage_passwords,
 }: {
     client: Client;
     membership: Membership;
@@ -163,6 +165,7 @@ export default function ClientMemberShow({
     available_boards: AvailableBoard[];
     can_manage_members: boolean;
     can_manage_ai_credits: boolean;
+    can_manage_passwords: boolean;
 }) {
     const { auth } = usePage<{ auth: Auth }>().props;
     const avatarSrc = membership.user.avatar_path
@@ -187,6 +190,10 @@ export default function ClientMemberShow({
     });
     const boardsForm = useForm({
         board_ids: membership.assignments.board_ids,
+    });
+    const passwordForm = useForm({
+        password: '',
+        password_confirmation: '',
     });
     const groupedPermissions = useMemo(() => {
         return permission_catalog.reduce<
@@ -495,70 +502,169 @@ export default function ClientMemberShow({
                             </CardContent>
                         </Card>
 
-                        <Card className="shadow-none">
-                            <CardHeader>
-                                <CardTitle>AI credits</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">
-                                    Credits stay platform-owner-only to mutate.
-                                    Staff managers can still see current
-                                    allocation and usage here.
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="member-ai-credits">
-                                        Allocation
-                                    </Label>
-                                    <Input
-                                        id="member-ai-credits"
-                                        type="number"
-                                        min={-1}
-                                        value={creditsValue}
-                                        onChange={(event) =>
-                                            setCreditsValue(event.target.value)
-                                        }
-                                        disabled={!can_manage_ai_credits}
-                                    />
-                                    <p className="text-sm text-muted-foreground">
-                                        Used{' '}
-                                        {membership.user.ai_credits_used ?? 0}{' '}
-                                        credits so far.
-                                    </p>
-                                </div>
-                                {can_manage_ai_credits ? (
-                                    <div className="flex justify-end">
-                                        <Button
-                                            onClick={() => {
-                                                const nextCredits =
-                                                    Number.parseInt(
-                                                        creditsValue,
-                                                        10,
-                                                    ) || 0;
-
-                                                if (
-                                                    !window.confirm(
-                                                        `Update ${membership.user.name}'s AI credits to ${nextCredits}?`,
-                                                    )
-                                                ) {
-                                                    return;
-                                                }
-
-                                                router.put(
-                                                    `/users/${membership.user.id}/credits`,
-                                                    {
-                                                        ai_credits: nextCredits,
-                                                    },
-                                                    { preserveScroll: true },
-                                                );
-                                            }}
-                                        >
-                                            <Pencil className="mr-1.5 size-4" />
-                                            Update credits
-                                        </Button>
+                        <div className="space-y-6">
+                            <Card className="shadow-none">
+                                <CardHeader>
+                                    <CardTitle>AI credits</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">
+                                        Credits stay platform-owner-only to
+                                        mutate. Staff managers can still see
+                                        current allocation and usage here.
                                     </div>
-                                ) : null}
-                            </CardContent>
-                        </Card>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="member-ai-credits">
+                                            Allocation
+                                        </Label>
+                                        <Input
+                                            id="member-ai-credits"
+                                            type="number"
+                                            min={-1}
+                                            value={creditsValue}
+                                            onChange={(event) =>
+                                                setCreditsValue(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={!can_manage_ai_credits}
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            Used{' '}
+                                            {membership.user.ai_credits_used ??
+                                                0}{' '}
+                                            credits so far.
+                                        </p>
+                                    </div>
+                                    {can_manage_ai_credits ? (
+                                        <div className="flex justify-end">
+                                            <Button
+                                                onClick={() => {
+                                                    const nextCredits =
+                                                        Number.parseInt(
+                                                            creditsValue,
+                                                            10,
+                                                        ) || 0;
+
+                                                    if (
+                                                        !window.confirm(
+                                                            `Update ${membership.user.name}'s AI credits to ${nextCredits}?`,
+                                                        )
+                                                    ) {
+                                                        return;
+                                                    }
+
+                                                    router.put(
+                                                        `/users/${membership.user.id}/credits`,
+                                                        {
+                                                            ai_credits:
+                                                                nextCredits,
+                                                        },
+                                                        {
+                                                            preserveScroll: true,
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                <Pencil className="mr-1.5 size-4" />
+                                                Update credits
+                                            </Button>
+                                        </div>
+                                    ) : null}
+                                </CardContent>
+                            </Card>
+
+                            <Card className="shadow-none">
+                                <CardHeader>
+                                    <CardTitle>Account password</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">
+                                        Only the platform owner can set a new
+                                        login password here. This updates the
+                                        member account immediately.
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="member-password">
+                                            New password
+                                        </Label>
+                                        <PasswordInput
+                                            id="member-password"
+                                            value={passwordForm.data.password}
+                                            onChange={(event) =>
+                                                passwordForm.setData(
+                                                    'password',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoComplete="new-password"
+                                            placeholder="New password"
+                                            disabled={!can_manage_passwords}
+                                        />
+                                        {passwordForm.errors.password ? (
+                                            <p className="text-sm text-destructive">
+                                                {passwordForm.errors.password}
+                                            </p>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="member-password-confirmation">
+                                            Confirm password
+                                        </Label>
+                                        <PasswordInput
+                                            id="member-password-confirmation"
+                                            value={
+                                                passwordForm.data
+                                                    .password_confirmation
+                                            }
+                                            onChange={(event) =>
+                                                passwordForm.setData(
+                                                    'password_confirmation',
+                                                    event.target.value,
+                                                )
+                                            }
+                                            autoComplete="new-password"
+                                            placeholder="Confirm password"
+                                            disabled={!can_manage_passwords}
+                                        />
+                                        {passwordForm.errors
+                                            .password_confirmation ? (
+                                            <p className="text-sm text-destructive">
+                                                {
+                                                    passwordForm.errors
+                                                        .password_confirmation
+                                                }
+                                            </p>
+                                        ) : null}
+                                    </div>
+
+                                    {can_manage_passwords ? (
+                                        <div className="flex justify-end">
+                                            <Button
+                                                onClick={() =>
+                                                    passwordForm.put(
+                                                        `/clients/${client.id}/members/${membership.id}/password`,
+                                                        {
+                                                            preserveScroll: true,
+                                                            onSuccess: () =>
+                                                                passwordForm.reset(),
+                                                        },
+                                                    )
+                                                }
+                                                disabled={
+                                                    passwordForm.processing
+                                                }
+                                            >
+                                                <Save className="mr-1.5 size-4" />
+                                                Save password
+                                            </Button>
+                                        </div>
+                                    ) : null}
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
 
                     <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Actions\Clients\CreateClientUser;
 use App\Actions\Clients\DeleteClientMembership;
 use App\Actions\Clients\UpdateClientMembership;
+use App\Actions\Clients\UpdateClientMembershipPassword;
 use App\Http\Concerns\BuildsBreadcrumbs;
+use App\Http\Requests\Clients\ClientMembershipPasswordUpdateRequest;
 use App\Models\AssistantMessage;
 use App\Models\AssistantRun;
 use App\Models\AssistantThread;
@@ -188,6 +190,7 @@ class ClientMembershipController extends Controller
                 ->all(),
             'can_manage_members' => $actor->canManageMembers($client),
             'can_manage_ai_credits' => $actor->isPlatformOwner(),
+            'can_manage_passwords' => $actor->isPlatformOwner(),
         ]);
     }
 
@@ -227,6 +230,24 @@ class ClientMembershipController extends Controller
         ]);
 
         $updateClientMembership->handle($request->user(), $membership, $validated);
+
+        return to_route('clients.members.show', [$client, $membership]);
+    }
+
+    public function updatePassword(
+        ClientMembershipPasswordUpdateRequest $request,
+        Client $client,
+        ClientMembership $membership,
+        UpdateClientMembershipPassword $updateClientMembershipPassword,
+    ): RedirectResponse {
+        abort_unless($request->user()->isPlatformOwner(), 403);
+        abort_unless($membership->client_id === $client->id, 404);
+
+        $updateClientMembershipPassword->handle(
+            actor: $request->user(),
+            membership: $membership,
+            password: $request->string('password')->value(),
+        );
 
         return to_route('clients.members.show', [$client, $membership]);
     }

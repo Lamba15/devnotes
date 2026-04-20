@@ -81,6 +81,7 @@
     - `owner`
     - `admin`
     - `member` with `members.write`
+- Login password override remains platform-only even on member profile pages.
 
 ## Current Member Permission Direction
 

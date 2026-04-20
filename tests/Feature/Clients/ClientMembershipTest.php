@@ -7,6 +7,7 @@ use App\Models\ClientMembershipPermission;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
@@ -182,6 +183,14 @@ test('client staff managers can open member profiles, update identity, and sync 
         ->assertRedirect(route('clients.members.show', [$client, $membership]));
 
     $this->actingAs($owner)
+        ->get(route('clients.members.show', [$client, $membership]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('clients/members/show')
+            ->where('can_manage_passwords', true)
+        );
+
+    $this->actingAs($owner)
         ->put(route('clients.members.update', [$client, $membership]), [
             'name' => 'Portal Admin',
             'email' => 'member@example.com',
@@ -259,6 +268,7 @@ test('members with members read can open member profiles but cannot update them'
             ->component('clients/members/show')
             ->where('membership.id', $targetMembership->id)
             ->where('can_manage_members', false)
+            ->where('can_manage_passwords', false)
         );
 
     $this->actingAs($viewer)
@@ -268,6 +278,77 @@ test('members with members read can open member profiles but cannot update them'
             'role' => 'member',
         ])
         ->assertForbidden();
+});
+
+test('platform owner can change a client member password', function () {
+    $owner = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+
+    $this->actingAs($owner)
+        ->post(route('clients.members.store', $client), [
+            'name' => 'Portal Member',
+            'email' => 'member@example.com',
+            'password' => 'secret-pass-123',
+            'role' => 'member',
+        ]);
+
+    $membership = $client->memberships()->with('user')->firstOrFail();
+
+    $this->actingAs($owner)
+        ->put(route('clients.members.password.update', [$client, $membership]), [
+            'password' => 'new-secret-pass-456',
+            'password_confirmation' => 'new-secret-pass-456',
+        ])
+        ->assertRedirect(route('clients.members.show', [$client, $membership]));
+
+    expect(Hash::check('new-secret-pass-456', $membership->user->fresh()->password))
+        ->toBeTrue();
+
+    $this->assertDatabaseHas('audit_logs', [
+        'user_id' => $owner->id,
+        'event' => 'user.password_changed_by_platform_owner',
+        'source' => 'manual_ui',
+        'subject_type' => User::class,
+        'subject_id' => $membership->user_id,
+    ]);
+});
+
+test('client admins cannot change another member password', function () {
+    $platformOwner = User::factory()->create();
+    $clientAdmin = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+
+    $client->memberships()->create([
+        'user_id' => $clientAdmin->id,
+        'role' => 'admin',
+        'created_by' => $platformOwner->id,
+    ]);
+
+    $this->actingAs($platformOwner)
+        ->post(route('clients.members.store', $client), [
+            'name' => 'Target Member',
+            'email' => 'target@example.com',
+            'password' => 'secret-pass-123',
+            'role' => 'member',
+        ]);
+
+    $membership = $client->memberships()
+        ->whereHas('user', fn ($query) => $query->where('email', 'target@example.com'))
+        ->firstOrFail();
+
+    $this->actingAs($clientAdmin)
+        ->put(route('clients.members.password.update', [$client, $membership]), [
+            'password' => 'new-secret-pass-456',
+            'password_confirmation' => 'new-secret-pass-456',
+        ])
+        ->assertForbidden();
+
+    expect(Hash::check('secret-pass-123', $membership->user->fresh()->password))
+        ->toBeTrue();
 });
 
 test('switching a membership to admin clears stored permission rows', function () {

@@ -54,6 +54,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('clients/{client}/members', [ClientMembershipController::class, 'index'])->name('clients.members.index');
     Route::post('clients/{client}/members', [ClientMembershipController::class, 'store'])->name('clients.members.store');
     Route::put('clients/{client}/members/{membership}', [ClientMembershipController::class, 'update'])->name('clients.members.update');
+    Route::put('clients/{client}/members/{membership}/password', [ClientMembershipController::class, 'updatePassword'])
+        ->middleware('platform.owner')
+        ->name('clients.members.password.update');
     Route::put('clients/{client}/members/{membership}/permissions', [ClientMembershipController::class, 'syncPermissions'])->name('clients.members.permissions.update');
     Route::put('clients/{client}/members/{membership}/projects', [ClientMembershipController::class, 'syncProjects'])->name('clients.members.projects.update');
     Route::put('clients/{client}/members/{membership}/boards', [ClientMembershipController::class, 'syncBoards'])->name('clients.members.boards.update');
