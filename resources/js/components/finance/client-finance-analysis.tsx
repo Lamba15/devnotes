@@ -95,7 +95,11 @@ export function ClientFinanceAnalysis({
                     </CardHeader>
                     <CardContent className="grid gap-3 md:grid-cols-3">
                         <MetricTile
-                            label="Accessible projects"
+                            label={
+                                viewerPerspective === 'platform_owner'
+                                    ? 'Accessible projects'
+                                    : 'Projects'
+                            }
                             value={String(analysis.overall.project_count)}
                             icon={Landmark}
                         />

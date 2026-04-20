@@ -403,6 +403,33 @@ export default function ClientShow({
             visible: Boolean(stats.statuses),
         },
     ] as const;
+    const jumpLinks = [
+        {
+            label: 'Finance',
+            href: '#finance-overview',
+            visible: can_view_finance,
+        },
+        {
+            label: 'Work',
+            href: '#work-overview',
+            visible: true,
+        },
+        {
+            label: 'Projects',
+            href: '#projects-overview',
+            visible: true,
+        },
+        {
+            label: 'Activity',
+            href: '#activity-overview',
+            visible: true,
+        },
+        {
+            label: 'Profile',
+            href: '#profile-overview',
+            visible: true,
+        },
+    ].filter((link) => link.visible);
 
     return (
         <>
@@ -417,8 +444,32 @@ export default function ClientShow({
                 }
             >
                 <div className="space-y-8">
+                    <Card className="shadow-none">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                Jump to
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2">
+                                {jumpLinks.map((link) => (
+                                    <a
+                                        key={link.href}
+                                        href={link.href}
+                                        className="inline-flex items-center rounded-full border border-border/70 bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                                    >
+                                        {link.label}
+                                    </a>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {can_view_finance ? (
-                        <div className="space-y-4">
+                        <div
+                            id="finance-overview"
+                            className="scroll-mt-24 space-y-4"
+                        >
                             <h2 className="flex items-center gap-2 text-lg font-semibold">
                                 <Scale className="size-5 text-emerald-500" />
                                 Finance Overview
@@ -572,7 +623,10 @@ export default function ClientShow({
                         </div>
                     ) : null}
 
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div
+                        id="work-overview"
+                        className="grid scroll-mt-24 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                    >
                         {statCards
                             .filter((card) => card.visible)
                             .map((card) => {
@@ -732,7 +786,10 @@ export default function ClientShow({
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div
+                        id="projects-overview"
+                        className="scroll-mt-24 space-y-4"
+                    >
                         <h2 className="flex items-center gap-2 text-lg font-semibold">
                             <FolderKanban className="size-5 text-violet-500" />
                             Projects & Workspace
@@ -992,7 +1049,10 @@ export default function ClientShow({
                         </div>
                     </div>
 
-                    <Card className="shadow-none">
+                    <Card
+                        id="activity-overview"
+                        className="scroll-mt-24 shadow-none"
+                    >
                         <CardHeader className="flex-row items-center justify-between space-y-0">
                             <CardTitle className="flex items-center gap-2">
                                 <Clock className="size-5 text-muted-foreground" />
@@ -1048,7 +1108,10 @@ export default function ClientShow({
                         </CardContent>
                     </Card>
 
-                    <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                    <div
+                        id="profile-overview"
+                        className="grid scroll-mt-24 gap-6 xl:grid-cols-[1.2fr_0.8fr]"
+                    >
                         <Card className="shadow-none">
                             <CardHeader className="flex-row items-center justify-between space-y-0">
                                 <div className="flex items-center gap-3">
