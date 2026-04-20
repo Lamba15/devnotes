@@ -11,6 +11,7 @@ use App\Models\Attachment;
 use App\Models\AuditLog;
 use App\Models\Behavior;
 use App\Models\Board;
+use App\Models\BoardIssuePlacement;
 use App\Models\Client;
 use App\Models\ClientMembership;
 use App\Models\Invoice;
@@ -22,11 +23,13 @@ use App\Models\User;
 use App\Support\ClientPermissionCatalog;
 use App\Support\IssueSerializer;
 use App\Support\WorkspaceAccess;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -289,6 +292,10 @@ class ClientController extends Controller
     {
         $user = $request->user();
         $canViewInternalProfile = $user->canViewInternalClientProfile($client);
+        $canViewMembers = $user->canViewMembers($client);
+        $canViewBoards = $user->canViewBoards($client);
+        $canViewStatuses = $user->canViewStatuses($client);
+        $canViewFinance = $user->canAccessClientFinance($client);
 
         abort_unless($user->canAccessClient($client), 403);
 
@@ -297,6 +304,39 @@ class ClientController extends Controller
             ->get();
 
         $projectIds = $projects->pluck('id');
+        $issueProjectIds = $projects
+            ->filter(fn (Project $project) => $user->canViewIssues($project))
+            ->pluck('id')
+            ->values();
+        $financeProjects = $canViewFinance
+            ? $user->workspaceAccess()
+                ->scopeAccessibleFinanceProjects(
+                    Project::query()->whereBelongsTo($client),
+                )
+                ->get(['id', 'client_id', 'budget', 'currency'])
+            : collect();
+        $financeProjectIds = $financeProjects->pluck('id');
+        $transactions = $financeProjectIds->isNotEmpty()
+            ? Transaction::query()
+                ->select('id', 'project_id', 'description', 'amount', 'currency', 'category', 'occurred_date', 'created_at')
+                ->whereIn('project_id', $financeProjectIds)
+                ->orderByRaw('COALESCE(occurred_date, created_at)')
+                ->get()
+            : collect();
+        $invoices = $financeProjectIds->isNotEmpty()
+            ? Invoice::query()
+                ->select('id', 'project_id', 'reference', 'amount', 'subtotal_amount', 'discount_total_amount', 'status', 'currency', 'issued_at', 'due_at', 'paid_at', 'created_at')
+                ->whereIn('project_id', $financeProjectIds)
+                ->orderByRaw('COALESCE(issued_at, created_at)')
+                ->get()
+            : collect();
+        $thirtyDaysAgo = CarbonImmutable::now()->subDays(30);
+        $issueIds = $issueProjectIds->isNotEmpty()
+            ? Issue::query()->whereIn('project_id', $issueProjectIds)->pluck('id')
+            : collect();
+        $boardIds = $canViewBoards && $projectIds->isNotEmpty()
+            ? Board::query()->whereIn('project_id', $projectIds)->pluck('id')
+            : collect();
 
         return Inertia::render('clients/show', [
             'breadcrumbs' => $this->breadcrumbs(
@@ -332,17 +372,43 @@ class ClientController extends Controller
                     ->all()
                 : [],
             'summary' => [
-                'members_count' => $client->memberships()->count(),
+                'members_count' => $canViewMembers ? $client->memberships()->count() : 0,
                 'projects_count' => $projects->count(),
-                'issues_count' => Issue::query()->whereIn('project_id', $projectIds)->count(),
-                'boards_count' => Board::query()->whereIn('project_id', $projectIds)->count(),
-                'statuses_count' => ProjectStatus::query()
-                    ->where(function ($query) use ($client): void {
-                        $query->whereNull('client_id')
-                            ->orWhere('client_id', $client->id);
-                    })
-                    ->count(),
+                'issues_count' => $issueProjectIds->isNotEmpty()
+                    ? Issue::query()->whereIn('project_id', $issueProjectIds)->count()
+                    : 0,
+                'boards_count' => $canViewBoards && $projectIds->isNotEmpty()
+                    ? Board::query()->whereIn('project_id', $projectIds)->count()
+                    : 0,
+                'statuses_count' => $canViewStatuses
+                    ? ProjectStatus::query()
+                        ->where(function ($query) use ($client): void {
+                            $query->whereNull('client_id')
+                                ->orWhere('client_id', $client->id);
+                        })
+                        ->count()
+                    : 0,
             ],
+            'stats' => $this->buildClientDashboardStats(
+                $client,
+                $projects,
+                $issueProjectIds,
+                $financeProjectIds,
+                $thirtyDaysAgo,
+                $canViewMembers,
+                $canViewBoards,
+                $canViewStatuses,
+            ),
+            'finance_analysis' => $this->buildFinanceAnalysis(
+                $financeProjects->count(),
+                $transactions,
+                $invoices,
+            ),
+            'monthly_income' => $this->buildMonthlyIncome($transactions),
+            'monthly_closed_issues' => $this->buildClientMonthlyClosedIssues($issueProjectIds),
+            'issue_distribution' => $this->buildClientIssueDistribution($issueProjectIds),
+            'board_summary' => $this->buildClientBoardSummary($projectIds, $issueProjectIds, $canViewBoards),
+            'project_health' => $this->buildClientProjectHealth($projectIds),
             'recent_projects' => $projects
                 ->sortByDesc('created_at')
                 ->take(5)
@@ -353,27 +419,69 @@ class ClientController extends Controller
                     'status' => $project->status?->only(['id', 'name', 'slug']),
                 ])
                 ->all(),
-            'recent_members' => $client->memberships()
-                ->with('user:id,name,email,avatar_path')
-                ->latest()
+            'recent_members' => $canViewMembers
+                ? $client->memberships()
+                    ->with('user:id,name,email,avatar_path')
+                    ->latest()
+                    ->take(5)
+                    ->get()
+                    ->map(fn ($membership) => [
+                        'id' => $membership->id,
+                        'role' => $membership->normalizedRole(),
+                        'user' => [
+                            'id' => $membership->user->id,
+                            'name' => $membership->user->name,
+                            'email' => $membership->user->email,
+                            'avatar_path' => $membership->user->avatar_path,
+                        ],
+                    ])
+                    ->all()
+                : [],
+            'recent_issues' => $this->buildClientRecentIssues($issueProjectIds),
+            'recent_invoices' => $invoices
+                ->sortByDesc(fn (Invoice $invoice) => $invoice->issued_at ?? $invoice->created_at)
                 ->take(5)
-                ->get()
-                ->map(fn ($membership) => [
-                    'id' => $membership->id,
-                    'role' => $membership->normalizedRole(),
-                    'user' => [
-                        'id' => $membership->user->id,
-                        'name' => $membership->user->name,
-                        'email' => $membership->user->email,
-                        'avatar_path' => $membership->user->avatar_path,
-                    ],
+                ->values()
+                ->map(fn (Invoice $invoice) => [
+                    'id' => $invoice->id,
+                    'project_id' => $invoice->project_id,
+                    'reference' => $invoice->reference,
+                    'status' => $invoice->status,
+                    'amount' => (float) $invoice->amount,
+                    'currency' => $invoice->currency,
+                    'issued_at' => $invoice->issued_at?->toDateString(),
+                    'created_at' => $invoice->created_at?->toISOString(),
                 ])
                 ->all(),
+            'recent_transactions' => $transactions
+                ->sortByDesc(fn (Transaction $transaction) => $transaction->occurred_date ?? $transaction->created_at)
+                ->take(5)
+                ->values()
+                ->map(fn (Transaction $transaction) => [
+                    'id' => $transaction->id,
+                    'project_id' => $transaction->project_id,
+                    'description' => $transaction->description,
+                    'amount' => (float) $transaction->amount,
+                    'currency' => $transaction->currency,
+                    'occurred_date' => $transaction->occurred_date?->toDateString(),
+                    'created_at' => $transaction->created_at?->toISOString(),
+                ])
+                ->all(),
+            'recent_activity' => $this->buildClientRecentActivity(
+                $client,
+                $projectIds,
+                $issueIds,
+                $boardIds,
+                $invoices->pluck('id'),
+                $transactions->pluck('id'),
+            ),
             'can_manage_client' => $user->canManageClient($client),
             'can_manage_members' => $user->canManageMembers($client),
             'can_manage_secrets' => $user->canAccessPlatform(),
             'can_view_internal_client_profile' => $canViewInternalProfile,
             'can_edit_internal_client_profile' => $user->canEditInternalClientProfile($client),
+            'can_view_members' => $canViewMembers,
+            'can_view_finance' => $canViewFinance,
             'behaviors' => Behavior::query()->orderBy('name')->get(['id', 'name', 'slug']),
         ]);
     }
@@ -800,6 +908,392 @@ class ClientController extends Controller
                 ! $user->canManageClient($client),
                 fn ($query) => $query->whereHas('memberships', fn ($membershipQuery) => $membershipQuery->where('user_id', $user->id)),
             );
+    }
+
+    private function buildClientDashboardStats(
+        Client $client,
+        Collection $projects,
+        Collection $issueProjectIds,
+        Collection $financeProjectIds,
+        CarbonImmutable $thirtyDaysAgo,
+        bool $canViewMembers,
+        bool $canViewBoards,
+        bool $canViewStatuses,
+    ): array {
+        $projectIds = $projects->pluck('id');
+        $stats = [
+            'projects' => [
+                'count' => $projects->count(),
+                'new_this_month' => $projects
+                    ->filter(fn (Project $project) => $project->created_at?->greaterThanOrEqualTo($thirtyDaysAgo))
+                    ->count(),
+            ],
+        ];
+
+        if ($canViewMembers) {
+            $stats['members'] = [
+                'count' => $client->memberships()->count(),
+                'new_this_month' => $client->memberships()
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+        }
+
+        if ($issueProjectIds->isNotEmpty()) {
+            $stats['issues'] = [
+                'count' => Issue::query()->whereIn('project_id', $issueProjectIds)->count(),
+                'new_this_month' => Issue::query()
+                    ->whereIn('project_id', $issueProjectIds)
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+            $stats['open_issues'] = [
+                'count' => Issue::query()
+                    ->whereIn('project_id', $issueProjectIds)
+                    ->where(fn ($query) => $query->where('status', 'todo')->orWhere('status', 'in_progress'))
+                    ->count(),
+                'new_this_month' => Issue::query()
+                    ->whereIn('project_id', $issueProjectIds)
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->where(fn ($query) => $query->where('status', 'todo')->orWhere('status', 'in_progress'))
+                    ->count(),
+            ];
+        }
+
+        if ($canViewBoards && $projectIds->isNotEmpty()) {
+            $stats['boards'] = [
+                'count' => Board::query()->whereIn('project_id', $projectIds)->count(),
+                'new_this_month' => Board::query()
+                    ->whereIn('project_id', $projectIds)
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+        }
+
+        if ($canViewStatuses) {
+            $stats['statuses'] = [
+                'count' => ProjectStatus::query()
+                    ->where(fn ($query) => $query->whereNull('client_id')->orWhere('client_id', $client->id))
+                    ->count(),
+                'new_this_month' => ProjectStatus::query()
+                    ->where(fn ($query) => $query->whereNull('client_id')->orWhere('client_id', $client->id))
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+        }
+
+        if ($financeProjectIds->isNotEmpty()) {
+            $stats['transactions'] = [
+                'count' => Transaction::query()->whereIn('project_id', $financeProjectIds)->count(),
+                'new_this_month' => Transaction::query()
+                    ->whereIn('project_id', $financeProjectIds)
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+            $stats['invoices'] = [
+                'count' => Invoice::query()->whereIn('project_id', $financeProjectIds)->count(),
+                'new_this_month' => Invoice::query()
+                    ->whereIn('project_id', $financeProjectIds)
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->count(),
+            ];
+        }
+
+        return $stats;
+    }
+
+    private function buildMonthlyIncome(Collection $transactions): array
+    {
+        return $transactions
+            ->groupBy(function (Transaction $transaction) {
+                $date = $transaction->occurred_date ?? $transaction->created_at;
+
+                return CarbonImmutable::parse($date)->format('Y-m');
+            })
+            ->map(function (Collection $monthTransactions, string $yearMonth) {
+                $date = CarbonImmutable::parse($yearMonth.'-01');
+
+                return [
+                    'month' => $yearMonth,
+                    'label' => $date->format('M Y'),
+                    'income' => round($monthTransactions
+                        ->filter(fn (Transaction $transaction) => (float) $transaction->amount > 0)
+                        ->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2),
+                    'expense' => round(abs($monthTransactions
+                        ->filter(fn (Transaction $transaction) => (float) $transaction->amount < 0)
+                        ->sum(fn (Transaction $transaction) => (float) $transaction->amount)), 2),
+                    'net' => round($monthTransactions
+                        ->sum(fn (Transaction $transaction) => (float) $transaction->amount), 2),
+                ];
+            })
+            ->sortKeys()
+            ->values()
+            ->all();
+    }
+
+    private function buildClientMonthlyClosedIssues(Collection $issueProjectIds): array
+    {
+        if ($issueProjectIds->isEmpty()) {
+            return [];
+        }
+
+        $driver = Issue::query()->getConnection()->getDriverName();
+        $monthExpr = $driver === 'sqlite'
+            ? "strftime('%Y-%m', updated_at)"
+            : "DATE_FORMAT(updated_at, '%Y-%m')";
+
+        return Issue::query()
+            ->whereIn('project_id', $issueProjectIds)
+            ->where('status', 'done')
+            ->selectRaw("{$monthExpr} as month, COUNT(*) as count")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(fn ($row) => [
+                'month' => $row->month,
+                'label' => CarbonImmutable::parse($row->month.'-01')->format('M Y'),
+                'count' => (int) $row->count,
+            ])
+            ->all();
+    }
+
+    private function buildClientIssueDistribution(Collection $issueProjectIds): array
+    {
+        if ($issueProjectIds->isEmpty()) {
+            return [
+                'by_status' => [],
+                'by_priority' => [],
+                'by_type' => [],
+                'overdue_count' => 0,
+                'unassigned_count' => 0,
+            ];
+        }
+
+        $query = Issue::query()->whereIn('project_id', $issueProjectIds);
+
+        return [
+            'by_status' => (clone $query)
+                ->select('status', DB::raw('COUNT(*) as count'))
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->all(),
+            'by_priority' => (clone $query)
+                ->select('priority', DB::raw('COUNT(*) as count'))
+                ->whereNotNull('priority')
+                ->groupBy('priority')
+                ->pluck('count', 'priority')
+                ->all(),
+            'by_type' => (clone $query)
+                ->select('type', DB::raw('COUNT(*) as count'))
+                ->whereNotNull('type')
+                ->groupBy('type')
+                ->pluck('count', 'type')
+                ->all(),
+            'overdue_count' => (clone $query)
+                ->whereNotNull('due_date')
+                ->where('due_date', '<', now()->toDateString())
+                ->where('status', '!=', 'done')
+                ->count(),
+            'unassigned_count' => (clone $query)
+                ->doesntHave('assignees')
+                ->where('status', '!=', 'done')
+                ->count(),
+        ];
+    }
+
+    private function buildClientBoardSummary(
+        Collection $projectIds,
+        Collection $issueProjectIds,
+        bool $canViewBoards,
+    ): array {
+        if (! $canViewBoards || $projectIds->isEmpty()) {
+            return [
+                'total_boards' => 0,
+                'placed_issues' => 0,
+                'backlog_count' => 0,
+            ];
+        }
+
+        $placedIssueIds = BoardIssuePlacement::query()
+            ->whereHas('board', fn ($query) => $query->whereIn('project_id', $projectIds))
+            ->distinct('issue_id')
+            ->pluck('issue_id');
+
+        $openIssueIds = $issueProjectIds->isNotEmpty()
+            ? Issue::query()
+                ->whereIn('project_id', $issueProjectIds)
+                ->where('status', '!=', 'done')
+                ->pluck('id')
+            : collect();
+
+        $placedOpenIssueIds = $issueProjectIds->isNotEmpty()
+            ? BoardIssuePlacement::query()
+                ->whereIn('issue_id', $openIssueIds)
+                ->whereHas('board', fn ($query) => $query->whereIn('project_id', $projectIds))
+                ->distinct('issue_id')
+                ->pluck('issue_id')
+            : collect();
+
+        return [
+            'total_boards' => Board::query()->whereIn('project_id', $projectIds)->count(),
+            'placed_issues' => $placedIssueIds->count(),
+            'backlog_count' => $openIssueIds->diff($placedOpenIssueIds)->count(),
+        ];
+    }
+
+    private function buildClientProjectHealth(Collection $projectIds): array
+    {
+        if ($projectIds->isEmpty()) {
+            return [
+                'by_status' => [],
+                'active_count' => 0,
+                'with_budget' => [
+                    'count' => 0,
+                    'total' => 0,
+                ],
+                'top_projects' => [],
+            ];
+        }
+
+        $projects = Project::query()
+            ->whereKey($projectIds)
+            ->with(['client:id,name', 'status:id,name,slug'])
+            ->withCount('issues')
+            ->get();
+
+        $budgetProjects = $projects->filter(fn (Project $project) => $project->budget !== null && (float) $project->budget > 0);
+
+        return [
+            'by_status' => $projects
+                ->filter(fn (Project $project) => $project->status !== null)
+                ->groupBy(fn (Project $project) => $project->status?->id)
+                ->map(function (Collection $statusProjects) {
+                    /** @var Project $firstProject */
+                    $firstProject = $statusProjects->first();
+
+                    return [
+                        'name' => $firstProject->status?->name ?? 'No status',
+                        'slug' => $firstProject->status?->slug ?? 'no-status',
+                        'count' => $statusProjects->count(),
+                    ];
+                })
+                ->values()
+                ->all(),
+            'active_count' => $projects
+                ->filter(fn (Project $project) => $project->ends_at === null || $project->ends_at?->isFuture())
+                ->count(),
+            'with_budget' => [
+                'count' => $budgetProjects->count(),
+                'total' => round($budgetProjects->sum(fn (Project $project) => (float) $project->budget), 2),
+            ],
+            'top_projects' => $projects
+                ->sortByDesc('issues_count')
+                ->take(5)
+                ->values()
+                ->map(fn (Project $project) => [
+                    'id' => $project->id,
+                    'client_id' => $project->client_id,
+                    'name' => $project->name,
+                    'client_name' => $project->client?->name,
+                    'issues_count' => $project->issues_count,
+                ])
+                ->all(),
+        ];
+    }
+
+    private function buildClientRecentIssues(Collection $issueProjectIds): array
+    {
+        if ($issueProjectIds->isEmpty()) {
+            return [];
+        }
+
+        return Issue::query()
+            ->whereIn('project_id', $issueProjectIds)
+            ->with(['project:id,name,client_id', 'project.client:id,name', 'assignees:id,name'])
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn (Issue $issue) => [
+                'id' => $issue->id,
+                'title' => $issue->title,
+                'status' => $issue->status,
+                'priority' => $issue->priority,
+                'type' => $issue->type,
+                'due_date' => $issue->due_date?->toDateString(),
+                'project_id' => $issue->project_id,
+                'client_id' => $issue->project?->client_id,
+                'project_name' => $issue->project?->name,
+                'client_name' => $issue->project?->client?->name,
+                'assignee_names' => $issue->assignees->pluck('name')->values()->all(),
+                'created_at' => $issue->created_at->toISOString(),
+            ])
+            ->all();
+    }
+
+    private function buildClientRecentActivity(
+        Client $client,
+        Collection $projectIds,
+        Collection $issueIds,
+        Collection $boardIds,
+        Collection $invoiceIds,
+        Collection $transactionIds,
+    ): array {
+        return AuditLog::query()
+            ->with('user:id,name')
+            ->where(function ($query) use ($client, $projectIds, $issueIds, $boardIds, $invoiceIds, $transactionIds): void {
+                $query->where(function ($clientQuery) use ($client): void {
+                    $clientQuery->where('subject_type', Client::class)
+                        ->where('subject_id', $client->id);
+                });
+
+                if ($projectIds->isNotEmpty()) {
+                    $query->orWhere(function ($projectQuery) use ($projectIds): void {
+                        $projectQuery->where('subject_type', Project::class)
+                            ->whereIn('subject_id', $projectIds);
+                    });
+                }
+
+                if ($issueIds->isNotEmpty()) {
+                    $query->orWhere(function ($issueQuery) use ($issueIds): void {
+                        $issueQuery->where('subject_type', Issue::class)
+                            ->whereIn('subject_id', $issueIds);
+                    });
+                }
+
+                if ($boardIds->isNotEmpty()) {
+                    $query->orWhere(function ($boardQuery) use ($boardIds): void {
+                        $boardQuery->where('subject_type', Board::class)
+                            ->whereIn('subject_id', $boardIds);
+                    });
+                }
+
+                if ($invoiceIds->isNotEmpty()) {
+                    $query->orWhere(function ($invoiceQuery) use ($invoiceIds): void {
+                        $invoiceQuery->where('subject_type', Invoice::class)
+                            ->whereIn('subject_id', $invoiceIds);
+                    });
+                }
+
+                if ($transactionIds->isNotEmpty()) {
+                    $query->orWhere(function ($transactionQuery) use ($transactionIds): void {
+                        $transactionQuery->where('subject_type', Transaction::class)
+                            ->whereIn('subject_id', $transactionIds);
+                    });
+                }
+            })
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->get()
+            ->map(fn (AuditLog $log) => [
+                'id' => $log->id,
+                'event' => $log->event,
+                'source' => $log->source,
+                'subject_type' => class_basename($log->subject_type ?? ''),
+                'subject_id' => $log->subject_id,
+                'user_name' => $log->user?->name ?? 'System',
+                'created_at' => $log->created_at?->toISOString(),
+            ])
+            ->all();
     }
 
     private function financeVisibleClientIdsForIndex(User $user, Collection $clientIds): Collection
