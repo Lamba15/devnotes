@@ -165,9 +165,19 @@ class BoardController extends Controller
                 ]),
         ]);
 
-        $placedIssueIds = BoardIssuePlacement::query()
-            ->where('board_id', $board->id)
-            ->pluck('issue_id');
+        $showAllBacklog = $request->boolean('show_all_backlog');
+
+        $backlogQuery = Issue::query()->where('project_id', $project->id);
+
+        if ($showAllBacklog) {
+            $placedIssueIds = BoardIssuePlacement::query()
+                ->where('board_id', $board->id)
+                ->pluck('issue_id');
+
+            $backlogQuery->whereNotIn('id', $placedIssueIds);
+        } else {
+            $backlogQuery->whereDoesntHave('placements');
+        }
 
         return Inertia::render('boards/show', [
             'breadcrumbs' => $this->breadcrumbs(
@@ -183,14 +193,13 @@ class BoardController extends Controller
                 'name' => $board->name,
                 'columns_count' => $board->columns->count(),
             ],
-            'backlog' => Issue::query()
-                ->where('project_id', $project->id)
-                ->whereNotIn('id', $placedIssueIds)
+            'backlog' => $backlogQuery
                 ->with('assignees:id,name,avatar_path', 'attachments', 'comments.user:id,name,avatar_path', 'comments.attachments')
                 ->orderBy('id')
                 ->get()
                 ->map(fn (Issue $issue) => $this->serializeIssue($issue))
                 ->all(),
+            'show_all_backlog' => $showAllBacklog,
             'columns' => $board->columns->map(fn ($column) => [
                 'id' => $column->id,
                 'name' => $column->name,

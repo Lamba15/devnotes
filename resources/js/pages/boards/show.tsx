@@ -365,6 +365,7 @@ export default function BoardShow({
     project,
     board,
     backlog,
+    show_all_backlog,
     columns,
     can_move_issues,
     can_create_issues,
@@ -375,6 +376,7 @@ export default function BoardShow({
     project: { id: number; name: string };
     board: { id: number; name: string; columns_count: number };
     backlog: Issue[];
+    show_all_backlog: boolean;
     columns: Column[];
     can_move_issues: boolean;
     can_create_issues: boolean;
@@ -936,6 +938,20 @@ export default function BoardShow({
                         onIssueNodeChange={setIssueElementRef}
                         toggleButtonRef={backlogToggleRef}
                         onIssueOpen={(issueId) => setQuickViewIssueId(issueId)}
+                        showAllBacklog={show_all_backlog}
+                        onShowAllBacklogChange={(next) => {
+                            setBoardDataOverride(null);
+                            router.get(
+                                window.location.pathname,
+                                next ? { show_all_backlog: 1 } : {},
+                                {
+                                    preserveScroll: true,
+                                    preserveState: true,
+                                    replace: true,
+                                    only: ['backlog', 'show_all_backlog'],
+                                },
+                            );
+                        }}
                     />
 
                     <DragOverlay adjustScale={false}>
@@ -1284,6 +1300,8 @@ function BacklogDrawer({
     onIssueNodeChange,
     toggleButtonRef,
     onIssueOpen,
+    showAllBacklog,
+    onShowAllBacklogChange,
 }: {
     issues: Issue[];
     canMoveIssues: boolean;
@@ -1295,6 +1313,8 @@ function BacklogDrawer({
     onIssueNodeChange: (issueId: number, node: HTMLDivElement | null) => void;
     toggleButtonRef: RefObject<HTMLButtonElement | null>;
     onIssueOpen: (issueId: number) => void;
+    showAllBacklog: boolean;
+    onShowAllBacklogChange: (next: boolean) => void;
 }) {
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<
@@ -1430,10 +1450,21 @@ function BacklogDrawer({
                                             <p className="text-sm font-semibold text-foreground">
                                                 Backlog
                                             </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                Hidden board stash for unplaced
-                                                issues.
-                                            </p>
+                                            <label className="mt-0.5 flex cursor-pointer items-center gap-1.5">
+                                                <Checkbox
+                                                    checked={showAllBacklog}
+                                                    onCheckedChange={(next) =>
+                                                        onShowAllBacklogChange(
+                                                            next === true,
+                                                        )
+                                                    }
+                                                    data-testid="backlog-show-all-toggle"
+                                                />
+                                                <span className="text-xs text-muted-foreground">
+                                                    Include issues placed on
+                                                    other boards
+                                                </span>
+                                            </label>
                                         </div>
                                     </div>
 

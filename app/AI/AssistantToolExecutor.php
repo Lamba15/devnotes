@@ -476,18 +476,25 @@ class AssistantToolExecutor
                 ]),
         ]);
 
-        $placedIssueIds = BoardIssuePlacement::query()
-            ->where('board_id', $board->id)
-            ->pluck('issue_id');
+        $includeIssuesOnOtherBoards = (bool) ($payload['include_issues_on_other_boards'] ?? false);
 
-        $backlog = Issue::query()
-            ->where('project_id', $board->project_id)
-            ->whereNotIn('id', $placedIssueIds)
-            ->orderBy('id')
-            ->get();
+        $backlogQuery = Issue::query()->where('project_id', $board->project_id);
+
+        if ($includeIssuesOnOtherBoards) {
+            $placedIssueIds = BoardIssuePlacement::query()
+                ->where('board_id', $board->id)
+                ->pluck('issue_id');
+
+            $backlogQuery->whereNotIn('id', $placedIssueIds);
+        } else {
+            $backlogQuery->whereDoesntHave('placements');
+        }
+
+        $backlog = $backlogQuery->orderBy('id')->get();
 
         return [
             'type' => 'board_context',
+            'include_issues_on_other_boards' => $includeIssuesOnOtherBoards,
             'board' => [
                 'id' => $board->id,
                 'name' => $board->name,

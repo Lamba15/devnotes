@@ -237,7 +237,7 @@ class AssistantToolRegistry
             ],
             [
                 'name' => 'get_board_context',
-                'description' => 'Read board columns, placed issues, and backlog for a board available to the current user.',
+                'description' => 'Read board columns, placed issues, and backlog for a board available to the current user. By default the backlog only includes project issues that are not placed on any board; pass include_issues_on_other_boards=true to also include issues placed on sibling boards.',
                 'skill' => 'issue_tracking',
                 'requires_confirmation' => false,
                 'guard' => fn (User $user): bool => $user->exists,
@@ -245,6 +245,7 @@ class AssistantToolRegistry
                     'type' => 'object',
                     'properties' => [
                         'board_id' => ['type' => 'integer'],
+                        'include_issues_on_other_boards' => ['type' => 'boolean'],
                     ],
                     'required' => ['board_id'],
                     'additionalProperties' => false,

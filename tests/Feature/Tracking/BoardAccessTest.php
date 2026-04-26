@@ -113,6 +113,98 @@ test('member with project access, board membership, and board read permission ca
     expect($backlogIssue->fresh()->status)->toBe('todo');
 });
 
+test('board backlog excludes issues placed on other boards by default and includes them when show_all_backlog is set', function () {
+    $owner = User::factory()->create();
+    $client = Client::factory()->create([
+        'behavior_id' => Behavior::query()->firstOrFail()->id,
+    ]);
+    $project = Project::factory()->create([
+        'client_id' => $client->id,
+        'status_id' => ProjectStatus::query()->where('slug', 'active')->firstOrFail()->id,
+    ]);
+    $board = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'CRM board',
+    ]);
+    $boardColumn = BoardColumn::query()->create([
+        'board_id' => $board->id,
+        'name' => 'Doing',
+        'position' => 1,
+        'updates_status' => false,
+    ]);
+    $otherBoard = Board::query()->create([
+        'project_id' => $project->id,
+        'name' => 'Primary Data board',
+    ]);
+    $otherColumn = BoardColumn::query()->create([
+        'board_id' => $otherBoard->id,
+        'name' => 'Doing',
+        'position' => 1,
+        'updates_status' => false,
+    ]);
+
+    $unplacedIssue = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Unplaced issue',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $owner->id,
+    ]);
+    $issueOnOtherBoard = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Issue on other board',
+        'status' => 'in_progress',
+        'priority' => 'high',
+        'type' => 'task',
+        'creator_id' => $owner->id,
+    ]);
+    $issueOnThisBoard = Issue::query()->create([
+        'project_id' => $project->id,
+        'title' => 'Issue on this board',
+        'status' => 'todo',
+        'priority' => 'medium',
+        'type' => 'task',
+        'creator_id' => $owner->id,
+    ]);
+
+    BoardIssuePlacement::query()->create([
+        'board_id' => $otherBoard->id,
+        'issue_id' => $issueOnOtherBoard->id,
+        'column_id' => $otherColumn->id,
+        'position' => 1,
+    ]);
+    BoardIssuePlacement::query()->create([
+        'board_id' => $board->id,
+        'issue_id' => $issueOnThisBoard->id,
+        'column_id' => $boardColumn->id,
+        'position' => 1,
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('clients.projects.boards.show', [$client, $project, $board]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('boards/show')
+            ->where('show_all_backlog', false)
+            ->has('backlog', 1)
+            ->where('backlog.0.title', 'Unplaced issue')
+        );
+
+    $this->actingAs($owner)
+        ->get(route('clients.projects.boards.show', [$client, $project, $board, 'show_all_backlog' => 1]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('boards/show')
+            ->where('show_all_backlog', true)
+            ->has('backlog', 2)
+            ->where('backlog', fn ($backlog) => collect($backlog)->pluck('title')->sort()->values()->all() === [
+                'Issue on other board',
+                'Unplaced issue',
+            ])
+        );
+});
+
 test('member with issues write and boards write can create issues from the board view without project write', function () {
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

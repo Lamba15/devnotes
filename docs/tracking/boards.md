@@ -12,7 +12,9 @@
 ## Backlog
 
 - Backlog is not a separate entity.
-- For a given board, backlog is the set of project issues that are not currently placed on that board.
+- By default, a board's backlog is the set of project issues that are not currently placed on **any** board. This keeps each board's backlog focused on truly unplaced work and prevents one board's in-progress issues from polluting the backlog of sibling boards on the same project.
+- The board UI exposes an opt-in toggle ("Include issues placed on other boards") that switches the backlog to the broader scope: project issues that are not placed on **this** board, regardless of whether they appear on other boards. That broader scope is the recovery path for moving an existing issue from one board to another. In the controller this is driven by the `show_all_backlog` query string flag; the AI `get_board_context` tool exposes the same option as `include_issues_on_other_boards`.
+- Issues placed on the current board are never part of that board's backlog under either scope.
 - In the board UI, backlog is presented as a hidden drawer/dock rather than a permanent visible lane.
 - That hidden backlog presentation is a UI choice only and does not change the domain rule that backlog is computed per board.
 
