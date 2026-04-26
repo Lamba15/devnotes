@@ -48,7 +48,7 @@ export function AvatarStack({
                 >
                     {user.avatar_path ? (
                         <img
-                            src={user.avatar_path}
+                            src={`/storage/${user.avatar_path}`}
                             alt={user.name}
                             className="size-full object-cover"
                         />

@@ -187,7 +187,7 @@ export default function TrackingBoardsPage({
                     <div className="flex items-center gap-2">
                         {board.creator.avatar_path ? (
                             <img
-                                src={board.creator.avatar_path}
+                                src={`/storage/${board.creator.avatar_path}`}
                                 alt={board.creator.name}
                                 className="size-6 rounded-full object-cover"
                             />
