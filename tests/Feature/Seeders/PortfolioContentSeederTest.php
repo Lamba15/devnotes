@@ -31,7 +31,7 @@ test('seeder recreates the full portfolio content deterministically', function (
 
     expect($published->pluck('name')->all())->toBe([
         'Dwell AI',
-        'Wallets Client Search',
+        'Wallets CRM',
         'Leen Edu',
         'EgyGPT',
         'Odynza',
@@ -45,11 +45,11 @@ test('seeder recreates the full portfolio content deterministically', function (
     ]);
 
     expect($published->where('is_featured', true)->pluck('name')->all())
-        ->toBe(['Dwell AI', 'Wallets Client Search', 'Leen Edu']);
+        ->toBe(['Dwell AI', 'Wallets CRM', 'Leen Edu']);
 
     expect($published->pluck('portfolio_category', 'name')->all())->toBe([
         'Dwell AI' => 'ai',
-        'Wallets Client Search' => 'erp',
+        'Wallets CRM' => 'erp',
         'Leen Edu' => 'education',
         'EgyGPT' => 'ai',
         'Odynza' => 'business',

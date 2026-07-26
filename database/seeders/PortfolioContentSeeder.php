@@ -69,6 +69,16 @@ class PortfolioContentSeeder extends Seeder
     }
 
     /**
+     * Former names — when a fixture project was previously seeded under an
+     * old name, match that row instead of creating a duplicate.
+     *
+     * @var array<string, list<string>>
+     */
+    private const PROJECT_NAME_ALIASES = [
+        'Wallets CRM' => ['Wallets Client Search'],
+    ];
+
+    /**
      * @param  array<int, array<string, mixed>>  $projects
      */
     private function importProjects(array $projects): void
@@ -77,10 +87,14 @@ class PortfolioContentSeeder extends Seeder
 
         foreach ($projects as $attributes) {
             $project = Project::query()->where('name', $attributes['name'])->first()
+                ?? Project::query()->whereIn('name', self::PROJECT_NAME_ALIASES[$attributes['name']] ?? [])->first()
                 ?? new Project([
                     'client_id' => $this->selfClient()->id,
                     'name' => $attributes['name'],
                 ]);
+
+            // Renames flow through: an aliased row gets the fixture's name.
+            $project->name = $attributes['name'];
 
             $project->fill([
                 'status_id' => ProjectStatus::query()->where('slug', $attributes['status_slug'])->firstOrFail()->id,
