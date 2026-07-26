@@ -33,6 +33,10 @@ class CreateProject
             'notes' => $attributes['notes'] ?? null,
             'budget' => $attributes['budget'] ?? null,
             'currency' => $attributes['currency'] ?? 'USD',
+            'is_published' => $attributes['is_published'] ?? false,
+            'is_featured' => $attributes['is_featured'] ?? false,
+            'sort_order' => $attributes['sort_order'] ?? 0,
+            'portfolio_category' => $attributes['portfolio_category'] ?? null,
         ]);
 
         if (array_key_exists('skills', $attributes)) {

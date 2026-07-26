@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\ProjectFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,11 +12,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-#[Fillable(['client_id', 'status_id', 'name', 'description', 'markdown_description', 'hosting', 'starts_at', 'ends_at', 'notes', 'budget', 'currency', 'image_path'])]
+#[Fillable(['client_id', 'status_id', 'name', 'description', 'markdown_description', 'hosting', 'starts_at', 'ends_at', 'notes', 'budget', 'currency', 'image_path', 'is_published', 'is_featured', 'sort_order', 'portfolio_category'])]
 class Project extends Model
 {
     /** @use HasFactory<ProjectFactory> */
     use HasFactory;
+
+    public const PORTFOLIO_CATEGORIES = ['ai', 'education', 'business', 'erp', 'creative'];
 
     protected function casts(): array
     {
@@ -23,7 +26,15 @@ class Project extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'budget' => 'decimal:2',
+            'is_published' => 'boolean',
+            'is_featured' => 'boolean',
+            'sort_order' => 'integer',
         ];
+    }
+
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('is_published', true);
     }
 
     public function client(): BelongsTo

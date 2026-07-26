@@ -27,6 +27,10 @@ class UpdateProject
             'notes',
             'budget',
             'currency',
+            'is_published',
+            'is_featured',
+            'sort_order',
+            'portfolio_category',
         ]));
         $project->save();
 

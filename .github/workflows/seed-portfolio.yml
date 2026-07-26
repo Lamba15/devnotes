@@ -1,0 +1,24 @@
+name: Seed Portfolio Content
+
+# One-shot / repeatable: overlays the deterministic portfolio content
+# (projects, sections, feedback, skills, assets) onto the production DB.
+# Safe to re-run — PortfolioContentSeeder is idempotent and never truncates.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run PortfolioContentSeeder on the server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd ~/domains/devnotes.nouraboelsoud.com
+            /opt/alt/php83/usr/bin/php artisan db:seed --class=PortfolioContentSeeder --force
+            /opt/alt/php83/usr/bin/php artisan storage:link || true

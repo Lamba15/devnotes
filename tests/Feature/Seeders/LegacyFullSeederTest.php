@@ -10,15 +10,22 @@ use App\Models\Transaction;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    // DatabaseSeeder also runs LegacyPortfolioSeeder, which imports over HTTP.
+    Http::fake();
+});
 
 test('database seeder loads the legacy fuller dataset', function () {
     $this->seed(DatabaseSeeder::class);
 
     expect(Client::count())->toBe(20)
         ->and(DB::table('client_phone_numbers')->count())->toBe(28)
-        ->and(Project::count())->toBe(34)
+        // 34 legacy projects + 4 Dwell projects added by PortfolioContentSeeder
+        ->and(Project::count())->toBe(38)
         ->and(Transaction::count())->toBe(144)
         ->and(Invoice::count())->toBe(118)
         ->and(SecretEntry::count())->toBe(74);

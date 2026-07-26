@@ -11,6 +11,9 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientMembershipController;
 use App\Http\Controllers\ClientSecretController;
 use App\Http\Controllers\ClientStatusController;
+use App\Http\Controllers\CmsContentSectionController;
+use App\Http\Controllers\CmsFeedbackController;
+use App\Http\Controllers\CmsSkillController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\IssueCommentController;
@@ -178,18 +181,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::middleware('platform.owner')->group(function () {
-        Route::inertia('cms/pages', 'placeholder/section', [
-            'title' => 'CMS Pages',
-            'description' => 'This section will manage public and internal CMS pages.',
-        ])->name('cms.pages.index');
-        Route::inertia('cms/skills', 'placeholder/section', [
-            'title' => 'CMS Skills',
-            'description' => 'This section will manage skills and related profile content.',
-        ])->name('cms.skills.index');
-        Route::inertia('cms/feedback', 'placeholder/section', [
-            'title' => 'CMS Feedback',
-            'description' => 'This section will manage testimonials, feedback, and related public trust content.',
-        ])->name('cms.feedback.index');
+        Route::get('cms/pages', [CmsContentSectionController::class, 'index'])->name('cms.pages.index');
+        Route::post('cms/pages', [CmsContentSectionController::class, 'store'])->name('cms.pages.store');
+        Route::put('cms/pages/{contentSection}', [CmsContentSectionController::class, 'update'])->name('cms.pages.update');
+        Route::delete('cms/pages/{contentSection}', [CmsContentSectionController::class, 'destroy'])->name('cms.pages.destroy');
+        Route::get('cms/skills', [CmsSkillController::class, 'index'])->name('cms.skills.index');
+        Route::post('cms/skills', [CmsSkillController::class, 'store'])->name('cms.skills.store');
+        Route::put('cms/skills/{skill}', [CmsSkillController::class, 'update'])->name('cms.skills.update');
+        Route::delete('cms/skills/{skill}', [CmsSkillController::class, 'destroy'])->name('cms.skills.destroy');
+        Route::post('cms/skills/{skill}/icon', [CmsSkillController::class, 'uploadIcon'])->name('cms.skills.icon.upload');
+        Route::get('cms/feedback', [CmsFeedbackController::class, 'index'])->name('cms.feedback.index');
+        Route::post('cms/feedback', [CmsFeedbackController::class, 'store'])->name('cms.feedback.store');
+        Route::put('cms/feedback/{feedback}', [CmsFeedbackController::class, 'update'])->name('cms.feedback.update');
+        Route::delete('cms/feedback/{feedback}', [CmsFeedbackController::class, 'destroy'])->name('cms.feedback.destroy');
     });
 
     Route::get('assistant/threads', [AssistantController::class, 'index'])->name('assistant.threads.index');

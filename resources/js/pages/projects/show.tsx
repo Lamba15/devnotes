@@ -119,6 +119,10 @@ export default function ProjectShow({
         budget?: string | null;
         currency?: string | null;
         image_path?: string | null;
+        is_published?: boolean;
+        is_featured?: boolean;
+        sort_order?: number;
+        portfolio_category?: string | null;
         skills: Array<{ id: number; name: string }>;
         links: Array<{ id: number; label: string | null; url: string }>;
         git_repos: Array<{
@@ -595,6 +599,25 @@ return;
                                     <Server className="size-3.5 text-muted-foreground" />
                                     {project.hosting}
                                 </p>
+                            </div>
+                        ) : null}
+                        {project.is_published ? (
+                            <div>
+                                <p className="text-sm font-medium text-muted-foreground">Portfolio</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    <Badge variant="secondary">Published</Badge>
+                                    {project.is_featured ? (
+                                        <Badge variant="secondary">Featured</Badge>
+                                    ) : null}
+                                    {project.portfolio_category ? (
+                                        <Badge variant="outline" className="capitalize">
+                                            {project.portfolio_category}
+                                        </Badge>
+                                    ) : null}
+                                    <span className="text-xs text-muted-foreground">
+                                        Order {project.sort_order ?? 0}
+                                    </span>
+                                </div>
                             </div>
                         ) : null}
                         <ProjectField label="Description" value={project.description ?? 'No description yet.'} fullWidth />

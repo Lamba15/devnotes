@@ -37,6 +37,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $user?->loadMissing('clientMemberships');
         $portalMembership = $user && ! $user->isPlatformOwner()
             ? $user->clientMemberships()
                 ->with(['client:id,name', 'permissions'])

@@ -11,6 +11,7 @@ import type { ProjectLinkRow } from '@/components/projects/project-links-editor'
 import { ProjectSkillPicker } from '@/components/projects/project-skill-picker';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useBackNavigation } from '@/hooks/use-back-navigation';
 import ClientWorkspaceLayout from '@/layouts/client-workspace-layout';
 
@@ -36,6 +37,10 @@ export default function ProjectsEdit({
         budget: string | null;
         currency: string | null;
         image_path: string | null;
+        is_published: boolean;
+        is_featured: boolean;
+        sort_order: number;
+        portfolio_category: string | null;
         skills: Array<{ id: number; name: string }>;
         links: ProjectLinkRow[];
         git_repos: ProjectGitRepoRow[];
@@ -52,6 +57,10 @@ export default function ProjectsEdit({
         status_id: string;
         budget: string;
         currency: string;
+        is_published: boolean;
+        is_featured: boolean;
+        sort_order: string;
+        portfolio_category: string;
         skills: Array<number | string>;
         links: ProjectLinkRow[];
         git_repos: ProjectGitRepoRow[];
@@ -63,6 +72,10 @@ export default function ProjectsEdit({
         status_id: project.status_id ? String(project.status_id) : '',
         budget: project.budget ?? '',
         currency: project.currency ?? 'USD',
+        is_published: project.is_published ?? false,
+        is_featured: project.is_featured ?? false,
+        sort_order: String(project.sort_order ?? 0),
+        portfolio_category: project.portfolio_category ?? '',
         skills: project.skills?.map((skill) => skill.id) ?? [],
         links: project.links ?? [],
         git_repos: project.git_repos ?? [],
@@ -151,6 +164,66 @@ export default function ProjectsEdit({
                         { label: 'SAR', value: 'SAR' },
                         { label: 'AED', value: 'AED' },
                     ],
+                },
+            ],
+        },
+        {
+            name: 'portfolio',
+            title: 'Portfolio',
+            description:
+                'Control whether and how this project appears on the public portfolio.',
+            fields: [
+                {
+                    name: 'is_published',
+                    label: 'Published',
+                    type: 'custom',
+                    render: ({ value, onChange }) => (
+                        <label className="flex items-center gap-2 pt-1 text-sm text-foreground">
+                            <Checkbox
+                                checked={Boolean(value)}
+                                onCheckedChange={(checked) =>
+                                    onChange(checked === true)
+                                }
+                            />
+                            Show this project on the public portfolio
+                        </label>
+                    ),
+                },
+                {
+                    name: 'is_featured',
+                    label: 'Featured',
+                    type: 'custom',
+                    render: ({ value, onChange }) => (
+                        <label className="flex items-center gap-2 pt-1 text-sm text-foreground">
+                            <Checkbox
+                                checked={Boolean(value)}
+                                onCheckedChange={(checked) =>
+                                    onChange(checked === true)
+                                }
+                            />
+                            Highlight this project as featured
+                        </label>
+                    ),
+                },
+                {
+                    name: 'portfolio_category',
+                    label: 'Portfolio category',
+                    type: 'select',
+                    placeholder: 'Select category',
+                    clearable: true,
+                    options: [
+                        { label: 'AI', value: 'ai' },
+                        { label: 'Education', value: 'education' },
+                        { label: 'Business', value: 'business' },
+                        { label: 'ERP', value: 'erp' },
+                        { label: 'Creative', value: 'creative' },
+                    ],
+                },
+                {
+                    name: 'sort_order',
+                    label: 'Sort order',
+                    type: 'text',
+                    placeholder: '0',
                 },
             ],
         },

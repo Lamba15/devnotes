@@ -1,0 +1,673 @@
+{
+    "projects": [
+        {
+            "name": "Dwell AI",
+            "description": "A public AI broker assistant for the Egyptian market, embedded in dwellegypt.com — a 19-tool agent that answers buy/sell questions, evaluates units, and compares projects while streaming its reasoning live. I built the chat experience and the AI backend integration.",
+            "markdown_description": "Dwell AI is what happens when a brokerage opens its data to an LLM carefully. Embedded in dwellegypt.com, it acts as a public broker assistant: visitors ask whether to buy or sell, compare projects, evaluate a specific unit, or ask for current opportunities — and the assistant answers with grounded data, then hands qualified leads to the brokerage.\n\n## A real agent, not a chat toy\n\nThe assistant runs a LangChain agent with **19 tools**: searching the unit inventory (through the same three-tier pricing expression the internal systems use), hydrating visual unit cards, pulling market intelligence sheets and developer rankings, reading broker insights, normalizing currencies, and creating leads. For developer questions it does RAG over developer documents — embeddings into a vector store, retrieved into context at answer time.\n\nRecommendations are scored on an **8-pillar investment model** — Location, Delivery, Budget, Liquidity, Rental, Unit Quality, Developer, and Risk — with weights that shift depending on whether the visitor is buying a home or making an investment.\n\n## Streaming people can trust\n\nLLM features usually fail on feel: long silences, then a wall of text. Dwell AI streams over SSE with **seven typed progress phases** — understanding, extracting, searching, context, insights, scoring, composing — each with its own wait hints, so the UI always shows what the agent is doing. Answers render as sanitized markdown with zoomable media, and Arabic replies get proper RTL handling.\n\n## The unglamorous parts that make it production\n\n- **Semantic answer cache** so repeated questions are instant and cheap.\n- **Per-message cost and latency analytics**, plus an OpenRouter trace (configured vs effective model, routing mode, prompt-cache hits) — unit economics on every reply.\n- **Guest sessions with a free quota**, full accounts, and **shareable conversation links** that mint public read-only views.\n- Structured tool modals — buy/sell intent, unit evaluation, project comparison, book-a-showing — that compile form input into precise prompts, so visitors who'd never write a good prompt still get a great answer.\n- Per-message feedback and an admin analytics surface to watch it all.\n\nI built the chat experience end to end: the streaming UI, the agentic tool flows, and the backend integration that keeps a consumer-facing LLM grounded, observable, and within budget.\n\n## Screenshots\n\n\n![The public welcome experience — suggested playbooks, guest quota, and lead CTAs](%%STORAGE_URL%%portfolio/files/f13048a3634b779d4a46.png)\n\n*The public welcome experience — suggested playbooks, guest quota, and lead CTAs*\n\n\n![The same assistant embedded in the brokerage's internal platform](%%STORAGE_URL%%portfolio/files/6997fc3a9557c33b2bdc.png)\n\n*The same assistant embedded in the brokerage's internal platform*\n\n\n![Per-message cost, latency, and conversion analytics behind the scenes](%%STORAGE_URL%%portfolio/files/0ab918e71c28954c807d.png)\n\n*Per-message cost, latency, and conversion analytics behind the scenes*\n",
+            "hosting": null,
+            "starts_at": null,
+            "ends_at": null,
+            "image_path": "portfolio/covers/7b3c9d2e5f1a4b68.png",
+            "is_featured": true,
+            "sort_order": 0,
+            "portfolio_category": "ai",
+            "status_slug": "active",
+            "self_client": true,
+            "skills": [
+                "react",
+                "typescript",
+                "tailwind"
+            ],
+            "links": [
+                {
+                    "label": "Try Dwell AI",
+                    "url": "https://dwellegypt.com/dwell-ai",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Wallets Client Search",
+            "description": "The internal operating system of a working brokerage — CRM, property inventory, four AI assistants, market intelligence, commissions, and WhatsApp campaigns in one platform I designed and built over seven months. A private system; no public link.",
+            "markdown_description": "This is the biggest thing I have built: the system a real brokerage runs its day on. Roughly **2,100 commits in under a year**, **~700 API endpoints**, and **~200 database tables** — CRM, inventory, AI, market intelligence, commissions, and campaigns, built almost single-handedly.\n\n## Natural-language client search\n\nThe feature that gave the system its name. Agents search **175K+ client records** in natural language, backed by PostgreSQL trigram fuzzy matching and weighted full-text vectors, with phone normalization down to last-8-digits matching. Three modes — standard, inventory-scoped, and an AI mode that turns a sentence into a structured query — with permission-tiered rate limits.\n\n## The CRM agents actually use\n\nStarred clients and units, notes, interactions, tasks with feeds, week and month scheduling, pipeline tags, custom views, sales targets, and an AI \"action board\" that drafts the week's priorities. On the money side: active-deal and commission workspaces per agent and per team.\n\n## Inventory with an honest pricing engine\n\nA full hierarchy — developers, projects, phases, buildings, units — where every unit's price flows through a **three-tier hierarchy** (listing price → override → estimate) with confidence scores. Internal codes carry a ±% \"temperature\", and linked code groups propagate one adjustment across sibling codes with a full before/after audit log and exact undo. A satellite map of Egypt carries project, phase, and building overlays with georeferenced masterplans.\n\n## Four AI assistants, one control panel\n\nThe platform runs four configurable assistants — a public broker assistant, a market analyst, a pipeline copilot, and a logs investigator — each with its system prompt and model editable from an admin screen. Recommendations are scored on an 8-pillar investment model; the public assistant is documented separately as Dwell AI.\n\n## Market intelligence + campaigns\n\nStructured developer risk assessments (weighted categories, critical flags) feed the AI's risk pillar. A primary-data pipeline ingests developer availability sheets through parser specs, batch review, and a unit-matching workspace. And a WhatsApp campaign system — templates, threads, scheduled dispatch — handles outreach where clients actually are.\n\n## Security that proved itself\n\nDevice fingerprinting, session telemetry, per-user risk scores, and anomaly alerts with live bot detection. During a third-party technical review, the system flagged the reviewer's headless browser as automation within seconds — unprompted, it demonstrated itself.\n\nEverything above is described at the architecture level; client data stays private, and all demos run on synthetic fixtures.\n\n## Screenshots\n\n\n![Analytics dashboard with live security telemetry and bot detection](%%STORAGE_URL%%portfolio/files/48b56274cd3f27a5f60a.png)\n\n*Analytics dashboard with live security telemetry and bot detection*\n\n\n![Client search across the whole registry — fuzzy matching that forgives typos](%%STORAGE_URL%%portfolio/files/1696c0144e194edd044f.png)\n\n*Client search across the whole registry — fuzzy matching that forgives typos*\n\n\n![Unit detail — three-tier pricing, price-per-m² analytics, and a catalog-readiness score](%%STORAGE_URL%%portfolio/files/e036fdbc4ddaba0a93ad.png)\n\n*Unit detail — three-tier pricing, price-per-m² analytics, and a catalog-readiness score*\n\n\n![Satellite map of Egypt with project, phase, and building overlays](%%STORAGE_URL%%portfolio/files/9990054cf72bff67e010.png)\n\n*Satellite map of Egypt with project, phase, and building overlays*\n",
+            "hosting": null,
+            "starts_at": null,
+            "ends_at": null,
+            "image_path": "portfolio/covers/4d8e1f6a2c5b7930.png",
+            "is_featured": true,
+            "sort_order": 1,
+            "portfolio_category": "erp",
+            "status_slug": "active",
+            "self_client": true,
+            "skills": [
+                "react",
+                "typescript",
+                "tailwind",
+                "docker",
+                "cicd",
+                "sql"
+            ],
+            "links": []
+        },
+        {
+            "name": "Leen Edu",
+            "description": "Leen Edu, a pioneering educational platform, revolutionizes the way instructors share knowledge and students learn. With a multi-instructor approach and a robust upper administration system, Leen Edu ensures the highest standards of content security,",
+            "markdown_description": "## Overview\r\n\r\n![](%%STORAGE_URL%%portfolio/files/57d74c6c67bfe89e37c382df.png)\r\n\r\nLeen Edu, a pioneering educational platform, revolutionizes the way instructors share knowledge and students learn. With a multi-instructor approach and a robust upper administration system, Leen Edu ensures the highest standards of content security, instructional quality, and academic supervision.\r\n\r\nAt its core, Leen Edu offers a sophisticated ecosystem comprising three distinct components: a comprehensive web application for administration, empowering oversight and management; a tailored web platform for instructors, facilitating seamless content creation and dissemination; and a user-friendly web interface for students, enabling engaging and immersive learning experiences.\r\n\r\nDriven by cutting-edge technologies such as React Tailwind for frontend development and Laravel for backend operations, Leen Edu stands as a testament to innovation and excellence in educational technology. From conceptualization to ongoing maintenance, the entire project has been meticulously crafted and curated by me, encompassing frontend design, backend development, and streamlined DevOps processes.\r\n\r\nWith a monetization model centered around fixed service fees for creators and revenue generated from student payments, Leen Edu not only empowers instructors to share their expertise on a global scale but also presents a lucrative opportunity for entrepreneurial educators. As my client transitions focus from teaching to platform management, Leen Edu continues to flourish, surpassing expectations and redefining the landscape of online education. \r\n\r\n## Composition\r\n- Student portal\r\n![](%%STORAGE_URL%%portfolio/files/065d6bfa50bcabbc580b20ce.png)\r\n    - Showcase url: https://scoreedu2.nouraboelsoud.com\r\n    - Students can register\r\n    - Search instructors\r\n    - Use the codes they bought to unlock lectures\r\n    - Solve exams with randomly generated unique set of question\r\n    - Watch videos with watch time tracking\r\n\r\n\r\n- Admin portal\r\n![](%%STORAGE_URL%%portfolio/files/c072ad11060908512f4b5d9a.png)\r\n    - Showcase url: https://scoreedu2.nouraboelsoud.com/admin\r\n        - Username: admin\r\n        - Password: admin\r\n    - Manages students\r\n        - Edits student's data \r\n        - View all student's information in a tabular form, along with table modals for detailed information\r\n          ![](%%STORAGE_URL%%portfolio/files/ef191f180125747bbccce6c6.png)\r\n    - Manages instructors\r\n        ![](%%STORAGE_URL%%portfolio/files/d4ed763b3976f0a763b74611.png)\r\n        - View the financial standing of each instructor\r\n        - Record finacial transaction\r\n        - Suspend instructors\r\n        - Add instructor account with certain permissions\r\n    - Manages the structure of the educational materials\r\n        - Educational type, grades, courses, subjects, units, lectures etc\r\n    - Manages the content\r\n        - Secure videos on demand\r\n        - Quizzes with randomization mechanism\r\n        - Files of any type\r\n    - Logs of the actions done by anyone of the whole system with advanced filter mechanics\r\n\r\n- Instructor portal\r\n    - Manages his own students only, sees data that he owns only Ex. sees only transcation of students to his own courses only\r\n    - Manages his own courses\r\n    - Sees his own financial position\r\n    - Adds content\r\n        \r\n\r\n\r\n\r\n\r\n\n\n## The platform today\n\nLeen Edu is live at leenedu.net in its 2024 redesign — bilingual (English/Arabic with full RTL), with student accounts tied to grade and governorate, parent phone numbers for guardians, and per-instructor portals. The shots below span both eras: the original 2023 gold design and the live product today.\n\n\n\n## Screenshots\n\n\n![The live platform today at leenedu.net](%%STORAGE_URL%%portfolio/files/a1fdea682a4870593333.webp)\n\n*The live platform today at leenedu.net*\n\n\n![Fully bilingual — Arabic RTL with a single toggle](%%STORAGE_URL%%portfolio/files/8d1bea937c54ddfecac0.webp)\n\n*Fully bilingual — Arabic RTL with a single toggle*\n\n\n![Student login](%%STORAGE_URL%%portfolio/files/32d326c3dd9fb96855be.webp)\n\n*Student login*\n\n\n![Onboarding built for Egyptian students — photo, grade, and governorate](%%STORAGE_URL%%portfolio/files/00bf459989a970058fea.webp)\n\n*Onboarding built for Egyptian students — photo, grade, and governorate*\n\n\n![The platform's original 2023 design — its first identity](%%STORAGE_URL%%portfolio/files/0640c5d15d427e31e2a8.webp)\n\n*The platform's original 2023 design — its first identity*\n",
+            "hosting": null,
+            "starts_at": "2023-07-07",
+            "ends_at": null,
+            "image_path": "portfolio/covers/9f4e2a1b7c3d4e5f.png",
+            "is_featured": true,
+            "sort_order": 2,
+            "portfolio_category": "education",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "react",
+                "laravel",
+                "php",
+                "typescript",
+                "tailwind"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://leenedu.net",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "EgyGPT",
+            "description": "The Egyptian Arabic ChatGPT — an AI chat platform that thinks and answers in Egyptian dialect, not translated English. RTL-first, multi-model, with Egyptian-aware prompting throughout.",
+            "markdown_description": "EgyGPT answers a question no one else was asking seriously: what does AI sound like when it actually speaks Egyptian? Not Modern Standard Arabic, not translated English — the way people in Cairo actually talk. I designed and built the platform around that idea, and it's live today at egygpt.com.\n\n## What it does\n\n- **Chats with Egypt, in Egyptian** — streaming AI chat with guest access and full accounts, multi-model by design: ChatGPT, Gemini, Claude, Grok, and more from one localized place.\n- **Assistant presets** — beyond the general assistant, tuned personas like a marketer and a business advisor, each with its own Egyptian-aware behavior.\n- **Egyptian-aware prompting** — system prompts that enforce the dialect, understand Franco-Arabic (3araby), and know Egyptian prices, cities, food, and expressions.\n- **Real-time awareness** — web search wired in, so current events get current answers instead of outdated ones.\n\n## How it evolved\n\nThe first version was three services I built from scratch: a React RTL frontend, a Laravel API, and a FastAPI/LangChain AI service with SSE streaming. The product then evolved into a customized LibreChat fork — multi-model out of the box, with my own layer on top: assistant presets, admin-configurable Egyptian system prompts applied to every model, and a retrieval stack (MongoDB + pgvector) grounding answers in real data.\n\n## Why it mattered\n\nDialect is a feature, not a translation problem. Getting an LLM to reliably answer in عامية مصرية — and to feel local doing it — taught me more about prompt engineering than any English-first project ever did. EgyGPT is also the flagship product of Odynza, my AI company, and the foundation of everything I build with agents today.\n\n## Screenshots\n\n\n![The live chat — guest access, no account needed](%%STORAGE_URL%%portfolio/files/5f3f3b1f54a72f1cd624.webp)\n\n*The live chat — guest access, no account needed*\n\n\n![Assistant presets — EgyGPT Pro, LITE, Marketer, Business Advisor](%%STORAGE_URL%%portfolio/files/7e21c00abb3def31589c.webp)\n\n*Assistant presets — EgyGPT Pro, LITE, Marketer, Business Advisor*\n\n\n![Welcome back — the login](%%STORAGE_URL%%portfolio/files/545f6d6574dd8dba4db8.webp)\n\n*Welcome back — the login*\n\n\n![Create your account](%%STORAGE_URL%%portfolio/files/9968c42eefb47b9b7301.webp)\n\n*Create your account*\n\n\n![The original build — my first RTL chat frontend (Laravel + FastAPI)](%%STORAGE_URL%%portfolio/files/29b2329f016a09c9cdf5.webp)\n\n*The original build — my first RTL chat frontend (Laravel + FastAPI)*\n",
+            "hosting": null,
+            "starts_at": "2025-05-31",
+            "ends_at": null,
+            "image_path": "portfolio/covers/1e6f8a3b9c4d2750.png",
+            "is_featured": false,
+            "sort_order": 3,
+            "portfolio_category": "ai",
+            "status_slug": "active",
+            "self_client": false,
+            "skills": [
+                "react",
+                "laravel",
+                "php",
+                "javascript",
+                "cicd",
+                "fastapi",
+                "openai-apis",
+                "langchain"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://egygpt.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Odynza",
+            "description": "My AI company — \"Applied AI Engineering\": the studio building localized AI products for the Arab world, starting with EgyGPT. Brand, platform, and the home of everything I ship next.",
+            "markdown_description": "Odynza is the company behind my AI work — \"Applied AI Engineering: cognitive infrastructure for the Arab world.\" It's the vehicle that turns projects like EgyGPT from experiments into products with a brand, a mission, and a home.\n\n## What it is\n\n- **The mission**: design AI that belongs to everyone — local, accessible, and human.\n- **The flagship**: EgyGPT, the Egyptian Arabic ChatGPT, is its first product; more localized AI products are on the way.\n- **The site**: a full product/company platform — a 3D interactive hero (Three.js), product showcases, a careers pipeline, and an admin backend.\n\n## The stack\n\nReact 18 + Vite frontend with a WebGL-powered 3D experience, a Node.js + Express API on PostgreSQL, Firebase integrations, and an admin panel for content — deployed on Railway.\n\n## Why it mattered\n\nEvery company needs a front door, and mine had to feel like the work: ambitious, technical, and a little theatrical. Odynza is where the AI products I build stop being \"projects\" and start being a company.\n\n## Screenshots\n\n\n![The 3D hero — a WebGL robot holding the company name](%%STORAGE_URL%%portfolio/files/474cc6cc8bb1a0f1f6cb.webp)\n\n*The 3D hero — a WebGL robot holding the company name*\n\n\n![What we're building — EgyGPT first, more to come](%%STORAGE_URL%%portfolio/files/9eb2372df50778c971c3.webp)\n\n*What we're building — EgyGPT first, more to come*\n\n\n![EgyGPT — the first chapter in a global story](%%STORAGE_URL%%portfolio/files/f87552894a6517144389.webp)\n\n*EgyGPT — the first chapter in a global story*\n\n\n![Contact — the front door is open](%%STORAGE_URL%%portfolio/files/ebf5a1271b45febf4d53.webp)\n\n*Contact — the front door is open*\n",
+            "hosting": null,
+            "starts_at": "2025-11-09",
+            "ends_at": null,
+            "image_path": "portfolio/covers/8c2d5e7f1a4b6930.png",
+            "is_featured": false,
+            "sort_order": 4,
+            "portfolio_category": "business",
+            "status_slug": "active",
+            "self_client": false,
+            "skills": [
+                "react",
+                "javascript",
+                "nodejs",
+                "cicd",
+                "sql",
+                "threejs"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://odynza.nouraboelsoud.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Wallets — walletsproperties.com",
+            "description": "Egypt's first data-driven real-estate investment platform — curated opportunities underwritten with real numbers, a monthly PDF magazine, an academy, and a free deal-modeling engine anyone can use. I built it full-stack.",
+            "markdown_description": "Most property marketing in Egypt runs on emotion. Wallets was built on a different bet: give investors the numbers, honestly computed, and they will keep coming back. I designed and built the whole platform — the public site, the CMS behind it, and the financial engine at its core.\n\n## The platform\n\n- **Curated opportunities, underwritten like deals.** Each listing carries a deal snapshot — price, price per square meter against the market average, discount — plus \"Wallets Numbers\": projected upside, target IRR, liquidity, and risk. No vibes, no hype.\n- **A monthly magazine, published as designed PDF issues**, and a block-based academy where lessons are composed from rich text, charts, images, and videos through a custom editor.\n- **Careers with application intake**, and a full admin CMS to run all of it.\n\n## The Commercial Analysis engine\n\nThe centerpiece is a free, no-login deal underwriter. You describe a unit — price, area, payment plan with arbitrary down-payment schedule and installments over years, maintenance deposit, delivery date — pick a strategy (exit only, exit and rent, rent only, personal use), and it builds the full monthly cashflow series.\n\nUnder the hood it computes **IRR with a Newton–Raphson solver (bisection fallback)**, blended ROI on cash actually paid, NPV with a present-value summary, and even detects the month rent starts covering the installment. Assumption sets (conservative / base / aggressive) are admin-configurable. Every deal auto-saves, gets a shareable URL, and can be forked — which turned a tool into a quiet growth loop.\n\nI also gave it an analytics backend designed for restraint: IPs are stored only as SHA-256 hashes with a daily-rotating salt, user agents are truncated, bots are flagged, and writes are rate-limited. A lead magnet didn't need to cost anyone their privacy.\n\n## Stack\n\nA single Bun process serving the API and the React 19 SPA, PostgreSQL via postgres.js, Tailwind 4, deployed on Railway. The schema self-heals at boot — idempotent DDL instead of a migration framework — which made solo-operating the platform dramatically simpler.",
+            "hosting": null,
+            "starts_at": null,
+            "ends_at": null,
+            "image_path": "portfolio/covers/2a7c4e8f1b5d3960.png",
+            "is_featured": false,
+            "sort_order": 5,
+            "portfolio_category": "business",
+            "status_slug": "active",
+            "self_client": true,
+            "skills": [
+                "react",
+                "typescript",
+                "tailwind",
+                "cicd",
+                "sql"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://walletsproperties.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Dwell — dwellegypt.com",
+            "description": "The public face of Dwell, a Cairo luxury real-estate brokerage — a React marketing platform whose every section is served live from the brokerage's ERP content API. I designed and built the frontend and its API integration end to end.",
+            "markdown_description": "Dwell needed more than a website: the brokerage's story, people, locations, and open roles change constantly, and nobody on the team should ever have to touch code to update them. So I built dwellegypt.com as a fully content-driven platform — a React frontend that renders whatever the company's ERP says, section by section.\n\n## What I built\n\n- **A marketing site with zero hardcoded content.** Partners, heritage counters, office locations across Egypt and the UAE, the elite-experts roster, and testimonials all come from a versioned JSON API on the ERP. Edit a number in the CMS and it's live — no rebuild, no deploy.\n- **A full careers pipeline.** Rich job postings (departments, salary ranges, employment types) rendered from the API, with an application flow that accepts resumes and lands them straight into the ERP's inbox, where HR works them through a status workflow.\n- **Lead capture that respects the business.** The \"Sell with Dwell\" and contact flows distinguish form types, so a seller inquiry and a consultation request arrive pre-sorted, with fail-safe mail notifications.\n- **Motion with intent.** A full-screen hero, animated counters, and scroll reveals — tuned to feel luxurious, not noisy.\n\n## Engineering notes\n\nReact 19 + TypeScript (strict) + Vite 6 + Tailwind 4, React Router 7, and Radix primitives for the interactive pieces. The frontend never couples to the ERP at build time — it fetches everything at runtime, so the same build artifact serves any environment. Deployment is the pipeline I use across my projects: GitHub Actions builds the bundle and ships it over FTP to Hostinger.\n\nThe part I enjoyed most: the site's content API is consumed by more than the website — the company's voice assistant reads the same endpoints — so the schema had to be clean enough to be a genuine public contract, not an afterthought.",
+            "hosting": null,
+            "starts_at": null,
+            "ends_at": null,
+            "image_path": "portfolio/covers/6f1b9d3a5c2e4870.png",
+            "is_featured": false,
+            "sort_order": 6,
+            "portfolio_category": "business",
+            "status_slug": "active",
+            "self_client": true,
+            "skills": [
+                "react",
+                "typescript",
+                "tailwind",
+                "vite",
+                "cicd"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://dwellegypt.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Math Masr",
+            "description": "The most advanced educational system for mathematics join now and find joy in learning mathematics.",
+            "markdown_description": null,
+            "hosting": null,
+            "starts_at": "2022-06-29",
+            "ends_at": null,
+            "image_path": "portfolio/covers/c6580cd5d0d2f958e680fb91.png",
+            "is_featured": false,
+            "sort_order": 7,
+            "portfolio_category": "education",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "react",
+                "php",
+                "sql"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://mathmasr.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Tropical For Landscape",
+            "description": "Managed the IT department for the company, built an ERP system that includes Data analysis, CRM, Project management, financial management, HRM, marketing, and stock management, and built a front-end website.",
+            "markdown_description": "Tropical for Contracting and Supplying Co. adopts a clear vision to be one of the pioneering establishments in the field of landscape in Egypt. <br/>\r\nThe company performs landscape works in commercial, industrial, and residential projects. In order to meet all of our customer's satisfaction, the company adopts the technological state of the art.\r\n\r\n![Cover Image](%%STORAGE_URL%%portfolio/files/548cbac133b062b99e0e03cf.jpg)\r\n\r\n## The problem\r\n\r\n- The company's internal affairs(client relations, human resources, projects, finance, imports, exports, marketing, and storage) were managed by unconnected excel sheets, which lead to a lack of decision-guiding information, loss of data, and corruption.\r\n- The company had no online presence.\r\n\r\n## The solution\r\n![cover 2](%%STORAGE_URL%%portfolio/files/9788b9610391f729dd2d0e2a.jpg)\r\n\r\nFull-scale ERP System\r\n\r\n## Main components of the ERP system\r\n\r\n### Complex forms\r\n\r\n* Text input\r\n* Text area input\r\n* File input\r\n* Date\r\n* Checkbox\r\n* Expandable\r\n\r\n%%STORAGE_URL%%portfolio/files/bcfa527cc2074c7dab14eec9.mp4?!#title=%20Complex%20Forms\r\n\r\n### Action menu with checkbox \r\n\r\nActions can be made on multiple columns all columns or a single column with ease. \r\n\r\n%%STORAGE_URL%%portfolio/files/54b0ae13d664bc592084eff9.mp4?!#title=%20actions\r\n\r\n### Permission system for each user\r\n\r\nThe ERP system had multiple users each with his own permissions to read and write to each category in the system\r\neg. a user can have access to the CRM to only read the client's data but not edit or add new clients\r\n\r\n![](%%STORAGE_URL%%portfolio/files/1fd463cf8ffa43538bfa0fcf.png)\r\n\r\n### Filters\r\n\r\nSearch in the system is implemented in such a way that, every filter is stand-alone eg. you can find all the projects which have a status of under construction and in a location named the new capital.\r\n\r\n![](%%STORAGE_URL%%portfolio/files/e9c519634b2cefe695707c41.png)\r\n\r\n---------------\r\n\r\n### Portfolio website\r\n\r\n* 100% controlled by the ERP system\r\n* Has a section for services done by the company\r\n* Has a section for the company's current and recent projects\r\n* Detailed about us page\r\n\r\n![](%%STORAGE_URL%%portfolio/files/ce751bc7badf34f5bb14af70.png)\r\n\r\n### Services\r\n\r\nEach service can have 1 or multiple images along with a title and description\r\n\r\n![](%%STORAGE_URL%%portfolio/files/503825cfb7afc168b0e308b9.png)\r\n\r\n\r\n### Projects\r\n\r\n* Projects are filterable by type (construction, maintenance, private villas) \r\n![](%%STORAGE_URL%%portfolio/files/edf57de3705f269f9d11c487.png)\r\n\r\n* Each project has a detailed view with a description of the project.\r\n\r\n![](%%STORAGE_URL%%portfolio/files/07db1299fd1c09607e87bfe1.png)\r\n\r\n### History\r\n\r\nThe history of the company is shown in a timeline with points for important events.\r\n\r\n![](%%STORAGE_URL%%portfolio/files/b66e4b004abdd47bde2d1685.png)\r\n\r\n### Motion\r\n\r\nWe adopted a philosophy of light motion in the website, sliding effects, and fade effects which give a natural pleasant feeling to the overall experience.\r\n\r\n%%STORAGE_URL%%portfolio/files/453a801d8f8e6fb54bebc453.mp4?!#title=%20Motion\r\n\r\n\r\n\r\n",
+            "hosting": null,
+            "starts_at": "2021-07-18",
+            "ends_at": null,
+            "image_path": "portfolio/covers/6da47b03ceeebf55c864505f.jpg",
+            "is_featured": false,
+            "sort_order": 8,
+            "portfolio_category": "business",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "react",
+                "php",
+                "sql"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://tropical-co.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "Tapkha",
+            "description": "Recipe sharing system with mobile app and full bilingual support RTL and LTR advanced recipe search and beautiful UI.",
+            "markdown_description": null,
+            "hosting": null,
+            "starts_at": "2021-07-18",
+            "ends_at": null,
+            "image_path": "portfolio/covers/c24368d141581e3c6742cbd0.png",
+            "is_featured": false,
+            "sort_order": 9,
+            "portfolio_category": "business",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "react",
+                "php",
+                "cicd",
+                "sql",
+                "react-native"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://tapkha.com",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "IDesigns",
+            "description": "AI-powered platform to design and customize your favorite products. Lost for a gift idea? Get the perfect gift idea\r\nfrom a topic of interest or an inside joke.",
+            "markdown_description": null,
+            "hosting": null,
+            "starts_at": "2023-03-03",
+            "ends_at": null,
+            "image_path": "portfolio/covers/772add159c4837eac5166887.png",
+            "is_featured": false,
+            "sort_order": 10,
+            "portfolio_category": "creative",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "aws",
+                "react",
+                "fastapi"
+            ],
+            "links": [
+                {
+                    "label": "Website",
+                    "url": "https://www.idesigns.shop",
+                    "position": 0
+                }
+            ]
+        },
+        {
+            "name": "million pictures of love",
+            "description": "",
+            "markdown_description": null,
+            "hosting": null,
+            "starts_at": "2023-01-20",
+            "ends_at": null,
+            "image_path": "portfolio/covers/caf91000a6740f1980082bde.svg",
+            "is_featured": false,
+            "sort_order": 11,
+            "portfolio_category": "creative",
+            "status_slug": "completed",
+            "self_client": false,
+            "skills": [
+                "linux",
+                "aws",
+                "react",
+                "php",
+                "typescript",
+                "docker",
+                "git",
+                "cicd",
+                "sql"
+            ],
+            "links": []
+        }
+    ],
+    "sections": [
+        {
+            "key": "about",
+            "title": "About Nour",
+            "body_markdown": "I build custom software systems for businesses — and I've been doing it since 2015. Not templates, not plugins: real systems, designed around how a business actually works, then built to run it day after day.\n\nAlong the way that's meant CRMs and ERPs running a working brokerage, education platforms used by real students (including one I built and now teach on myself), and AI agents that answer customers, search company data, and take over repetitive work — all live in production, not in demos.\n\nThe other half of my life is teaching: I teach 2nd-secondary students at language schools, on a platform I built myself. It keeps me honest — if I can explain it to a classroom, I can explain it to a boardroom. If you're building something, I'd love to hear about it.",
+            "metadata": null,
+            "sort_order": 0,
+            "is_published": true
+        },
+        {
+            "key": "education",
+            "title": "Learn programming the way it should be taught.",
+            "body_markdown": "In-person sessions, a workbook full of practice, and support that continues long after the lesson ends. Every tool in this course was built by your teacher — the platform, the workbook, even the AI that answers your questions.",
+            "metadata": {
+                "tagline": "Programming · 2nd Secondary · Language Schools",
+                "leenedu_url": "https://leenedu.net"
+            },
+            "sort_order": 0,
+            "is_published": true
+        },
+        {
+            "key": "education.ai",
+            "title": "Your book has an AI now",
+            "body_markdown": "Every workbook comes with an AI assistant that answers only from your curriculum — nothing off-topic, nothing made up. Ask it anything from the book, anytime, and it explains the idea the way your teacher would. If a question is outside the curriculum, it politely says no.",
+            "metadata": {
+                "icon": "bot"
+            },
+            "sort_order": 4,
+            "is_published": true
+        },
+        {
+            "key": "education.cta",
+            "title": "Seats are limited — join the next group",
+            "body_markdown": "Groups stay small on purpose, so every student gets real attention. Message me on WhatsApp to reserve a seat, or email anytime.",
+            "metadata": {
+                "icon": "whatsapp"
+            },
+            "sort_order": 7,
+            "is_published": true
+        },
+        {
+            "key": "education.leenedu",
+            "title": "Leen Edu — my own platform",
+            "body_markdown": "Every lesson is also recorded and published on Leen Edu, the education platform I built myself — so revision is always one click away. The same platform runs schools and instructors across Egypt, built by the developer of Leen Edu and Math Masr.",
+            "metadata": {
+                "icon": "monitor",
+                "live_url": "https://leenedu.net"
+            },
+            "sort_order": 6,
+            "is_published": true
+        },
+        {
+            "key": "education.offer",
+            "title": "What you get",
+            "body_markdown": "More than lessons — a complete system around them. In-person sessions, a printed workbook with answers a scan away, an AI assistant trained on your curriculum, quizzes that track your progress, scores sent home on WhatsApp, and recorded videos to revise anytime.",
+            "metadata": {
+                "icon": "gift"
+            },
+            "sort_order": 1,
+            "is_published": true
+        },
+        {
+            "key": "education.session",
+            "title": "How a session works",
+            "body_markdown": "Every session follows the same calm rhythm: we take attendance, warm up with a short quiz on the last lesson, learn the new material together, and finish by solving a group quiz as a team. After class, every student's scores reach their parents on WhatsApp.",
+            "metadata": {
+                "icon": "clipboard"
+            },
+            "sort_order": 2,
+            "is_published": true
+        },
+        {
+            "key": "education.whatsapp",
+            "title": "WhatsApp, always open",
+            "body_markdown": "Scores and progress reports arrive on WhatsApp after every quiz — students and parents always know exactly where things stand. Have a question between sessions? Send it anytime and it gets answered as soon as possible.",
+            "metadata": {
+                "icon": "whatsapp"
+            },
+            "sort_order": 5,
+            "is_published": true
+        },
+        {
+            "key": "education.workbook",
+            "title": "The workbook",
+            "body_markdown": "About 100 questions for every lesson, across roughly 15 lessons — from gentle warm-ups to real exam-style challenges. Stuck on a question? Scan the QR code next to it and the answer opens on your phone, with the steps explained.",
+            "metadata": {
+                "icon": "book"
+            },
+            "sort_order": 3,
+            "is_published": true
+        }
+    ],
+    "feedback": [
+        {
+            "name": "Fuad",
+            "role": "United Kingdom",
+            "quote": "I've worked with Nour for the last 2 months on an AI enhanced E-commerce website project. He's taken care of all of the work related to the Front-End and most of the Backend. Nour has been great at communication and collaboration to deliver the project. He was really reasonable when it came to iterating to achieve the desired quality. Working with Nour has been a pleasure and he has delivered high quality working website despite a few technical surprises that came up as a result of integrating with 3rd party APIs.\nI would recommend Nour to anyone looking for a high quality full-stack developer.",
+            "source": "upwork",
+            "rating": null,
+            "project_name": "IDesigns",
+            "is_published": true,
+            "sort_order": 0
+        },
+        {
+            "name": "Lance",
+            "role": "United Kingdom",
+            "quote": "Nour stands out for his diligent work ethic and receptive attitude. His swift response to changes and requests ensured the smooth progress my project. Working alongside Nour has been a pleasure, and I look forward to our ongoing partnership as he continues to contribute to the development of my project.\nWithout hesitation, I highly recommend Nour to anyone seeking a top-tier full-stack developer.",
+            "source": "upwork",
+            "rating": null,
+            "project_name": null,
+            "is_published": true,
+            "sort_order": 1
+        },
+        {
+            "name": "Tormod",
+            "role": "Norway",
+            "quote": "Nour is very responsive and hardworking. We never had a problem requesting changes from him. Also very open to suggestions and feedback. Will definitely re-hire him once we have new updates for our webpage.",
+            "source": "upwork",
+            "rating": null,
+            "project_name": null,
+            "is_published": true,
+            "sort_order": 2
+        },
+        {
+            "name": "Tormod",
+            "role": "Norway",
+            "quote": "This is the second time we use Nour Abo for our projects, very active and quick and deliver quality labour! <3",
+            "source": "upwork",
+            "rating": null,
+            "project_name": null,
+            "is_published": true,
+            "sort_order": 3
+        }
+    ],
+    "skills": [
+        {
+            "name": "AWS",
+            "slug": "aws",
+            "icon": "portfolio/skills/unified/amazonwebservices.svg"
+        },
+        {
+            "name": "CI/CD",
+            "slug": "cicd",
+            "icon": "portfolio/skills/unified/cicd.svg"
+        },
+        {
+            "name": "Docker",
+            "slug": "docker",
+            "icon": "portfolio/skills/unified/docker.svg"
+        },
+        {
+            "name": "FastAPI",
+            "slug": "fastapi",
+            "icon": "portfolio/skills/unified/fastapi.svg"
+        },
+        {
+            "name": "Figma",
+            "slug": "figma",
+            "icon": "portfolio/skills/unified/figma.svg"
+        },
+        {
+            "name": "Git",
+            "slug": "git",
+            "icon": "portfolio/skills/unified/git.svg"
+        },
+        {
+            "name": "Inertia",
+            "slug": "inertia",
+            "icon": "portfolio/skills/unified/inertia.svg"
+        },
+        {
+            "name": "JavaScript",
+            "slug": "javascript",
+            "icon": "portfolio/skills/unified/javascript.svg"
+        },
+        {
+            "name": "LangChain",
+            "slug": "langchain",
+            "icon": "portfolio/skills/unified/langchain.svg"
+        },
+        {
+            "name": "LangGraph",
+            "slug": "langgraph",
+            "icon": "portfolio/skills/unified/langgraph.svg"
+        },
+        {
+            "name": "Laravel",
+            "slug": "laravel",
+            "icon": "portfolio/skills/unified/laravel.svg"
+        },
+        {
+            "name": "Linux",
+            "slug": "linux",
+            "icon": "portfolio/skills/unified/linux.svg"
+        },
+        {
+            "name": "MySQL",
+            "slug": "mysql",
+            "icon": "portfolio/skills/unified/mysql.svg"
+        },
+        {
+            "name": "Next.js",
+            "slug": "nextjs",
+            "icon": "portfolio/skills/unified/nextdotjs.svg"
+        },
+        {
+            "name": "Node.js",
+            "slug": "nodejs",
+            "icon": "portfolio/skills/unified/nodedotjs.svg"
+        },
+        {
+            "name": "OpenAI APIs",
+            "slug": "openai-apis",
+            "icon": "portfolio/skills/unified/openai.svg"
+        },
+        {
+            "name": "PHP",
+            "slug": "php",
+            "icon": "portfolio/skills/unified/php.svg"
+        },
+        {
+            "name": "RAG",
+            "slug": "rag",
+            "icon": "portfolio/skills/unified/rag.svg"
+        },
+        {
+            "name": "React",
+            "slug": "react",
+            "icon": "portfolio/skills/unified/react.svg"
+        },
+        {
+            "name": "React Native",
+            "slug": "react-native",
+            "icon": "portfolio/skills/unified/react-native.svg"
+        },
+        {
+            "name": "SQL",
+            "slug": "sql",
+            "icon": "portfolio/skills/unified/sql.svg"
+        },
+        {
+            "name": "Tailwind",
+            "slug": "tailwind",
+            "icon": "portfolio/skills/unified/tailwindcss.svg"
+        },
+        {
+            "name": "Three.js",
+            "slug": "threejs",
+            "icon": "portfolio/skills/unified/threedotjs.svg"
+        },
+        {
+            "name": "TypeScript",
+            "slug": "typescript",
+            "icon": "portfolio/skills/unified/typescript.svg"
+        },
+        {
+            "name": "Vector Databases",
+            "slug": "vector-databases",
+            "icon": "portfolio/skills/unified/vector-databases.svg"
+        },
+        {
+            "name": "Vite",
+            "slug": "vite",
+            "icon": "portfolio/skills/unified/vite.svg"
+        }
+    ],
+    "assets": [
+        "portfolio/covers/1e6f8a3b9c4d2750.png",
+        "portfolio/covers/2a7c4e8f1b5d3960.png",
+        "portfolio/covers/4d8e1f6a2c5b7930.png",
+        "portfolio/covers/6da47b03ceeebf55c864505f.jpg",
+        "portfolio/covers/6f1b9d3a5c2e4870.png",
+        "portfolio/covers/772add159c4837eac5166887.png",
+        "portfolio/covers/7b3c9d2e5f1a4b68.png",
+        "portfolio/covers/8c2d5e7f1a4b6930.png",
+        "portfolio/covers/9f4e2a1b7c3d4e5f.png",
+        "portfolio/covers/c24368d141581e3c6742cbd0.png",
+        "portfolio/covers/c6580cd5d0d2f958e680fb91.png",
+        "portfolio/covers/caf91000a6740f1980082bde.svg",
+        "portfolio/files/00bf459989a970058fea.webp",
+        "portfolio/files/0640c5d15d427e31e2a8.webp",
+        "portfolio/files/065d6bfa50bcabbc580b20ce.png",
+        "portfolio/files/07db1299fd1c09607e87bfe1.png",
+        "portfolio/files/0ab918e71c28954c807d.png",
+        "portfolio/files/1696c0144e194edd044f.png",
+        "portfolio/files/1fd463cf8ffa43538bfa0fcf.png",
+        "portfolio/files/29b2329f016a09c9cdf5.webp",
+        "portfolio/files/32d326c3dd9fb96855be.webp",
+        "portfolio/files/453a801d8f8e6fb54bebc453.mp4",
+        "portfolio/files/474cc6cc8bb1a0f1f6cb.webp",
+        "portfolio/files/48b56274cd3f27a5f60a.png",
+        "portfolio/files/503825cfb7afc168b0e308b9.png",
+        "portfolio/files/545f6d6574dd8dba4db8.webp",
+        "portfolio/files/548cbac133b062b99e0e03cf.jpg",
+        "portfolio/files/54b0ae13d664bc592084eff9.mp4",
+        "portfolio/files/57d74c6c67bfe89e37c382df.png",
+        "portfolio/files/5f3f3b1f54a72f1cd624.webp",
+        "portfolio/files/6997fc3a9557c33b2bdc.png",
+        "portfolio/files/7e21c00abb3def31589c.webp",
+        "portfolio/files/8d1bea937c54ddfecac0.webp",
+        "portfolio/files/9788b9610391f729dd2d0e2a.jpg",
+        "portfolio/files/9968c42eefb47b9b7301.webp",
+        "portfolio/files/9990054cf72bff67e010.png",
+        "portfolio/files/9eb2372df50778c971c3.webp",
+        "portfolio/files/a1fdea682a4870593333.webp",
+        "portfolio/files/b66e4b004abdd47bde2d1685.png",
+        "portfolio/files/bcfa527cc2074c7dab14eec9.mp4",
+        "portfolio/files/c072ad11060908512f4b5d9a.png",
+        "portfolio/files/ce751bc7badf34f5bb14af70.png",
+        "portfolio/files/d4ed763b3976f0a763b74611.png",
+        "portfolio/files/e036fdbc4ddaba0a93ad.png",
+        "portfolio/files/e9c519634b2cefe695707c41.png",
+        "portfolio/files/ebf5a1271b45febf4d53.webp",
+        "portfolio/files/edf57de3705f269f9d11c487.png",
+        "portfolio/files/ef191f180125747bbccce6c6.png",
+        "portfolio/files/f13048a3634b779d4a46.png",
+        "portfolio/files/f87552894a6517144389.webp",
+        "portfolio/skills/unified/amazonwebservices.svg",
+        "portfolio/skills/unified/cicd.svg",
+        "portfolio/skills/unified/docker.svg",
+        "portfolio/skills/unified/fastapi.svg",
+        "portfolio/skills/unified/figma.svg",
+        "portfolio/skills/unified/git.svg",
+        "portfolio/skills/unified/inertia.svg",
+        "portfolio/skills/unified/javascript.svg",
+        "portfolio/skills/unified/langchain.svg",
+        "portfolio/skills/unified/langgraph.svg",
+        "portfolio/skills/unified/laravel.svg",
+        "portfolio/skills/unified/linux.svg",
+        "portfolio/skills/unified/mysql.svg",
+        "portfolio/skills/unified/nextdotjs.svg",
+        "portfolio/skills/unified/nodedotjs.svg",
+        "portfolio/skills/unified/openai.svg",
+        "portfolio/skills/unified/php.svg",
+        "portfolio/skills/unified/rag.svg",
+        "portfolio/skills/unified/react-native.svg",
+        "portfolio/skills/unified/react.svg",
+        "portfolio/skills/unified/sql.svg",
+        "portfolio/skills/unified/tailwindcss.svg",
+        "portfolio/skills/unified/threedotjs.svg",
+        "portfolio/skills/unified/typescript.svg",
+        "portfolio/skills/unified/vector-databases.svg",
+        "portfolio/skills/unified/vite.svg"
+    ]
+}

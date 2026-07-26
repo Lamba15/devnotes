@@ -11,10 +11,15 @@ use App\Models\ProjectStatus;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\ClientPermissionCatalog;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
+
+afterEach(function () {
+    CarbonImmutable::setTestNow();
+});
 
 function grantFinancePermissions(ClientMembership $membership, array $permissions): void
 {
@@ -143,6 +148,11 @@ test('client members with finance permission can visit finance pages in their pr
 });
 
 test('client finance page exposes relationship analysis and timeline data', function () {
+    // The timeline runs from the first finance event through the current month
+    // (BuildsFinanceAnalysis anchors at now), so freeze time into the fixture
+    // window — otherwise the expected point count shifts with the calendar.
+    CarbonImmutable::setTestNow('2026-04-15');
+
     $user = User::factory()->create();
     $client = Client::factory()->create([
         'behavior_id' => Behavior::query()->firstOrFail()->id,

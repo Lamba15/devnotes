@@ -26,7 +26,10 @@ class WorkspaceAccess
             return null;
         }
 
-        return User::query()->find($id);
+        // Memoize per request — callers (Inertia shared props, issue serializers)
+        // resolve the main owner once per row, and find() would otherwise
+        // issue one query for every call.
+        return once(fn () => User::query()->find($id));
     }
 
     public static function forgetMainPlatformOwnerCache(): void

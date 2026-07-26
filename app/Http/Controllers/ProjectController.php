@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -180,6 +181,10 @@ class ProjectController extends Controller
                 'budget' => $project->budget,
                 'currency' => $project->currency,
                 'image_path' => $project->image_path,
+                'is_published' => $project->is_published,
+                'is_featured' => $project->is_featured,
+                'sort_order' => $project->sort_order,
+                'portfolio_category' => $project->portfolio_category,
                 'skills' => $project->skills->map(fn (Skill $skill) => ['id' => $skill->id, 'name' => $skill->name])->all(),
                 'links' => $project->links->map(fn ($link) => [
                     'id' => $link->id,
@@ -266,6 +271,10 @@ class ProjectController extends Controller
                 'budget' => $project->budget,
                 'currency' => $project->currency,
                 'image_path' => $project->image_path,
+                'is_published' => $project->is_published,
+                'is_featured' => $project->is_featured,
+                'sort_order' => $project->sort_order,
+                'portfolio_category' => $project->portfolio_category,
                 'skills' => $project->skills->map(fn (Skill $skill) => ['id' => $skill->id, 'name' => $skill->name])->all(),
                 'links' => $project->links->map(fn ($link) => [
                     'id' => $link->id,
@@ -501,6 +510,10 @@ class ProjectController extends Controller
             'description' => ['nullable', 'string'],
             'markdown_description' => ['nullable', 'string'],
             'hosting' => ['nullable', 'string', 'max:255'],
+            'is_published' => ['nullable', 'boolean'],
+            'is_featured' => ['nullable', 'boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'portfolio_category' => ['nullable', 'string', Rule::in(Project::PORTFOLIO_CATEGORIES)],
             'budget' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
             'skills' => ['nullable', 'array'],

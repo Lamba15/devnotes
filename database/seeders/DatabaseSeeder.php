@@ -30,5 +30,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(LegacyFullSeeder::class);
+        $this->call(LegacyPortfolioSeeder::class);
+        $this->call(PortfolioContentSeeder::class);
     }
 }
