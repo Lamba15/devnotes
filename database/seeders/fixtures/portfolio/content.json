@@ -110,12 +110,12 @@
         },
         {
             "name": "Odynza",
-            "description": "My AI company — \"Applied AI Engineering\": the studio building localized AI products for the Arab world, starting with EgyGPT. Brand, platform, and the home of everything I ship next.",
-            "markdown_description": "Odynza is the company behind my AI work — \"Applied AI Engineering: cognitive infrastructure for the Arab world.\" It's the vehicle that turns projects like EgyGPT from experiments into products with a brand, a mission, and a home.\n\n## What it is\n\n- **The mission**: design AI that belongs to everyone — local, accessible, and human.\n- **The flagship**: EgyGPT, the Egyptian Arabic ChatGPT, is its first product; more localized AI products are on the way.\n- **The site**: a full product/company platform — a 3D interactive hero (Three.js), product showcases, a careers pipeline, and an admin backend.\n\n## The stack\n\nReact 18 + Vite frontend with a WebGL-powered 3D experience, a Node.js + Express API on PostgreSQL, Firebase integrations, and an admin panel for content — deployed on Railway.\n\n## Why it mattered\n\nEvery company needs a front door, and mine had to feel like the work: ambitious, technical, and a little theatrical. Odynza is where the AI products I build stop being \"projects\" and start being a company.\n\n## Screenshots\n\n\n![The 3D hero — a WebGL robot holding the company name](%%STORAGE_URL%%portfolio/files/474cc6cc8bb1a0f1f6cb.webp)\n\n*The 3D hero — a WebGL robot holding the company name*\n\n\n![What we're building — EgyGPT first, more to come](%%STORAGE_URL%%portfolio/files/9eb2372df50778c971c3.webp)\n\n*What we're building — EgyGPT first, more to come*\n\n\n![EgyGPT — the first chapter in a global story](%%STORAGE_URL%%portfolio/files/f87552894a6517144389.webp)\n\n*EgyGPT — the first chapter in a global story*\n\n\n![Contact — the front door is open](%%STORAGE_URL%%portfolio/files/ebf5a1271b45febf4d53.webp)\n\n*Contact — the front door is open*\n",
+            "description": "Applied AI engineering for businesses that need more than a chat window: agents, secure infrastructure, and deep integrations rooted in local data and language.",
+            "markdown_description": "Odynza is an applied AI engineering company building agents, secure infrastructure, and deep integrations rooted in local data and language. The current product story is deliberately practical: useful intelligence that can work inside a real Egyptian business.\n\n![Odynza's current live home page](%%STORAGE_URL%%portfolio/files/odynza-live-hero.png)\n\n*The current Odynza home page — captured from [odynza.com](https://odynza.com).*\n\n## A local AI workforce\n\nThe public product surface introduces **EgyGPT: The Workforce OS**: a consumer-facing gateway to the Odynza ecosystem where a team can work with region-aware intelligence, specialised agents, and corporate data in one secure interface. This is a much sharper direction than a generic chatbot: the product is framed around local context and a job to be done.\n\n![EgyGPT's Workforce OS product surface](%%STORAGE_URL%%portfolio/files/odynza-live-egygpt.png)\n\n*EgyGPT, as it appears on the live site.*\n\n## Agents with a specific job\n\nThe agents gallery turns that promise into concrete tools. FinanceFlow Egypt, for example, is presented as an ETA-compliant tax workflow that can ingest raw Excel sheets and invoices, classify them against Egyptian tax law, and prepare submissions. The interface makes the important product decision visible: these are focused work surfaces, not one enormous assistant trying to do everything.\n\n![Odynza Agents Gallery, showing FinanceFlow Egypt](%%STORAGE_URL%%portfolio/files/odynza-live-agents.png)\n\n*The current Agents Gallery on odynza.com.*\n\n## Integration is the product\n\nOdynza positions deployment as part of the engineering work, not an afterthought. Its integration layer covers workflow automation, connections to systems such as SAP, Salesforce, Microsoft Dynamics, and custom SQL databases, plus private-cloud or on-premise deployment for security and compliance.\n\n![Odynza Enterprise AI Integration diagram](%%STORAGE_URL%%portfolio/files/odynza-live-integration.png)\n\n*The live integration architecture view: data layer, orchestration, and specialised intelligence.*\n\n## Why this presentation matters\n\nThe old case study described a past visual direction. This version documents the live product instead: a clear company proposition, tangible agent workflows, and the systems work required to put AI into production.\n",
             "hosting": null,
             "starts_at": "2025-11-09",
             "ends_at": null,
-            "image_path": "portfolio/covers/8c2d5e7f1a4b6930.png",
+            "image_path": "portfolio/files/odynza-live-hero.png",
             "is_featured": false,
             "sort_order": 4,
             "portfolio_category": "business",
@@ -124,10 +124,9 @@
             "skills": [
                 "react",
                 "javascript",
-                "nodejs",
+                "typescript",
                 "cicd",
-                "sql",
-                "threejs"
+                "sql"
             ],
             "links": [
                 {
@@ -653,6 +652,10 @@
         "portfolio/files/mathmasr-home.png",
         "portfolio/files/mathmasr-mobile.png",
         "portfolio/files/million-pictures-home.png",
+        "portfolio/files/odynza-live-agents.png",
+        "portfolio/files/odynza-live-egygpt.png",
+        "portfolio/files/odynza-live-hero.png",
+        "portfolio/files/odynza-live-integration.png",
         "portfolio/skills/unified/amazonwebservices.svg",
         "portfolio/skills/unified/cicd.svg",
         "portfolio/skills/unified/docker.svg",
