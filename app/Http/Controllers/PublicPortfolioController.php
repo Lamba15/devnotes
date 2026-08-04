@@ -26,7 +26,7 @@ class PublicPortfolioController extends Controller
 
         $projects = Project::query()
             ->published()
-            ->with(['skills:id,name,slug,icon', 'links', 'gitRepos'])
+            ->with(['skills:id,name,slug,icon', 'links'])
             ->when(
                 $validated['category'] ?? null,
                 fn (Builder $query, string $category) => $query->where('portfolio_category', $category),
@@ -46,7 +46,7 @@ class PublicPortfolioController extends Controller
     {
         abort_unless($project->is_published, 404);
 
-        $project->load(['skills:id,name,slug,icon', 'links', 'gitRepos']);
+        $project->load(['skills:id,name,slug,icon', 'links']);
 
         return new ProjectResource($project);
     }

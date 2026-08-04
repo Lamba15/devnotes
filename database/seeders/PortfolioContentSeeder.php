@@ -104,7 +104,7 @@ class PortfolioContentSeeder extends Seeder
                 'starts_at' => $attributes['starts_at'],
                 'ends_at' => $attributes['ends_at'],
                 'image_path' => $attributes['image_path'],
-                'is_published' => true,
+                'is_published' => $attributes['is_published'] ?? true,
                 'is_featured' => $attributes['is_featured'],
                 'sort_order' => $attributes['sort_order'],
                 'portfolio_category' => $attributes['portfolio_category'],

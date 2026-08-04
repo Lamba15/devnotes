@@ -3,7 +3,6 @@
 namespace App\Http\Resources\Portfolio;
 
 use App\Models\Project;
-use App\Models\ProjectGitRepo;
 use App\Models\ProjectLink;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -35,12 +34,6 @@ class ProjectResource extends JsonResource
                 'label' => $link->label,
                 'url' => $link->url,
                 'position' => $link->position,
-            ])->all()),
-            'git_repos' => $this->whenLoaded('gitRepos', fn () => $this->gitRepos->map(fn (ProjectGitRepo $repo) => [
-                'name' => $repo->name,
-                'repo_url' => $repo->repo_url,
-                'wakatime_badge_url' => $repo->wakatime_badge_url,
-                'position' => $repo->position,
             ])->all()),
         ];
     }
