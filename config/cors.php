@@ -15,7 +15,7 @@ return [
 
     'paths' => ['api/*'],
 
-    'allowed_methods' => ['GET'],
+    'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
 
     'allowed_origins' => [
         'https://nouraboelsoud.com',

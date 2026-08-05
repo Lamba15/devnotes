@@ -1,8 +1,13 @@
 <?php
 
+use App\Http\Controllers\PublicAnalyticsController;
 use App\Http\Controllers\PublicPortfolioController;
 use Illuminate\Http\Middleware\SetCacheHeaders;
 use Illuminate\Support\Facades\Route;
+
+Route::post('analytics/events', [PublicAnalyticsController::class, 'store'])
+    ->middleware('throttle:analytics')
+    ->name('api.analytics.events.store');
 
 Route::prefix('portfolio')
     ->name('api.portfolio.')

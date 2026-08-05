@@ -6,7 +6,6 @@ import {
     FolderKanban,
     LayoutGrid,
     ScrollText,
-    Settings,
     Ticket,
     Users,
     Wallet,
@@ -163,6 +162,10 @@ export function AppSidebar() {
                       href: '/cms/pages',
                       icon: FileBox,
                       items: [
+                          {
+                              title: 'Analytics',
+                              href: '/cms/analytics',
+                          },
                           {
                               title: 'Pages',
                               href: '/cms/pages',

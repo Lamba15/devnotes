@@ -11,6 +11,7 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientMembershipController;
 use App\Http\Controllers\ClientSecretController;
 use App\Http\Controllers\ClientStatusController;
+use App\Http\Controllers\CmsAnalyticsController;
 use App\Http\Controllers\CmsContentSectionController;
 use App\Http\Controllers\CmsFeedbackController;
 use App\Http\Controllers\CmsSkillController;
@@ -181,6 +182,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::middleware('platform.owner')->group(function () {
+        Route::get('cms/analytics', CmsAnalyticsController::class)->name('cms.analytics.index');
         Route::get('cms/pages', [CmsContentSectionController::class, 'index'])->name('cms.pages.index');
         Route::post('cms/pages', [CmsContentSectionController::class, 'store'])->name('cms.pages.store');
         Route::put('cms/pages/{contentSection}', [CmsContentSectionController::class, 'update'])->name('cms.pages.update');

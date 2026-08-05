@@ -7,6 +7,7 @@ This directory captures the current agreed shape of the system.
 - [Product Overview](./product/overview.md): what the system fundamentally is
 - [Product Scope](./product/scope.md): currently known top-level domains and planning boundaries
 - [Branding](./product/branding.md): inherited logo and color direction
+- [Website Analytics](./product/analytics.md): first-party telemetry, metric definitions, privacy boundaries, and CMS dashboard direction
 - [Domain](./domain/core-model.md): current top-level product entities and relationship rules
 - [Client](./domain/client.md): client record direction and known fields
 - [Project](./domain/project.md): project fields, statuses, finance integration, and access rules
